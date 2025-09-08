@@ -1,0 +1,41 @@
+Cześć pomóż mi rozwinąć mój skrypt o faze 3 według punktów:
+
+1. Przeanalizuj dokładnie przesłane pliki, zrozum co robią oraz jak działają
+
+2. w pliku shadowmap doajemy do Menu opcje 3 "Faza 3 - Web Crawling"
+
+3. tworzymy nowy plik "Phase3_webcrawling.py"
+
+4. W Phase3_webcrawling.py tworzymy logikę powiązaną z faza 2 czyli za pomocą narzedzi :
+
+a. Katana
+
+b. hkkrawler
+
+c. LinkFinder
+
+d. ParamSpider
+
+5. User ma możliwość wyboru narzedzi jak w fazie 1 i 2
+
+6. Jeżeli użytkownik wybierze na początku faze 1 to po zakończeniu skanowania skrypt pyta czy przejść do fazy 2 i analogicznie do fazy 3
+
+a. Jeżeli nie to generuje raport z wynikami faz które zakończył
+
+b. Jeżeli tak pojawia się menu wyboru narzedzi fazy 3, faza 3 pracuje na wynikach httpx z fazy 2
+
+c. po zakoncvzeniu fazy 3 skrypt generuje raport z wynikami zakonczonych faz
+
+7.Dostosuj faze 3 do wyglądu i zmiennych potrzebnych dla fazy 3 (w raporcie wyświetlaj wyniki podzielone na 
+a) Parametry
+b) Pliki JS
+c) Endpointy API
+d) Interesujące ścieżki
+e) usuń zakładkę 'wrażliwe ścieżki' opcja 'pokaż tylko czerwone' spełnia kryteria wrażliwych ścieżek
+
+8. faza 3 musi ściśle działać z safe mode (to kluczowy element)
+
+9. jezeli user od razu wybierze faze 3 (pomija faze 1 i 2 ) to narzedzia skanuja podana domenę oraz na początku odpala wafw00f i jezeli wykryje waf to pyta o safe mode
+
+10. Dostosuj plik install.py (nie zmieniaj wyglądu skryptu install - uważam że jest bardzo estetyczny) do nowej fazy i o nowe narzedzia, plik Phase3_webcrawling.py ma być skopiowany do /usr/local/share/shadowmap/ i nadane mu chmod +x 
+11. Postaraj się nie zepsuć już istniejących faz i logiki bo dużo się napracowaliśmy
