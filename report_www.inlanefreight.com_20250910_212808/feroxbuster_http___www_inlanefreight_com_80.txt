@@ -1,0 +1,2 @@
+301      GET        9l       28w        -c Auto-filtering found 404-like response and created new filter; toggle off with --dont-filter
+

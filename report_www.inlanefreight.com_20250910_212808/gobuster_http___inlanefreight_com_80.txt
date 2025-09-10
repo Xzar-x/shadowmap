@@ -1,0 +1,8 @@
+/server-status        (Status: 403) [Size: 283]
+/wp-includes          (Status: 200) [Size: 49045]
+/wp-content           (Status: 200) [Size: 0]
+/xmlrpc.php           (Status: 405) [Size: 42]
+/wp-login.php         (Status: 200) [Size: 7404]
+/.htaccess            (Status: 403) [Size: 283]
+/wp-admin             (Status: 200) [Size: 7400]
+/index.php            (Status: 200) [Size: 22266]

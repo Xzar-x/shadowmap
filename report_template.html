@@ -715,10 +715,35 @@
 
         // --- Nawigacja Zakładek ---
         function openMainTab(evt, tabName) {
-            // ... (kod bez zmian) ...
+            let i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("main-tab-button");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
         }
+
         function openSubTab(evt, mainTabName, subTabName) {
-            // ... (kod bez zmian) ...
+            let i, subtabcontent, subtablinks;
+            const mainTab = document.getElementById(mainTabName);
+            
+            subtabcontent = mainTab.getElementsByClassName("sub-tab-content");
+            for (i = 0; i < subtabcontent.length; i++) {
+                subtabcontent[i].style.display = "none";
+            }
+            
+            subtablinks = mainTab.getElementsByClassName("sub-tab-button");
+            for (i = 0; i < subtablinks.length; i++) {
+                subtablinks[i].className = subtablinks[i].className.replace(" active", "");
+            }
+            
+            document.getElementById(mainTabName + "-" + subTabName).style.display = "block";
+            evt.currentTarget.className += " active";
         }
 
         // --- Inicjalizacja ---
@@ -748,9 +773,13 @@
             renderSimpleList(rawAllSubdomains, 'all-subdomains-results', '🌍', 'gray');
             renderSimpleList(rawAllUrlsCombined, 'all-urls-combined-results', '🔗', 'gray');
             
+            // Aktywuj pierwszą główną i podrzędną zakładkę
             document.querySelector('.main-tab-button').click();
+            const firstSubTab = document.querySelector('.sub-tab-button');
+            if(firstSubTab) {
+                firstSubTab.click();
+            }
         });
     </script>
 </body>
 </html>
-

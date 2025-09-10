@@ -70,9 +70,9 @@ TEMP_FILES_TO_CLEAN = []
 SAFE_MODE = False
 CUSTOM_HEADER = ""
 SCAN_ONLY_CRITICAL = False
-selected_phase1_tools = [1, 1, 1, 0] # Subfinder, Assetfinder, Findomain, Puredns
-selected_phase2_tools = [1, 1, 1, 0] # Ffuf, Feroxbuster, Dirsearch, Gobuster
-selected_phase3_tools = [1, 1, 1, 1, 1] # Katana, Hakrawler, ParamSpider, LinkFinder, gauplus
+selected_phase1_tools = [0, 0, 0, 0] # Subfinder, Assetfinder, Findomain, Puredns
+selected_phase2_tools = [0, 0, 0, 0] # Ffuf, Feroxbuster, Dirsearch, Gobuster
+selected_phase3_tools = [0, 0, 0, 0, 0] # Katana, Hakrawler, ParamSpider, LinkFinder, gauplus
 TARGET_IS_IP = False
 ORIGINAL_TARGET = ""
 CLEAN_DOMAIN_TARGET = ""
@@ -140,6 +140,16 @@ def get_single_char_input_with_prompt(prompt_text: Text, choices: Optional[List[
         return default
     return choice
 
+def ask_user_decision(question: str, choices: List[str], default: str) -> str:
+    """Wyświetla pytanie w panelu i prosi o odpowiedź użytkownika."""
+    panel = Panel(Text.from_markup(question, justify="center"), border_style="yellow", title="[yellow]Pytanie[/yellow]", expand=False)
+    console.print(Align.center(panel))
+    
+    choice_str = '/'.join(f"[bold]{c}[/bold]" for c in choices)
+    prompt_str = f"\n[cyan]Wybierz opcję ({choice_str})[/cyan] [dim]({default}=Enter)[/dim]: "
+
+    return Prompt.ask(Align.center(prompt_str), choices=choices, default=default)
+
 def display_phase1_tool_selection_menu():
     global selected_phase1_tools, SAFE_MODE
     while True:
@@ -164,8 +174,8 @@ def display_phase1_tool_selection_menu():
 
         table.add_section()
         table.add_row("[5]", "[bold magenta]Zmień ustawienia Fazy 1[/bold magenta]")
-        table.add_row("[b]", "Powrót do menu głównego")
-        table.add_row("[q]", "Wyjdź")
+        table.add_row("[\fb]", "Powrót do menu głównego")
+        table.add_row("[\fq]", "Wyjdź")
         console.print(Align.center(table))
 
         choice = get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
@@ -191,7 +201,6 @@ def display_phase1_tool_selection_menu():
             console.print(Align.center("[bold yellow]Nieprawidłowa opcja. Spróbuj ponownie.[/bold yellow]"))
         time.sleep(0.1)
 
-# ... (reszta funkcji display_..._settings_menu bez zmian) ...
 def display_phase1_settings_menu():
     global WORDLIST_PHASE1, THREADS, TOOL_TIMEOUT_SECONDS, SAFE_MODE, CUSTOM_HEADER, RESOLVERS_FILE
     global USER_CUSTOMIZED_WORDLIST_PHASE1, USER_CUSTOMIZED_USER_AGENT, USER_CUSTOMIZED_THREADS, USER_CUSTOMIZED_TIMEOUT, USER_CUSTOMIZED_RESOLVERS
@@ -222,8 +231,8 @@ def display_phase1_settings_menu():
         table.add_row("[5]", f"Limit czasu narzędzia (aktualny: {timeout_display})")
         table.add_row("[6]", f"Plik resolverów dla Puredns (aktualny: {resolvers_display})")
         table.add_section()
-        table.add_row("[b]", "Powrót do menu Fazy 1")
-        table.add_row("[q]", "Wyjdź")
+        table.add_row("[\fb]", "Powrót do menu Fazy 1")
+        table.add_row("[\fq]", "Wyjdź")
         console.print(Align.center(table))
 
         choice = get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
@@ -297,8 +306,8 @@ def display_phase2_tool_selection_menu():
             table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
         table.add_section()
         table.add_row("[5]", "[bold magenta]Zmień ustawienia Fazy 2[/bold magenta]")
-        table.add_row("[b]", "Powrót do menu głównego")
-        table.add_row("[q]", "Wyjdź")
+        table.add_row("[\fb]", "Powrót do menu głównego")
+        table.add_row("[\fq]", "Wyjdź")
         console.print(Align.center(table))
         choice = get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
         if choice.isdigit() and 1 <= int(choice) <= 4: selected_phase2_tools[int(choice) - 1] = 1 - selected_phase2_tools[int(choice) - 1]
@@ -342,8 +351,8 @@ def display_phase2_settings_menu():
         table.add_row("[6]", f"Limit czasu narzędzia: {timeout_display}")
         table.add_row("[7]", f"Głębokość rekurencji: {recursion_display}")
         table.add_section()
-        table.add_row("[b]", "Powrót do menu Fazy 2")
-        table.add_row("[q]", "Wyjdź")
+        table.add_row("[\fb]", "Powrót do menu Fazy 2")
+        table.add_row("[\fq]", "Wyjdź")
         console.print(Align.center(table))
         choice = get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
         
@@ -379,7 +388,6 @@ def display_phase2_settings_menu():
         else: console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
         time.sleep(0.1)
 
-# AKTUALIZACJA MENU FAZY 3
 def display_phase3_tool_selection_menu():
     global selected_phase3_tools
     while True:
@@ -399,8 +407,8 @@ def display_phase3_tool_selection_menu():
             table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
             
         table.add_section()
-        table.add_row("[b]", "Powrót do menu głównego")
-        table.add_row("[q]", "Wyjdź")
+        table.add_row("[\fb]", "Powrót do menu głównego")
+        table.add_row("[\fq]", "Wyjdź")
         console.print(Align.center(table))
         
         choice = get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
@@ -420,7 +428,6 @@ def display_phase3_tool_selection_menu():
         time.sleep(0.1)
 
 def display_main_menu():
-    # ... (bez zmian) ...
     console.clear()
     display_banner()
     main_panel = Panel.fit("[bold cyan]ShadowMap Main Menu[/bold cyan]")
@@ -432,11 +439,10 @@ def display_main_menu():
     table.add_row("[1]", "Faza 1: Odkrywanie Subdomen")
     table.add_row("[2]", "Faza 2: Wyszukiwanie Katalogów")
     table.add_row("[3]", "Faza 3: Web Crawling")
-    table.add_row("[q]", "Wyjdź")
+    table.add_row("[\fq]", "Wyjdź")
     console.print(Align.center(table))
     return get_single_char_input_with_prompt(Text.from_markup("\n[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
 
-# ... (reszta skryptu shadowmap, w tym PEŁNA implementacja generate_html_report, bez zmian) ...
 def parse_target_input(target_input: str):
     global ORIGINAL_TARGET, TARGET_IS_IP, CLEAN_DOMAIN_TARGET
     ORIGINAL_TARGET = target_input
@@ -460,16 +466,31 @@ def _execute_tool_command(tool_name: str, command_parts: List[str], output_file:
     cmd_str = ' '.join(command_parts)
     console.print(f"[bold cyan]Uruchamiam {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
     try:
-        process = subprocess.run(command_parts, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, text=True, check=False, encoding='utf-8', errors='ignore')
+        process = subprocess.run(
+            command_parts, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE, 
+            timeout=timeout, 
+            text=True, 
+            check=False, 
+            encoding='utf-8', 
+            errors='ignore'
+        )
+        
+        # FIX: Combine stdout and stderr to capture all output
+        combined_output = process.stdout + "\n" + process.stderr
+        
         with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(process.stdout)
+            f.write(combined_output)
+            
         if process.returncode == 0:
             console.print(f"[bold green]✅ {tool_name} zakończył skanowanie.[/bold green]")
             return output_file
         else:
-            log_and_echo(f"Błąd wykonania {tool_name} (kod: {process.returncode}). STDERR: {process.stderr}", "ERROR")
-            console.print(Align.center(f"[bold red]BŁĄD: {tool_name} (kod: {process.returncode}).[/bold red]"))
-            return None
+            # Log non-zero exit code but still return the file, as some tools write errors but also results
+            log_and_echo(f"Narzędzie {tool_name} zakończyło pracę z kodem błędu ({process.returncode}), ale kontynuuję.", "WARN")
+            return output_file
+            
     except Exception as e:
         log_and_echo(f"BŁĄD: Ogólny błąd wykonania '{cmd_str}': {e}", "ERROR")
         console.print(Align.center(f"[bold red]❌ BŁĄD: {tool_name}: {e}[/bold red]"))
@@ -498,7 +519,7 @@ def detect_waf_and_propose_safe_mode():
             console.print(Align.center(Panel(waf_message, title="[yellow]Wynik Detekcji[/yellow]", expand=False, border_style="yellow")))
             
             if not QUIET_MODE:
-                if get_single_char_input_with_prompt(Text.from_markup("\n[bold yellow]Czy chcesz włączyć Tryb Bezpieczny? (y/n)[/bold yellow]", justify="center"), default='n').lower() == 'y':
+                if ask_user_decision("Czy chcesz włączyć Tryb Bezpieczny?", choices=["y", "n"], default="y") == 'y':
                     SAFE_MODE = True
             else: 
                 SAFE_MODE = True
@@ -515,7 +536,10 @@ def detect_waf_and_propose_safe_mode():
     except Exception as e:
         log_and_echo(f"Błąd podczas uruchamiania wafw00f: {e}", "ERROR")
         error_message = Text(f"Błąd podczas detekcji WAF: {e}", justify="center", style="bold red")
-        console.print(Align.center(Panel(error_message, title="[red]Błąd Krytyczny[/red]", expand=False, border_style="red")))
+        # FIX: Avoid potential rendering crash by printing a simple Panel.
+        # The text inside is already centered, achieving a similar visual effect.
+        error_panel = Panel(error_message, title="[red]Błąd Krytyczny[/red]", expand=False, border_style="red")
+        console.print(error_panel)
 
 def start_phase1_scan(global_progress: Progress, global_task: TaskID):
     global REPORT_DIR, selected_phase1_tools, ORIGINAL_TARGET, THREADS, TOOL_TIMEOUT_SECONDS, WORDLIST_PHASE1, SAFE_MODE, CUSTOM_HEADER, RESOLVERS_FILE, CLEAN_DOMAIN_TARGET
@@ -564,13 +588,12 @@ def start_phase1_scan(global_progress: Progress, global_task: TaskID):
     for f_path in output_files_collected.values():
         with open(f_path, 'r', encoding='utf-8') as f:
             all_lines.extend(f.readlines())
-    unique_lines = sorted(list(set(line.strip() for line in all_lines if line.strip())))
+    unique_lines = sorted(list(set(line.strip() for line in all_lines if line.strip() and CLEAN_DOMAIN_TARGET in line)))
     with open(unique_subdomains_file, 'w', encoding='utf-8') as f:
         f.write('\n'.join(unique_lines))
     global_progress.update(global_task, advance=1)
     global_progress.console.print(Align.center("Uruchamiam HTTPX...", style="bold green"))
     httpx_output_file = os.path.join(REPORT_DIR, "httpx_results_phase1.txt")
-    # Nie dodajemy do TEMP_FILES_TO_CLEAN
     httpx_command = ["httpx", "-l", unique_subdomains_file, "-silent", "-fc", "404", "-json"]
     if SAFE_MODE:
         httpx_command.extend(["-p", "80,443,8000,8080,8443", "-rate-limit", "10"])
@@ -682,6 +705,13 @@ def generate_html_report(
         
         return "<br>".join(lines), len(lines)
 
+    def escape_for_js(data_string: str) -> str:
+        """Safely escapes a string for embedding in JavaScript within quotes."""
+        if not data_string:
+            return ""
+        # Use json.dumps to handle all escaping, then strip the outer quotes it adds.
+        return json.dumps(data_string)[1:-1]
+
     replacements['{{DOMAIN}}'] = CLEAN_DOMAIN_TARGET
 
     p1_sub_files = {k: v for k, v in p1_files.items() if k != 'Httpx'}
@@ -706,13 +736,16 @@ def generate_html_report(
         with open(p1_files.get('Httpx'), 'r', encoding='utf-8') as f:
             lines = f.readlines()
             httpx_p1_count = len(lines)
-            httpx_p1_content_raw = "".join(lines).replace('`', '\\`')
-    replacements['{{HTTPX_OUTPUT_RAW_FOR_JS}}'] = httpx_p1_content_raw
+            httpx_p1_content_raw = "".join(lines)
+    # FIX: Use robust escaping for JS data
+    replacements['{{HTTPX_OUTPUT_RAW_FOR_JS}}'] = escape_for_js(httpx_p1_content_raw)
     replacements['{{COUNT_HTTPX}}'] = httpx_p1_count
 
     dirsearch_all, dirsearch_all_count = get_content_and_count(p2_results.get('all_dirsearch_results'), is_file=False)
-    replacements['{{DIR_SEARCH_ALL_OUTPUT}}'] = dirsearch_all.replace('`', '\\`')
+    # FIX: Use robust escaping for JS data
+    replacements['{{DIR_SEARCH_ALL_OUTPUT}}'] = escape_for_js(dirsearch_all)
     replacements['{{COUNT_DIR_SEARCH}}'] = dirsearch_all_count
+    
     replacements['{{DIRSEARCH_SPECIFIC_OUTPUT}}'], _ = get_content_and_count(p2_results.get('dirsearch'), is_file=False)
     replacements['{{FFUF_SPECIFIC_OUTPUT}}'], _ = get_content_and_count(p2_results.get('ffuf'), is_file=False)
     replacements['{{FEROXBUSTER_SPECIFIC_OUTPUT}}'], _ = get_content_and_count(p2_results.get('feroxbuster'), is_file=False)
@@ -783,16 +816,14 @@ def main(
         check_dependencies()
         
         phase1_output_files, httpx_active_urls, phase2_all_results, phase3_raw_results, phase3_httpx_file = {}, [], {}, {}, ""
+        urls_for_phase2 = []
 
         phase1_run, phase2_run, phase3_run = False, False, False
 
-        progress = Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True)
-        
         if QUIET_MODE:
             phase1_run = not (phase2_only or phase3_only)
             phase2_run = True
             phase3_run = True
-            # Domyślne narzędzia w trybie quiet
             selected_phase1_tools = [1,1,1,1] if not TARGET_IS_IP else [0,0,0,1]
             selected_phase2_tools = [1,1,1,1]
             selected_phase3_tools = [1,1,1,1,1]
@@ -810,34 +841,69 @@ def main(
             os.makedirs(REPORT_DIR, exist_ok=True)
             console.print(f"[bold green]Katalog raportu: {REPORT_DIR}[/bold green]")
             
-            detect_waf_and_propose_safe_mode()
-            
-            with progress:
-                if phase1_run:
+            if not QUIET_MODE:
+                detect_waf_and_propose_safe_mode()
+
+            if phase1_run:
+                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True) as progress:
                     task1_total = sum(1 for i, enabled in enumerate(selected_phase1_tools) if enabled and not (TARGET_IS_IP and i < 3)) + 2
                     task1 = progress.add_task("[green]Faza 1 (Subdomeny)[/green]", total=task1_total)
                     phase1_output_files, httpx_active_urls = start_phase1_scan(progress, task1)
-                    
-                    if not any(selected_phase2_tools) and not QUIET_MODE:
-                        if httpx_active_urls and Prompt.ask("\n[bold cyan]Czy chcesz kontynuować do Fazy 2?", choices=["y","n"], default="y") == 'y':
-                             phase2_run = display_phase2_tool_selection_menu()
+            
+            if phase1_run and not phase2_run and not QUIET_MODE and not phase2_only:
+                if httpx_active_urls:
+                    proceed_q = f"Faza 1 znalazła [bold green]{len(httpx_active_urls)}[/bold green] aktywnych hostów.\nCzy chcesz kontynuować do Fazy 2 (Wyszukiwanie katalogów)?"
+                    if ask_user_decision(proceed_q, choices=["y", "n"], default="y") == 'y':
+                        phase2_run = display_phase2_tool_selection_menu()
+            
+            if phase2_run and httpx_active_urls:
+                critical_urls = filter_critical_urls(httpx_active_urls)
                 
-                urls_for_phase2 = httpx_active_urls if httpx_active_urls else [ORIGINAL_TARGET]
-                if phase2_run or phase2_only:
+                if critical_urls and not QUIET_MODE:
+                    summary_text = (
+                        f"Znaleziono łącznie [bold green]{len(httpx_active_urls)}[/bold green] aktywnych hostów.\n"
+                        f"Wśród nich jest [bold yellow]{len(critical_urls)}[/bold yellow] oznaczonych jako potencjalnie krytyczne."
+                    )
+                    summary_panel = Panel(Text.from_markup(summary_text, justify="center"), title="[cyan]Podsumowanie Fazy 1[/cyan]", border_style="cyan")
+                    console.print(Align.center(summary_panel))
+                    
+                    scan_q = "Wybierz zakres skanowania dla Fazy 2:\n([bold]a[/bold]) - wszystkie, ([bold]c[/bold]) - tylko krytyczne"
+                    scan_choice = ask_user_decision(scan_q, choices=["a", "c"], default="a")
+
+                    if scan_choice == 'c':
+                        urls_for_phase2 = critical_urls
+                        console.print(Align.center("[bold yellow]OK, Faza 2 przeskanuje tylko [underline]krytyczne[/underline] hosty.[/bold yellow]"))
+                    else:
+                        urls_for_phase2 = httpx_active_urls
+                        console.print(Align.center("[bold green]OK, Faza 2 przeskanuje [underline]wszystkie[/underline] znalezione hosty.[/bold green]"))
+                else:
+                    urls_for_phase2 = httpx_active_urls
+            elif not urls_for_phase2 and (phase2_run or phase2_only):
+                urls_for_phase2 = [ORIGINAL_TARGET]
+            
+            if (phase2_run or phase2_only) and urls_for_phase2:
+                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True) as progress:
                     task2_total = len(urls_for_phase2) * sum(selected_phase2_tools)
                     task2 = progress.add_task("[green]Faza 2 (Katalogi)[/green]", total=task2_total if task2_total > 0 else 1)
                     phase2_all_results = start_phase2_scan(urls_for_phase2, progress, task2)
-                    
-                    if not any(selected_phase3_tools) and not QUIET_MODE and not phase2_only:
-                        if Prompt.ask("\n[bold cyan]Czy chcesz kontynuować do Fazy 3?", choices=["y","n"], default="y") == 'y':
-                            phase3_run = display_phase3_tool_selection_menu()
 
-                urls_for_phase3 = sorted(list(set(httpx_active_urls + phase2_all_results.get("all_dirsearch_results", []))))
-                if not urls_for_phase3:
-                    urls_for_phase3 = [ORIGINAL_TARGET]
+            if (phase2_run or phase2_only) and not phase3_run and not QUIET_MODE and not phase3_only:
+                if phase2_all_results.get("all_dirsearch_results"):
+                    proceed_q3 = f"Faza 2 znalazła [bold green]{len(phase2_all_results.get('all_dirsearch_results', []))}[/bold green] nowych ścieżek.\nCzy chcesz kontynuować do Fazy 3 (Web Crawling)?"
+                    if ask_user_decision(proceed_q3, choices=["y", "n"], default="y") == 'y':
+                        phase3_run = display_phase3_tool_selection_menu()
 
-                if phase3_run or phase3_only:
-                    task3_total = (len(urls_for_phase3) * sum(1 for t in ["Katana", "Hakrawler", "ParamSpider", "gauplus"] if selected_phase3_tools[tool_names.index(t)])) + 1 # +1 za LinkFindera jako osobny krok
+            urls_for_phase3 = sorted(list(set(httpx_active_urls + phase2_all_results.get("all_dirsearch_results", []))))
+            if not urls_for_phase3:
+                urls_for_phase3 = [ORIGINAL_TARGET]
+
+            if phase3_run or phase3_only:
+                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True) as progress:
+                    tool_names = ["Katana", "Hakrawler", "ParamSpider", "LinkFinder", "gauplus"]
+                    task3_total = (len(urls_for_phase3) * sum(1 for t_name in ["Katana", "Hakrawler", "ParamSpider", "gauplus"] if selected_phase3_tools[tool_names.index(t_name)]))
+                    if selected_phase3_tools[tool_names.index("LinkFinder")]:
+                        task3_total += 1
+
                     task3 = progress.add_task("[green]Faza 3 (Crawling)[/green]", total=task3_total if task3_total > 0 else 1)
                     phase3_raw_results = start_phase3_scan(urls_for_phase3, progress, task3)
                     
@@ -850,7 +916,8 @@ def main(
                 generate_html_report(phase1_output_files, phase2_all_results, phase3_raw_results, phase3_httpx_file)
                 report_path = os.path.join(REPORT_DIR, "report.html")
                 if os.path.exists(report_path):
-                    open_html_report(report_path)
+                    if not QUIET_MODE:
+                        open_html_report(report_path)
 
     except KeyboardInterrupt:
         console.print("\n\n[bold yellow]Przerwano przez użytkownika. Zamykanie...[/bold yellow]")

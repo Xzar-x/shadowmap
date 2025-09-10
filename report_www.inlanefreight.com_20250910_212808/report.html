@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShadowMap Scan Report - www.inlanefreight.com</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a0a0a;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            overflow-y: auto;
+        }
+        .header {
+            max-width: 1200px;
+            margin: 0 auto 10px auto;
+            text-align: center;
+            padding: 0 10px;
+        }
+
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 10px rgba(0, 123, 255, 0.4), 0 0 20px rgba(0, 123, 255, 0.3); }
+            50% { box-shadow: 0 0 25px rgba(0, 123, 255, 0.8), 0 0 50px rgba(0, 123, 255, 0.6); }
+            100% { box-shadow: 0 0 10px rgba(0, 123, 255, 0.4), 0 0 20px rgba(0, 123, 255, 0.3); }
+        }
+
+        .banner-image {
+            width: 200%;
+            max-width: none;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 8px;
+            display: block;
+            position: relative;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: pulseGlow 2.5s infinite ease-in-out;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 15px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 180px - 50px);
+            box-sizing: border-box;
+            backdrop-filter: blur(10px);
+        }
+
+        h1, h2 { color: #00d4ff; margin-top: 0; margin-bottom: 10px; text-shadow: 0 0 20px rgba(0, 212, 255, 0.5); }
+        h3 { color: #5bc0de; margin-top: 15px; margin-bottom: 8px; }
+
+        .main-tabs { display: flex; flex-wrap: wrap; margin-bottom: 10px; border-bottom: 2px solid #333; }
+        .main-tab-button {
+            padding: 12px 20px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #2a2a3a 0%, #1e1e2e 100%);
+            border: 1px solid #444;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            margin-right: 8px;
+            color: #e0e0e0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 1em;
+            font-weight: bold;
+            position: relative;
+            overflow: hidden;
+        }
+        .main-tab-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.5s;
+        }
+        .main-tab-button:hover::before {
+            left: 100%;
+        }
+        .main-tab-button:hover { 
+            background: linear-gradient(135deg, #3a3a4a 0%, #2e2e3e 100%); 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+        }
+        .main-tab-button.active { 
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); 
+            color: white; 
+            border-color: #007bff;
+            box-shadow: 0 4px 20px rgba(0, 123, 255, 0.4);
+        }
+
+        .sub-tabs { display: flex; flex-wrap: wrap; margin-top: 10px; margin-bottom: 10px; border-bottom: 1px solid #444; }
+        .sub-tab-button {
+            padding: 8px 16px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #444 0%, #333 100%);
+            border: 1px solid #555;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            margin-right: 5px;
+            color: #ccc;
+            transition: all 0.3s ease;
+            font-size: 0.85em;
+        }
+        .sub-tab-button:hover { 
+            background: linear-gradient(135deg, #666 0%, #555 100%); 
+            transform: translateY(-1px);
+        }
+        .sub-tab-button.active { 
+            background: linear-gradient(135deg, #5bc0de 0%, #46a7c7 100%); 
+            color: white; 
+            border-color: #5bc0de;
+            box-shadow: 0 2px 10px rgba(91, 192, 222, 0.4);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 15px 0;
+            border-top: 2px solid #007bff;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .tab-content.active { display: block; }
+
+        .sub-tab-content {
+            display: none;
+            padding: 10px 0;
+            border-top: 1px solid #5bc0de;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .sub-tab-content.active { display: block; }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr; 
+            gap: 16px;
+            padding: 10px;
+            margin: 0 auto;
+            max-width: 90%;
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, rgba(42, 42, 58, 0.9) 0%, rgba(30, 30, 46, 0.9) 100%);
+            border: 1px solid rgba(68, 68, 68, 0.5);
+            border-radius: 12px;
+            padding: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(5px);
+            cursor: pointer;
+            height: 16px;
+            display: flex;
+            align-items: center;
+        }
+
+        .result-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--priority-color, #666), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.6s ease;
+        }
+
+        .result-card:hover::before {
+            transform: translateX(100%);
+        }
+
+        .result-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 30px var(--priority-glow, rgba(102, 102, 102, 0.3));
+            border-color: var(--priority-color, #666);
+        }
+
+        .result-card.red-priority {
+            --priority-color: #ff4d4d;
+            --priority-glow: rgba(255, 77, 77, 0.4);
+        }
+        .result-card.yellow-priority {
+            --priority-color: #FFD700;
+            --priority-glow: rgba(255, 215, 0, 0.4);
+        }
+        .result-card.green-priority {
+            --priority-color: #90EE90;
+            --priority-glow: rgba(144, 238, 144, 0.4);
+        }
+        .result-card.cyan-priority {
+            --priority-color: #00FFFF;
+            --priority-glow: rgba(0, 255, 255, 0.4);
+        }
+        .result-card.orange-priority {
+            --priority-color: #FFA500;
+            --priority-glow: rgba(255, 165, 0, 0.4);
+        }
+        .result-card.gray-priority {
+            --priority-color: #888;
+            --priority-glow: rgba(136, 136, 136, 0.3);
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+        }
+
+        .result-icon {
+            font-size: 1.5em;
+            margin-right: 12px;
+            filter: drop-shadow(0 0 8px currentColor);
+        }
+
+        .result-url {
+            color: #e0e0e0;
+            font-weight: 500;
+            font-size: 0.95em;
+            word-break: break-all;
+            flex: 1;
+            white-space: nowrap; 
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .result-url a {
+            color: inherit;
+            text-decoration: none;
+        }
+        .result-url a:hover {
+            text-decoration: underline;
+        }
+
+        .result-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .status-code {
+            background: linear-gradient(135deg, var(--priority-color, #666) 0%, rgba(255,255,255,0.1) 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .result-meta {
+            font-size: 0.8em;
+            color: #aaa;
+            display: none;
+        }
+
+        pre.output {
+            background: linear-gradient(135deg, #111 0%, #1a1a1a 100%);
+            color: #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: 'Courier New', Courier, monospace;
+            border: 1px solid #333;
+            max-height: calc(100vh - 350px);
+            box-sizing: border-box;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .summary-item { 
+            margin-bottom: 8px; 
+            font-size: 0.95em; 
+            background: rgba(0, 123, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+            border-left: 3px solid #007bff;
+        }
+        .summary-item strong { color: #00d4ff; }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #333;
+            color: #888;
+            font-size: 0.8em;
+        }
+        .footer-logo {
+            height: 25px;
+            vertical-align: middle;
+            margin-left: 5px;
+        }
+
+        .filter-section {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: rgba(0, 123, 255, 0.1);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 123, 255, 0.3);
+            margin: 0 auto 15px auto;
+            max-width: 90%;
+        }
+        .filter-section label {
+            font-size: 0.95em;
+            color: #e0e0e0;
+            cursor: pointer;
+            user-select: none;
+        }
+        .filter-section input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #00d4ff;
+        }
+
+        @keyframes iconPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .result-card:hover .result-icon {
+            animation: iconPulse 0.6s ease-in-out;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 5px; }
+            .container { padding: 10px; border-radius: 8px; }
+            .main-tab-button, .sub-tab-button {
+                flex: 1 1 auto;
+                margin-right: 0;
+                margin-bottom: 5px;
+                border-radius: 5px;
+            }
+            .main-tabs, .sub-tabs { flex-direction: column; }
+            .results-grid {
+                grid-template-columns: 1fr;
+                padding: 5px;
+                max-width: 95%;
+            }
+            .filter-section {
+                padding: 8px;
+                max-width: 95%;
+            }
+            .result-card {
+                padding: 12px;
+                height: auto;
+            }
+            .result-meta {
+                display: block;
+            }
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200px 0; }
+            100% { background-position: calc(200px + 100%) 0; }
+        }
+
+        .loading-card {
+            background: linear-gradient(90deg, #2a2a3a 0px, #3a3a4a 40px, #2a2a3a 80px);
+            background-size: 200px 100%;
+            animation: shimmer 1.5s infinite linear;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/shadowmap.png" alt="ShadowMap Banner" class="banner-image">
+    </div>
+
+    <div class="container">
+        <h1>ShadowMap Scan Report for www.inlanefreight.com</h1>
+
+        <div class="main-tabs">
+            <div class="main-tab-button active" onclick="openMainTab(event, 'summary')">Podsumowanie</div>
+            <div class="main-tab-button" onclick="openMainTab(event, 'phase1')">Faza 1: Enumeracja Subdomen</div>
+            <div class="main-tab-button" onclick="openMainTab(event, 'phase2')">Faza 2: Wyszukiwanie Katalogów</div>
+            <div class="main-tab-button" onclick="openMainTab(event, 'phase3')">Faza 3: Web Crawling</div>
+            <div class="main-tab-button" onclick="openMainTab(event, 'all_results')">Wszystkie wyniki</div>
+        </div>
+
+        <!-- Podsumowanie -->
+        <div id="summary" class="tab-content active">
+            <h2>Podsumowanie skanowania</h2>
+            <div class="summary-item"><strong>Domena:</strong> www.inlanefreight.com</div>
+            <div class="summary-item"><strong>Całkowita liczba znalezionych subdomen:</strong> 2</div>
+            <div class="summary-item"><strong>Liczba aktywnych subdomen (HTTP/S):</strong> 4</div>
+            <div class="summary-item"><strong>Liczba znalezionych katalogów/plików (Faza 2):</strong> 355</div>
+            <div class="summary-item"><strong>Liczba unikalnych URL-i z crawlera (Faza 3):</strong> 0</div>
+            <div class="summary-item"><strong>Liczba znalezionych parametrów:</strong> 0</div>
+            <div class="summary-item"><strong>Liczba plików JavaScript:</strong> 0</div>
+            <div class="summary-item"><strong>Liczba endpointów API:</strong> 0</div>
+            <div class="summary-item"><strong>Liczba interesujących ścieżek:</strong> 0</div>
+        </div>
+
+        <!-- Faza 1: Enumeracja Subdomen -->
+        <div id="phase1" class="tab-content">
+            <h2>Faza 1: Enumeracja Subdomen</h2>
+            <div class="sub-tabs">
+                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase1', 'httpx')">HTTPX</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase1', 'subfinder')">Subfinder</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase1', 'assetfinder')">Assetfinder</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase1', 'findomain')">Findomain</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase1', 'puredns')">Puredns</div>
+            </div>
+
+            <div id="phase1-httpx" class="sub-tab-content active">
+                <h3>HTTPX Output (4 aktywnych)</h3>
+                <div class="filter-section">
+                    <input type="checkbox" id="showOnlyRedHttpx" onchange="applyHttpxFilter()">
+                    <label for="showOnlyRedHttpx">Pokaż tylko czerwone 🔥</label>
+                </div>
+                <div id="httpx-results" class="results-grid"></div>
+            </div>
+            <div id="phase1-subfinder" class="sub-tab-content">
+                <h3>Subfinder Output (0 znalezionych)</h3>
+                <div id="subfinder-results" class="results-grid"></div>
+            </div>
+            <div id="phase1-assetfinder" class="sub-tab-content">
+                <h3>Assetfinder Output (1 znalezionych)</h3>
+                <div id="assetfinder-results" class="results-grid"></div>
+            </div>
+            <div id="phase1-findomain" class="sub-tab-content">
+                <h3>Findomain Output (2 znalezionych)</h3>
+                <div id="findomain-results" class="results-grid"></div>
+            </div>
+            <div id="phase1-puredns" class="sub-tab-content">
+                <h3>Puredns Output (0 znalezionych)</h3>
+                <div id="puredns-results" class="results-grid"></div>
+            </div>
+        </div>
+
+        <!-- Faza 2: Wyszukiwanie Katalogów -->
+        <div id="phase2" class="tab-content">
+            <h2>Faza 2: Wyszukiwanie Katalogów</h2>
+            <div class="sub-tabs">
+                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase2', 'all_dirsearch')">Wszystkie wyniki (Faza 2)</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'dirsearch')">Dirsearch</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'ffuf')">Ffuf</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'feroxbuster')">Feroxbuster</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'gobuster')">Gobuster</div>
+            </div>
+            <div id="phase2-all_dirsearch" class="sub-tab-content active">
+                <h3>Wszystkie znalezione katalogi i pliki (355 znalezionych)</h3>
+                <div class="filter-section">
+                    <input type="checkbox" id="showOnlyRedDirsearch" onchange="applyDirsearchFilter()">
+                    <label for="showOnlyRedDirsearch">Pokaż tylko czerwone 🔥</label>
+                </div>
+                <div id="dirsearch-all-results" class="results-grid"></div>
+            </div>
+            <div id="phase2-dirsearch" class="sub-tab-content">
+                <h3>Wyniki z Dirsearch</h3>
+                <div id="dirsearch-results-specific" class="results-grid"></div>
+            </div>
+            <div id="phase2-ffuf" class="sub-tab-content">
+                <h3>Wyniki z Ffuf</h3>
+                <div id="ffuf-results-specific" class="results-grid"></div>
+            </div>
+            <div id="phase2-feroxbuster" class="sub-tab-content">
+                <h3>Wyniki z Feroxbuster</h3>
+                <div id="feroxbuster-results-specific" class="results-grid"></div>
+            </div>
+            <div id="phase2-gobuster" class="sub-tab-content">
+                <h3>Wyniki z Gobuster</h3>
+                <div id="gobuster-results-specific" class="results-grid"></div>
+            </div>
+        </div>
+
+        <!-- Faza 3: Web Crawling -->
+        <div id="phase3" class="tab-content">
+            <h2>Faza 3: Web Crawling i Link Discovery</h2>
+            <div class="sub-tabs">
+                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase3', 'all_crawled')">Wszystkie URL-e</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'parameters')">Parametry</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'js_files')">Pliki JS</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'api_endpoints')">Endpointy API</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'interesting_paths')">Interesujące ścieżki</div>
+            </div>
+
+            <div id="phase3-all_crawled" class="sub-tab-content active">
+                <h3>Wszystkie znalezione URL-e (0 znalezionych)</h3>
+                <div class="filter-section">
+                    <input type="checkbox" id="showOnlyRedCrawling" onchange="applyCrawlingFilter()">
+                    <label for="showOnlyRedCrawling">Pokaż tylko czerwone 🔥</label>
+                </div>
+                <div id="crawling-all-results" class="results-grid"></div>
+            </div>
+            <div id="phase3-parameters" class="sub-tab-content">
+                <h3>Znalezione parametry (0 znalezionych)</h3>
+                <div id="parameters-results" class="results-grid"></div>
+            </div>
+            <div id="phase3-js_files" class="sub-tab-content">
+                <h3>Pliki JavaScript (0 znalezionych)</h3>
+                <div id="js-files-results" class="results-grid"></div>
+            </div>
+            <div id="phase3-api_endpoints" class="sub-tab-content">
+                <h3>Endpointy API (0 znalezionych)</h3>
+                <div id="api-endpoints-results" class="results-grid"></div>
+            </div>
+            <div id="phase3-interesting_paths" class="sub-tab-content">
+                <h3>Interesujące ścieżki (0 znalezionych)</h3>
+                <div id="interesting-paths-results" class="results-grid"></div>
+            </div>
+        </div>
+
+        <!-- Wszystkie wyniki (scalony output) -->
+        <div id="all_results" class="tab-content">
+            <h2>Wszystkie znalezione subdomeny i URL-e</h2>
+            <h3>Wszystkie subdomeny (2 znalezionych)</h3>
+            <div id="all-subdomains-results" class="results-grid"></div>
+            <h3>Wszystkie URL-e z Fazy 2 i 3 (355 znalezionych)</h3>
+            <div id="all-urls-combined-results" class="results-grid"></div>
+        </div>
+
+    </div>
+
+    <div class="footer">
+        Made by Xzar
+        <img src="https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/logo.png" alt="Logo" class="footer-logo">
+    </div>
+
+    <script>
+        function stripAnsiCodes(str) {
+            return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+        }
+
+        // --- Globalne dane ---
+        let rawHttpxOutput = stripAnsiCodes(`{"timestamp":"2025-09-10T21:28:20.637165519+02:00","port":"443","url":"https://inlanefreight.com:443","input":"inlanefreight.com","location":"https://www.inlanefreight.com/","scheme":"https","webserver":"Apache/2.4.41 (Ubuntu)","content_type":"text/html","method":"GET","host":"134.209.24.248","path":"/","time":"481.821885ms","a":["134.209.24.248"],"aaaa":["2a03:b0c0:1:e0::32c:b001"],"tech":["Apache HTTP Server:2.4.41","Ubuntu"],"words":0,"lines":0,"status_code":301,"content_length":0,"failed":false,"knowledgebase":{"PageType":"other","pHash":0},"resolvers":["1.0.0.1:53","8.8.8.8:53"]}
+{"timestamp":"2025-09-10T21:28:20.781533595+02:00","port":"443","url":"https://www.inlanefreight.com:443","input":"www.inlanefreight.com","title":"Inlanefreight – Protected by Wordfence","scheme":"https","webserver":"Apache/2.4.41 (Ubuntu)","content_type":"text/html","method":"GET","host":"134.209.24.248","path":"/","time":"507.195184ms","a":["134.209.24.248"],"aaaa":["2a03:b0c0:1:e0::32c:b001"],"tech":["Apache HTTP Server:2.4.41","Bootstrap","MySQL","OWL Carousel","PHP","Ubuntu","WordPress Block Editor","WordPress:5.6.15","jQuery","jQuery Migrate:3.3.2"],"words":2903,"lines":316,"status_code":200,"content_length":22266,"failed":false,"knowledgebase":{"PageType":"other","pHash":0},"resolvers":["1.1.1.1:53","8.8.4.4:53"]}
+{"timestamp":"2025-09-10T21:28:21.247499211+02:00","port":"80","url":"http://inlanefreight.com:80","input":"inlanefreight.com","location":"https://inlanefreight.com/","title":"301 Moved Permanently","scheme":"http","webserver":"Apache/2.4.41 (Ubuntu)","content_type":"text/html","method":"GET","host":"134.209.24.248","path":"/","time":"90.28588ms","a":["134.209.24.248"],"aaaa":["2a03:b0c0:1:e0::32c:b001"],"tech":["Apache HTTP Server:2.4.41","Ubuntu"],"words":20,"lines":9,"status_code":301,"content_length":317,"failed":false,"knowledgebase":{"PageType":"error","pHash":0},"resolvers":["1.0.0.1:53","8.8.8.8:53"]}
+{"timestamp":"2025-09-10T21:28:21.248197933+02:00","port":"80","url":"http://www.inlanefreight.com:80","input":"www.inlanefreight.com","location":"https://www.inlanefreight.com/","title":"301 Moved Permanently","scheme":"http","webserver":"Apache/2.4.41 (Ubuntu)","content_type":"text/html","method":"GET","host":"134.209.24.248","path":"/","time":"92.26458ms","a":["134.209.24.248"],"aaaa":["2a03:b0c0:1:e0::32c:b001"],"tech":["Apache HTTP Server:2.4.41","Ubuntu"],"words":20,"lines":9,"status_code":301,"content_length":325,"failed":false,"knowledgebase":{"PageType":"error","pHash":0},"resolvers":["1.1.1.1:53","8.8.4.4:53"]}
+`);
+        let rawDirSearchAll = stripAnsiCodes(`http://inlanefreight.com:80/.env<br>http://inlanefreight.com:80/.git<br>http://inlanefreight.com:80/.htaccess<br>http://inlanefreight.com:80/FUZZ<br>http://inlanefreight.com:80/account<br>http://inlanefreight.com:80/admin<br>http://inlanefreight.com:80/administrator<br>http://inlanefreight.com:80/api<br>http://inlanefreight.com:80/app<br>http://inlanefreight.com:80/archive<br>http://inlanefreight.com:80/assets<br>http://inlanefreight.com:80/auth<br>http://inlanefreight.com:80/backup<br>http://inlanefreight.com:80/blog<br>http://inlanefreight.com:80/build<br>http://inlanefreight.com:80/cgi-bin<br>http://inlanefreight.com:80/common<br>http://inlanefreight.com:80/config<br>http://inlanefreight.com:80/configuration<br>http://inlanefreight.com:80/content<br>http://inlanefreight.com:80/core<br>http://inlanefreight.com:80/credentials<br>http://inlanefreight.com:80/css<br>http://inlanefreight.com:80/dashboard<br>http://inlanefreight.com:80/data<br>http://inlanefreight.com:80/database<br>http://inlanefreight.com:80/db<br>http://inlanefreight.com:80/dev<br>http://inlanefreight.com:80/development<br>http://inlanefreight.com:80/dist<br>http://inlanefreight.com:80/docs<br>http://inlanefreight.com:80/download<br>http://inlanefreight.com:80/dump<br>http://inlanefreight.com:80/examples<br>http://inlanefreight.com:80/export<br>http://inlanefreight.com:80/files<br>http://inlanefreight.com:80/forum<br>http://inlanefreight.com:80/graphql<br>http://inlanefreight.com:80/health<br>http://inlanefreight.com:80/images<br>http://inlanefreight.com:80/img<br>http://inlanefreight.com:80/import<br>http://inlanefreight.com:80/includes<br>http://inlanefreight.com:80/index.html<br>http://inlanefreight.com:80/index.php<br>http://inlanefreight.com:80/info.php<br>http://inlanefreight.com:80/install<br>http://inlanefreight.com:80/js<br>http://inlanefreight.com:80/lib<br>http://inlanefreight.com:80/license<br>http://inlanefreight.com:80/login<br>http://inlanefreight.com:80/logon<br>http://inlanefreight.com:80/logs<br>http://inlanefreight.com:80/mail<br>http://inlanefreight.com:80/main.js<br>http://inlanefreight.com:80/media<br>http://inlanefreight.com:80/new<br>http://inlanefreight.com:80/news<br>http://inlanefreight.com:80/node_modules<br>http://inlanefreight.com:80/old<br>http://inlanefreight.com:80/panel<br>http://inlanefreight.com:80/phpinfo.php<br>http://inlanefreight.com:80/press<br>http://inlanefreight.com:80/private<br>http://inlanefreight.com:80/public<br>http://inlanefreight.com:80/public_html<br>http://inlanefreight.com:80/readme<br>http://inlanefreight.com:80/rest<br>http://inlanefreight.com:80/robots.txt<br>http://inlanefreight.com:80/scripts<br>http://inlanefreight.com:80/secret<br>http://inlanefreight.com:80/server-status<br>http://inlanefreight.com:80/settings<br>http://inlanefreight.com:80/shop<br>http://inlanefreight.com:80/signin<br>http://inlanefreight.com:80/sitemap.xml<br>http://inlanefreight.com:80/sql<br>http://inlanefreight.com:80/src<br>http://inlanefreight.com:80/stage<br>http://inlanefreight.com:80/staging<br>http://inlanefreight.com:80/static<br>http://inlanefreight.com:80/status<br>http://inlanefreight.com:80/store<br>http://inlanefreight.com:80/style.css<br>http://inlanefreight.com:80/temp<br>http://inlanefreight.com:80/test<br>http://inlanefreight.com:80/testing<br>http://inlanefreight.com:80/tmp<br>http://inlanefreight.com:80/tools<br>http://inlanefreight.com:80/uploads<br>http://inlanefreight.com:80/user<br>http://inlanefreight.com:80/users<br>http://inlanefreight.com:80/utils<br>http://inlanefreight.com:80/v1<br>http://inlanefreight.com:80/v2<br>http://inlanefreight.com:80/vendor<br>http://inlanefreight.com:80/web<br>http://inlanefreight.com:80/web.config<br>http://inlanefreight.com:80/wp-admin<br>http://inlanefreight.com:80/wp-content<br>http://inlanefreight.com:80/wp-includes<br>http://inlanefreight.com:80/wp-login.php<br>http://inlanefreight.com:80/www<br>http://inlanefreight.com:80/xmlrpc.php<br>http://www.inlanefreight.com:80/.env<br>http://www.inlanefreight.com:80/.git<br>http://www.inlanefreight.com:80/.htaccess<br>http://www.inlanefreight.com:80/FUZZ<br>http://www.inlanefreight.com:80/account<br>http://www.inlanefreight.com:80/admin<br>http://www.inlanefreight.com:80/administrator<br>http://www.inlanefreight.com:80/api<br>http://www.inlanefreight.com:80/app<br>http://www.inlanefreight.com:80/archive<br>http://www.inlanefreight.com:80/assets<br>http://www.inlanefreight.com:80/auth<br>http://www.inlanefreight.com:80/backup<br>http://www.inlanefreight.com:80/blog<br>http://www.inlanefreight.com:80/build<br>http://www.inlanefreight.com:80/cgi-bin<br>http://www.inlanefreight.com:80/common<br>http://www.inlanefreight.com:80/config<br>http://www.inlanefreight.com:80/configuration<br>http://www.inlanefreight.com:80/content<br>http://www.inlanefreight.com:80/core<br>http://www.inlanefreight.com:80/credentials<br>http://www.inlanefreight.com:80/css<br>http://www.inlanefreight.com:80/dashboard<br>http://www.inlanefreight.com:80/data<br>http://www.inlanefreight.com:80/database<br>http://www.inlanefreight.com:80/db<br>http://www.inlanefreight.com:80/dev<br>http://www.inlanefreight.com:80/development<br>http://www.inlanefreight.com:80/dist<br>http://www.inlanefreight.com:80/docs<br>http://www.inlanefreight.com:80/download<br>http://www.inlanefreight.com:80/dump<br>http://www.inlanefreight.com:80/examples<br>http://www.inlanefreight.com:80/export<br>http://www.inlanefreight.com:80/files<br>http://www.inlanefreight.com:80/forum<br>http://www.inlanefreight.com:80/graphql<br>http://www.inlanefreight.com:80/health<br>http://www.inlanefreight.com:80/images<br>http://www.inlanefreight.com:80/img<br>http://www.inlanefreight.com:80/import<br>http://www.inlanefreight.com:80/includes<br>http://www.inlanefreight.com:80/index.html<br>http://www.inlanefreight.com:80/index.php<br>http://www.inlanefreight.com:80/info.php<br>http://www.inlanefreight.com:80/install<br>http://www.inlanefreight.com:80/js<br>http://www.inlanefreight.com:80/lib<br>http://www.inlanefreight.com:80/license<br>http://www.inlanefreight.com:80/login<br>http://www.inlanefreight.com:80/logon<br>http://www.inlanefreight.com:80/logs<br>http://www.inlanefreight.com:80/mail<br>http://www.inlanefreight.com:80/main.js<br>http://www.inlanefreight.com:80/media<br>http://www.inlanefreight.com:80/new<br>http://www.inlanefreight.com:80/news<br>http://www.inlanefreight.com:80/node_modules<br>http://www.inlanefreight.com:80/old<br>http://www.inlanefreight.com:80/panel<br>http://www.inlanefreight.com:80/phpinfo.php<br>http://www.inlanefreight.com:80/press<br>http://www.inlanefreight.com:80/private<br>http://www.inlanefreight.com:80/public<br>http://www.inlanefreight.com:80/public_html<br>http://www.inlanefreight.com:80/readme<br>http://www.inlanefreight.com:80/rest<br>http://www.inlanefreight.com:80/robots.txt<br>http://www.inlanefreight.com:80/scripts<br>http://www.inlanefreight.com:80/secret<br>http://www.inlanefreight.com:80/server-status<br>http://www.inlanefreight.com:80/settings<br>http://www.inlanefreight.com:80/shop<br>http://www.inlanefreight.com:80/signin<br>http://www.inlanefreight.com:80/sitemap.xml<br>http://www.inlanefreight.com:80/sql<br>http://www.inlanefreight.com:80/src<br>http://www.inlanefreight.com:80/stage<br>http://www.inlanefreight.com:80/staging<br>http://www.inlanefreight.com:80/static<br>http://www.inlanefreight.com:80/status<br>http://www.inlanefreight.com:80/store<br>http://www.inlanefreight.com:80/style.css<br>http://www.inlanefreight.com:80/temp<br>http://www.inlanefreight.com:80/test<br>http://www.inlanefreight.com:80/testing<br>http://www.inlanefreight.com:80/tmp<br>http://www.inlanefreight.com:80/tools<br>http://www.inlanefreight.com:80/uploads<br>http://www.inlanefreight.com:80/user<br>http://www.inlanefreight.com:80/users<br>http://www.inlanefreight.com:80/utils<br>http://www.inlanefreight.com:80/v1<br>http://www.inlanefreight.com:80/v2<br>http://www.inlanefreight.com:80/vendor<br>http://www.inlanefreight.com:80/web<br>http://www.inlanefreight.com:80/web.config<br>http://www.inlanefreight.com:80/wp-admin<br>http://www.inlanefreight.com:80/wp-content<br>http://www.inlanefreight.com:80/wp-includes<br>http://www.inlanefreight.com:80/wp-login.php<br>http://www.inlanefreight.com:80/www<br>http://www.inlanefreight.com:80/xmlrpc.php<br>https://inlanefreight.com<br>https://inlanefreight.com/index.php<br>https://inlanefreight.com/server-status<br>https://inlanefreight.com/wp-admin<br>https://inlanefreight.com/wp-admin/css<br>https://inlanefreight.com/wp-admin/images<br>https://inlanefreight.com/wp-admin/includes<br>https://inlanefreight.com/wp-admin/js<br>https://inlanefreight.com/wp-admin/user<br>https://inlanefreight.com/wp-content<br>https://inlanefreight.com/wp-content/uploads<br>https://inlanefreight.com/wp-includes<br>https://inlanefreight.com/wp-includes/assets<br>https://inlanefreight.com/wp-includes/css<br>https://inlanefreight.com/wp-includes/css/dist<br>https://inlanefreight.com/wp-includes/images<br>https://inlanefreight.com/wp-includes/images/media<br>https://inlanefreight.com/wp-includes/js<br>https://inlanefreight.com/wp-includes/js/dist<br>https://inlanefreight.com/wp-includes/js/dist/vendor<br>https://inlanefreight.com/wp-login.php<br>https://inlanefreight.com/xmlrpc.php<br>https://inlanefreight.com:443/.htaccess<br>https://inlanefreight.com:443/FUZZ<br>https://inlanefreight.com:443/assets<br>https://inlanefreight.com:443/css<br>https://inlanefreight.com:443/images<br>https://inlanefreight.com:443/includes<br>https://inlanefreight.com:443/index.php<br>https://inlanefreight.com:443/js<br>https://inlanefreight.com:443/server-status<br>https://inlanefreight.com:443/uploads<br>https://inlanefreight.com:443/user<br>https://inlanefreight.com:443/wp-admin<br>https://inlanefreight.com:443/wp-admin/FUZZ<br>https://inlanefreight.com:443/wp-admin/css<br>https://inlanefreight.com:443/wp-admin/images<br>https://inlanefreight.com:443/wp-admin/includes<br>https://inlanefreight.com:443/wp-admin/js<br>https://inlanefreight.com:443/wp-admin/user<br>https://inlanefreight.com:443/wp-content<br>https://inlanefreight.com:443/wp-content/FUZZ<br>https://inlanefreight.com:443/wp-content/uploads<br>https://inlanefreight.com:443/wp-includes<br>https://inlanefreight.com:443/wp-includes/FUZZ<br>https://inlanefreight.com:443/wp-includes/assets<br>https://inlanefreight.com:443/wp-includes/css<br>https://inlanefreight.com:443/wp-includes/images<br>https://inlanefreight.com:443/wp-includes/js<br>https://inlanefreight.com:443/wp-login.php<br>https://inlanefreight.com:443/xmlrpc.php<br>https://setuptools.pypa.io/en/latest/pkg_resources.html<br>https://www.bing.com<br>https://www.inlanefreight.com<br>https://www.inlanefreight.com/index.php<br>https://www.inlanefreight.com/index.php/wp-json<br>https://www.inlanefreight.com/index.php/wp-json/oembed/1.0/embed<br>https://www.inlanefreight.com/index.php/wp-json/wp/v2/pages/7<br>https://www.inlanefreight.com/server-status<br>https://www.inlanefreight.com/wp-admin<br>https://www.inlanefreight.com/wp-admin/css<br>https://www.inlanefreight.com/wp-admin/css/forms.min.css<br>https://www.inlanefreight.com/wp-admin/css/l10n.min.css<br>https://www.inlanefreight.com/wp-admin/css/login.min.css<br>https://www.inlanefreight.com/wp-admin/images<br>https://www.inlanefreight.com/wp-admin/includes<br>https://www.inlanefreight.com/wp-admin/js<br>https://www.inlanefreight.com/wp-admin/js/password-strength-meter.min.js<br>https://www.inlanefreight.com/wp-admin/js/user-profile.min.js<br>https://www.inlanefreight.com/wp-admin/user<br>https://www.inlanefreight.com/wp-content<br>https://www.inlanefreight.com/wp-content/themes/ben_theme<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/animate.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/bootstrap-progressbar.min.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/bootstrap.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/colors/default.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/font-awesome.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/jquery.smartmenus.bootstrap.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/magnific-popup.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/owl.carousel.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/owl.transitions.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/images/breadcrumb-back.jpg<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/bootstrap.min.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/jquery.smartmenus.bootstrap.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/jquery.smartmenus.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/navigation.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/owl.carousel.min.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/style.css<br>https://www.inlanefreight.com/wp-content/uploads<br>https://www.inlanefreight.com/wp-includes<br>https://www.inlanefreight.com/wp-includes/assets<br>https://www.inlanefreight.com/wp-includes/css<br>https://www.inlanefreight.com/wp-includes/css/buttons.min.css<br>https://www.inlanefreight.com/wp-includes/css/dashicons.min.css<br>https://www.inlanefreight.com/wp-includes/css/dist<br>https://www.inlanefreight.com/wp-includes/css/dist/block-library/style.min.css<br>https://www.inlanefreight.com/wp-includes/images<br>https://www.inlanefreight.com/wp-includes/images/media<br>https://www.inlanefreight.com/wp-includes/js<br>https://www.inlanefreight.com/wp-includes/js/dist<br>https://www.inlanefreight.com/wp-includes/js/dist/i18n.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-dom-rect.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-element-closest.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-fetch.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-formdata.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-node-contains.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-url.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill.min.js<br>https://www.inlanefreight.com/wp-includes/js/jquery/jquery-migrate.min.js<br>https://www.inlanefreight.com/wp-includes/js/jquery/jquery.min.js<br>https://www.inlanefreight.com/wp-includes/js/underscore.min.js<br>https://www.inlanefreight.com/wp-includes/js/wp-embed.min.js<br>https://www.inlanefreight.com/wp-includes/js/wp-util.min.js<br>https://www.inlanefreight.com/wp-includes/js/zxcvbn-async.min.js<br>https://www.inlanefreight.com/wp-includes/wlwmanifest.xml<br>https://www.inlanefreight.com/wp-login.php<br>https://www.inlanefreight.com/xmlrpc.php<br>https://www.inlanefreight.com:443/.htaccess<br>https://www.inlanefreight.com:443/FUZZ<br>https://www.inlanefreight.com:443/assets<br>https://www.inlanefreight.com:443/css<br>https://www.inlanefreight.com:443/images<br>https://www.inlanefreight.com:443/includes<br>https://www.inlanefreight.com:443/index.php<br>https://www.inlanefreight.com:443/js<br>https://www.inlanefreight.com:443/server-status<br>https://www.inlanefreight.com:443/uploads<br>https://www.inlanefreight.com:443/user<br>https://www.inlanefreight.com:443/wp-admin<br>https://www.inlanefreight.com:443/wp-admin/FUZZ<br>https://www.inlanefreight.com:443/wp-admin/css<br>https://www.inlanefreight.com:443/wp-admin/images<br>https://www.inlanefreight.com:443/wp-admin/includes<br>https://www.inlanefreight.com:443/wp-admin/js<br>https://www.inlanefreight.com:443/wp-admin/user<br>https://www.inlanefreight.com:443/wp-content<br>https://www.inlanefreight.com:443/wp-content/FUZZ<br>https://www.inlanefreight.com:443/wp-content/uploads<br>https://www.inlanefreight.com:443/wp-includes<br>https://www.inlanefreight.com:443/wp-includes/FUZZ<br>https://www.inlanefreight.com:443/wp-includes/assets<br>https://www.inlanefreight.com:443/wp-includes/css<br>https://www.inlanefreight.com:443/wp-includes/images<br>https://www.inlanefreight.com:443/wp-includes/js<br>https://www.inlanefreight.com:443/wp-login.php<br>https://www.inlanefreight.com:443/xmlrpc.php`);
+        let rawDirsearchSpecific = stripAnsiCodes(`https://inlanefreight.com/server-status<br>https://inlanefreight.com/wp-admin<br>https://inlanefreight.com/wp-admin/css<br>https://inlanefreight.com/wp-admin/images<br>https://inlanefreight.com/wp-admin/includes<br>https://inlanefreight.com/wp-admin/js<br>https://inlanefreight.com/wp-admin/user<br>https://inlanefreight.com/wp-content<br>https://inlanefreight.com/wp-content/uploads<br>https://inlanefreight.com/wp-includes<br>https://inlanefreight.com/wp-includes/assets<br>https://inlanefreight.com/wp-includes/css<br>https://inlanefreight.com/wp-includes/css/dist<br>https://inlanefreight.com/wp-includes/images<br>https://inlanefreight.com/wp-includes/images/media<br>https://inlanefreight.com/wp-includes/js<br>https://inlanefreight.com/wp-includes/js/dist<br>https://inlanefreight.com/wp-includes/js/dist/vendor<br>https://inlanefreight.com/wp-login.php<br>https://inlanefreight.com/xmlrpc.php<br>https://setuptools.pypa.io/en/latest/pkg_resources.html<br>https://www.inlanefreight.com<br>https://www.inlanefreight.com/server-status<br>https://www.inlanefreight.com/wp-admin<br>https://www.inlanefreight.com/wp-admin/css<br>https://www.inlanefreight.com/wp-admin/images<br>https://www.inlanefreight.com/wp-admin/includes<br>https://www.inlanefreight.com/wp-admin/js<br>https://www.inlanefreight.com/wp-admin/user<br>https://www.inlanefreight.com/wp-content<br>https://www.inlanefreight.com/wp-content/uploads<br>https://www.inlanefreight.com/wp-includes<br>https://www.inlanefreight.com/wp-includes/assets<br>https://www.inlanefreight.com/wp-includes/css<br>https://www.inlanefreight.com/wp-includes/css/dist<br>https://www.inlanefreight.com/wp-includes/images<br>https://www.inlanefreight.com/wp-includes/images/media<br>https://www.inlanefreight.com/wp-includes/js<br>https://www.inlanefreight.com/wp-includes/js/dist<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor<br>https://www.inlanefreight.com/wp-login.php<br>https://www.inlanefreight.com/xmlrpc.php`);
+        let rawFfufSpecific = stripAnsiCodes(`http://inlanefreight.com:80/.env<br>http://inlanefreight.com:80/.git<br>http://inlanefreight.com:80/.htaccess<br>http://inlanefreight.com:80/FUZZ<br>http://inlanefreight.com:80/account<br>http://inlanefreight.com:80/admin<br>http://inlanefreight.com:80/administrator<br>http://inlanefreight.com:80/api<br>http://inlanefreight.com:80/app<br>http://inlanefreight.com:80/archive<br>http://inlanefreight.com:80/assets<br>http://inlanefreight.com:80/auth<br>http://inlanefreight.com:80/backup<br>http://inlanefreight.com:80/blog<br>http://inlanefreight.com:80/build<br>http://inlanefreight.com:80/cgi-bin<br>http://inlanefreight.com:80/common<br>http://inlanefreight.com:80/config<br>http://inlanefreight.com:80/configuration<br>http://inlanefreight.com:80/content<br>http://inlanefreight.com:80/core<br>http://inlanefreight.com:80/credentials<br>http://inlanefreight.com:80/css<br>http://inlanefreight.com:80/dashboard<br>http://inlanefreight.com:80/data<br>http://inlanefreight.com:80/database<br>http://inlanefreight.com:80/db<br>http://inlanefreight.com:80/dev<br>http://inlanefreight.com:80/development<br>http://inlanefreight.com:80/dist<br>http://inlanefreight.com:80/docs<br>http://inlanefreight.com:80/download<br>http://inlanefreight.com:80/dump<br>http://inlanefreight.com:80/examples<br>http://inlanefreight.com:80/export<br>http://inlanefreight.com:80/files<br>http://inlanefreight.com:80/forum<br>http://inlanefreight.com:80/graphql<br>http://inlanefreight.com:80/health<br>http://inlanefreight.com:80/images<br>http://inlanefreight.com:80/img<br>http://inlanefreight.com:80/import<br>http://inlanefreight.com:80/includes<br>http://inlanefreight.com:80/index.html<br>http://inlanefreight.com:80/index.php<br>http://inlanefreight.com:80/info.php<br>http://inlanefreight.com:80/install<br>http://inlanefreight.com:80/js<br>http://inlanefreight.com:80/lib<br>http://inlanefreight.com:80/license<br>http://inlanefreight.com:80/login<br>http://inlanefreight.com:80/logon<br>http://inlanefreight.com:80/logs<br>http://inlanefreight.com:80/mail<br>http://inlanefreight.com:80/main.js<br>http://inlanefreight.com:80/media<br>http://inlanefreight.com:80/new<br>http://inlanefreight.com:80/news<br>http://inlanefreight.com:80/node_modules<br>http://inlanefreight.com:80/old<br>http://inlanefreight.com:80/panel<br>http://inlanefreight.com:80/phpinfo.php<br>http://inlanefreight.com:80/press<br>http://inlanefreight.com:80/private<br>http://inlanefreight.com:80/public<br>http://inlanefreight.com:80/public_html<br>http://inlanefreight.com:80/readme<br>http://inlanefreight.com:80/rest<br>http://inlanefreight.com:80/robots.txt<br>http://inlanefreight.com:80/scripts<br>http://inlanefreight.com:80/secret<br>http://inlanefreight.com:80/server-status<br>http://inlanefreight.com:80/settings<br>http://inlanefreight.com:80/shop<br>http://inlanefreight.com:80/signin<br>http://inlanefreight.com:80/sitemap.xml<br>http://inlanefreight.com:80/sql<br>http://inlanefreight.com:80/src<br>http://inlanefreight.com:80/stage<br>http://inlanefreight.com:80/staging<br>http://inlanefreight.com:80/static<br>http://inlanefreight.com:80/status<br>http://inlanefreight.com:80/store<br>http://inlanefreight.com:80/style.css<br>http://inlanefreight.com:80/temp<br>http://inlanefreight.com:80/test<br>http://inlanefreight.com:80/testing<br>http://inlanefreight.com:80/tmp<br>http://inlanefreight.com:80/tools<br>http://inlanefreight.com:80/uploads<br>http://inlanefreight.com:80/user<br>http://inlanefreight.com:80/users<br>http://inlanefreight.com:80/utils<br>http://inlanefreight.com:80/v1<br>http://inlanefreight.com:80/v2<br>http://inlanefreight.com:80/vendor<br>http://inlanefreight.com:80/web<br>http://inlanefreight.com:80/web.config<br>http://inlanefreight.com:80/wp-admin<br>http://inlanefreight.com:80/wp-content<br>http://inlanefreight.com:80/wp-includes<br>http://inlanefreight.com:80/wp-login.php<br>http://inlanefreight.com:80/www<br>http://inlanefreight.com:80/xmlrpc.php<br>http://www.inlanefreight.com:80/.env<br>http://www.inlanefreight.com:80/.git<br>http://www.inlanefreight.com:80/.htaccess<br>http://www.inlanefreight.com:80/FUZZ<br>http://www.inlanefreight.com:80/account<br>http://www.inlanefreight.com:80/admin<br>http://www.inlanefreight.com:80/administrator<br>http://www.inlanefreight.com:80/api<br>http://www.inlanefreight.com:80/app<br>http://www.inlanefreight.com:80/archive<br>http://www.inlanefreight.com:80/assets<br>http://www.inlanefreight.com:80/auth<br>http://www.inlanefreight.com:80/backup<br>http://www.inlanefreight.com:80/blog<br>http://www.inlanefreight.com:80/build<br>http://www.inlanefreight.com:80/cgi-bin<br>http://www.inlanefreight.com:80/common<br>http://www.inlanefreight.com:80/config<br>http://www.inlanefreight.com:80/configuration<br>http://www.inlanefreight.com:80/content<br>http://www.inlanefreight.com:80/core<br>http://www.inlanefreight.com:80/credentials<br>http://www.inlanefreight.com:80/css<br>http://www.inlanefreight.com:80/dashboard<br>http://www.inlanefreight.com:80/data<br>http://www.inlanefreight.com:80/database<br>http://www.inlanefreight.com:80/db<br>http://www.inlanefreight.com:80/dev<br>http://www.inlanefreight.com:80/development<br>http://www.inlanefreight.com:80/dist<br>http://www.inlanefreight.com:80/docs<br>http://www.inlanefreight.com:80/download<br>http://www.inlanefreight.com:80/dump<br>http://www.inlanefreight.com:80/examples<br>http://www.inlanefreight.com:80/export<br>http://www.inlanefreight.com:80/files<br>http://www.inlanefreight.com:80/forum<br>http://www.inlanefreight.com:80/graphql<br>http://www.inlanefreight.com:80/health<br>http://www.inlanefreight.com:80/images<br>http://www.inlanefreight.com:80/img<br>http://www.inlanefreight.com:80/import<br>http://www.inlanefreight.com:80/includes<br>http://www.inlanefreight.com:80/index.html<br>http://www.inlanefreight.com:80/index.php<br>http://www.inlanefreight.com:80/info.php<br>http://www.inlanefreight.com:80/install<br>http://www.inlanefreight.com:80/js<br>http://www.inlanefreight.com:80/lib<br>http://www.inlanefreight.com:80/license<br>http://www.inlanefreight.com:80/login<br>http://www.inlanefreight.com:80/logon<br>http://www.inlanefreight.com:80/logs<br>http://www.inlanefreight.com:80/mail<br>http://www.inlanefreight.com:80/main.js<br>http://www.inlanefreight.com:80/media<br>http://www.inlanefreight.com:80/new<br>http://www.inlanefreight.com:80/news<br>http://www.inlanefreight.com:80/node_modules<br>http://www.inlanefreight.com:80/old<br>http://www.inlanefreight.com:80/panel<br>http://www.inlanefreight.com:80/phpinfo.php<br>http://www.inlanefreight.com:80/press<br>http://www.inlanefreight.com:80/private<br>http://www.inlanefreight.com:80/public<br>http://www.inlanefreight.com:80/public_html<br>http://www.inlanefreight.com:80/readme<br>http://www.inlanefreight.com:80/rest<br>http://www.inlanefreight.com:80/robots.txt<br>http://www.inlanefreight.com:80/scripts<br>http://www.inlanefreight.com:80/secret<br>http://www.inlanefreight.com:80/server-status<br>http://www.inlanefreight.com:80/settings<br>http://www.inlanefreight.com:80/shop<br>http://www.inlanefreight.com:80/signin<br>http://www.inlanefreight.com:80/sitemap.xml<br>http://www.inlanefreight.com:80/sql<br>http://www.inlanefreight.com:80/src<br>http://www.inlanefreight.com:80/stage<br>http://www.inlanefreight.com:80/staging<br>http://www.inlanefreight.com:80/static<br>http://www.inlanefreight.com:80/status<br>http://www.inlanefreight.com:80/store<br>http://www.inlanefreight.com:80/style.css<br>http://www.inlanefreight.com:80/temp<br>http://www.inlanefreight.com:80/test<br>http://www.inlanefreight.com:80/testing<br>http://www.inlanefreight.com:80/tmp<br>http://www.inlanefreight.com:80/tools<br>http://www.inlanefreight.com:80/uploads<br>http://www.inlanefreight.com:80/user<br>http://www.inlanefreight.com:80/users<br>http://www.inlanefreight.com:80/utils<br>http://www.inlanefreight.com:80/v1<br>http://www.inlanefreight.com:80/v2<br>http://www.inlanefreight.com:80/vendor<br>http://www.inlanefreight.com:80/web<br>http://www.inlanefreight.com:80/web.config<br>http://www.inlanefreight.com:80/wp-admin<br>http://www.inlanefreight.com:80/wp-content<br>http://www.inlanefreight.com:80/wp-includes<br>http://www.inlanefreight.com:80/wp-login.php<br>http://www.inlanefreight.com:80/www<br>http://www.inlanefreight.com:80/xmlrpc.php<br>https://inlanefreight.com:443/.htaccess<br>https://inlanefreight.com:443/FUZZ<br>https://inlanefreight.com:443/assets<br>https://inlanefreight.com:443/css<br>https://inlanefreight.com:443/images<br>https://inlanefreight.com:443/includes<br>https://inlanefreight.com:443/index.php<br>https://inlanefreight.com:443/js<br>https://inlanefreight.com:443/server-status<br>https://inlanefreight.com:443/uploads<br>https://inlanefreight.com:443/user<br>https://inlanefreight.com:443/wp-admin<br>https://inlanefreight.com:443/wp-admin/FUZZ<br>https://inlanefreight.com:443/wp-admin/css<br>https://inlanefreight.com:443/wp-admin/images<br>https://inlanefreight.com:443/wp-admin/includes<br>https://inlanefreight.com:443/wp-admin/js<br>https://inlanefreight.com:443/wp-admin/user<br>https://inlanefreight.com:443/wp-content<br>https://inlanefreight.com:443/wp-content/FUZZ<br>https://inlanefreight.com:443/wp-content/uploads<br>https://inlanefreight.com:443/wp-includes<br>https://inlanefreight.com:443/wp-includes/FUZZ<br>https://inlanefreight.com:443/wp-includes/assets<br>https://inlanefreight.com:443/wp-includes/css<br>https://inlanefreight.com:443/wp-includes/images<br>https://inlanefreight.com:443/wp-includes/js<br>https://inlanefreight.com:443/wp-login.php<br>https://inlanefreight.com:443/xmlrpc.php<br>https://www.bing.com<br>https://www.inlanefreight.com:443/.htaccess<br>https://www.inlanefreight.com:443/FUZZ<br>https://www.inlanefreight.com:443/assets<br>https://www.inlanefreight.com:443/css<br>https://www.inlanefreight.com:443/images<br>https://www.inlanefreight.com:443/includes<br>https://www.inlanefreight.com:443/index.php<br>https://www.inlanefreight.com:443/js<br>https://www.inlanefreight.com:443/server-status<br>https://www.inlanefreight.com:443/uploads<br>https://www.inlanefreight.com:443/user<br>https://www.inlanefreight.com:443/wp-admin<br>https://www.inlanefreight.com:443/wp-admin/FUZZ<br>https://www.inlanefreight.com:443/wp-admin/css<br>https://www.inlanefreight.com:443/wp-admin/images<br>https://www.inlanefreight.com:443/wp-admin/includes<br>https://www.inlanefreight.com:443/wp-admin/js<br>https://www.inlanefreight.com:443/wp-admin/user<br>https://www.inlanefreight.com:443/wp-content<br>https://www.inlanefreight.com:443/wp-content/FUZZ<br>https://www.inlanefreight.com:443/wp-content/uploads<br>https://www.inlanefreight.com:443/wp-includes<br>https://www.inlanefreight.com:443/wp-includes/FUZZ<br>https://www.inlanefreight.com:443/wp-includes/assets<br>https://www.inlanefreight.com:443/wp-includes/css<br>https://www.inlanefreight.com:443/wp-includes/images<br>https://www.inlanefreight.com:443/wp-includes/js<br>https://www.inlanefreight.com:443/wp-login.php<br>https://www.inlanefreight.com:443/xmlrpc.php`);
+        let rawFeroxbusterSpecific = stripAnsiCodes(`https://inlanefreight.com<br>https://inlanefreight.com/index.php<br>https://inlanefreight.com/wp-admin<br>https://inlanefreight.com/wp-content<br>https://inlanefreight.com/wp-includes<br>https://inlanefreight.com/wp-login.php<br>https://inlanefreight.com/xmlrpc.php<br>https://www.inlanefreight.com<br>https://www.inlanefreight.com/index.php<br>https://www.inlanefreight.com/index.php/wp-json<br>https://www.inlanefreight.com/index.php/wp-json/oembed/1.0/embed<br>https://www.inlanefreight.com/index.php/wp-json/wp/v2/pages/7<br>https://www.inlanefreight.com/wp-admin<br>https://www.inlanefreight.com/wp-admin/css/forms.min.css<br>https://www.inlanefreight.com/wp-admin/css/l10n.min.css<br>https://www.inlanefreight.com/wp-admin/css/login.min.css<br>https://www.inlanefreight.com/wp-admin/js/password-strength-meter.min.js<br>https://www.inlanefreight.com/wp-admin/js/user-profile.min.js<br>https://www.inlanefreight.com/wp-content<br>https://www.inlanefreight.com/wp-content/themes/ben_theme<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/animate.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/bootstrap-progressbar.min.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/bootstrap.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/colors/default.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/font-awesome.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/jquery.smartmenus.bootstrap.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/magnific-popup.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/owl.carousel.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/owl.transitions.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/images/breadcrumb-back.jpg<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/bootstrap.min.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/jquery.smartmenus.bootstrap.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/jquery.smartmenus.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/navigation.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/owl.carousel.min.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/style.css<br>https://www.inlanefreight.com/wp-includes<br>https://www.inlanefreight.com/wp-includes/css/buttons.min.css<br>https://www.inlanefreight.com/wp-includes/css/dashicons.min.css<br>https://www.inlanefreight.com/wp-includes/css/dist/block-library/style.min.css<br>https://www.inlanefreight.com/wp-includes/js/dist/i18n.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-dom-rect.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-element-closest.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-fetch.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-formdata.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-node-contains.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-url.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill.min.js<br>https://www.inlanefreight.com/wp-includes/js/jquery/jquery-migrate.min.js<br>https://www.inlanefreight.com/wp-includes/js/jquery/jquery.min.js<br>https://www.inlanefreight.com/wp-includes/js/underscore.min.js<br>https://www.inlanefreight.com/wp-includes/js/wp-embed.min.js<br>https://www.inlanefreight.com/wp-includes/js/wp-util.min.js<br>https://www.inlanefreight.com/wp-includes/js/zxcvbn-async.min.js<br>https://www.inlanefreight.com/wp-includes/wlwmanifest.xml<br>https://www.inlanefreight.com/wp-login.php<br>https://www.inlanefreight.com/xmlrpc.php`);
+        let rawGobusterSpecific = stripAnsiCodes(`http://inlanefreight.com:80/.htaccess<br>http://inlanefreight.com:80/index.php<br>http://inlanefreight.com:80/server-status<br>http://inlanefreight.com:80/wp-admin<br>http://inlanefreight.com:80/wp-content<br>http://inlanefreight.com:80/wp-includes<br>http://inlanefreight.com:80/wp-login.php<br>http://inlanefreight.com:80/xmlrpc.php<br>http://www.inlanefreight.com:80/.htaccess<br>http://www.inlanefreight.com:80/index.php<br>http://www.inlanefreight.com:80/server-status<br>http://www.inlanefreight.com:80/wp-admin<br>http://www.inlanefreight.com:80/wp-content<br>http://www.inlanefreight.com:80/wp-includes<br>http://www.inlanefreight.com:80/wp-login.php<br>http://www.inlanefreight.com:80/xmlrpc.php<br>https://inlanefreight.com:443/.htaccess<br>https://inlanefreight.com:443/index.php<br>https://inlanefreight.com:443/server-status<br>https://inlanefreight.com:443/wp-admin<br>https://inlanefreight.com:443/wp-content<br>https://inlanefreight.com:443/wp-includes<br>https://inlanefreight.com:443/wp-login.php<br>https://inlanefreight.com:443/xmlrpc.php<br>https://www.inlanefreight.com:443/.htaccess<br>https://www.inlanefreight.com:443/index.php<br>https://www.inlanefreight.com:443/server-status<br>https://www.inlanefreight.com:443/wp-admin<br>https://www.inlanefreight.com:443/wp-content<br>https://www.inlanefreight.com:443/wp-includes<br>https://www.inlanefreight.com:443/wp-login.php<br>https://www.inlanefreight.com:443/xmlrpc.php`);
+        
+        let rawSubfinderOutput = ``;
+        let rawAssetfinderOutput = `www.inlanefreight.com`;
+        let rawFindomain = `www.inlanefreight.com<br>inlanefreight.com`;
+        let rawPuredns = ``;
+        let rawAllSubdomains = `inlanefreight.com<br>www.inlanefreight.com`;
+        
+        let rawPhase3AllUrls = ``;
+        let rawParameters = ``;
+        let rawJSFiles = ``;
+        let rawAPIEndpoints = ``;
+        let rawInterestingPaths = ``;
+        let rawAllUrlsCombined = `http://inlanefreight.com:80/.env<br>http://inlanefreight.com:80/.git<br>http://inlanefreight.com:80/.htaccess<br>http://inlanefreight.com:80/FUZZ<br>http://inlanefreight.com:80/account<br>http://inlanefreight.com:80/admin<br>http://inlanefreight.com:80/administrator<br>http://inlanefreight.com:80/api<br>http://inlanefreight.com:80/app<br>http://inlanefreight.com:80/archive<br>http://inlanefreight.com:80/assets<br>http://inlanefreight.com:80/auth<br>http://inlanefreight.com:80/backup<br>http://inlanefreight.com:80/blog<br>http://inlanefreight.com:80/build<br>http://inlanefreight.com:80/cgi-bin<br>http://inlanefreight.com:80/common<br>http://inlanefreight.com:80/config<br>http://inlanefreight.com:80/configuration<br>http://inlanefreight.com:80/content<br>http://inlanefreight.com:80/core<br>http://inlanefreight.com:80/credentials<br>http://inlanefreight.com:80/css<br>http://inlanefreight.com:80/dashboard<br>http://inlanefreight.com:80/data<br>http://inlanefreight.com:80/database<br>http://inlanefreight.com:80/db<br>http://inlanefreight.com:80/dev<br>http://inlanefreight.com:80/development<br>http://inlanefreight.com:80/dist<br>http://inlanefreight.com:80/docs<br>http://inlanefreight.com:80/download<br>http://inlanefreight.com:80/dump<br>http://inlanefreight.com:80/examples<br>http://inlanefreight.com:80/export<br>http://inlanefreight.com:80/files<br>http://inlanefreight.com:80/forum<br>http://inlanefreight.com:80/graphql<br>http://inlanefreight.com:80/health<br>http://inlanefreight.com:80/images<br>http://inlanefreight.com:80/img<br>http://inlanefreight.com:80/import<br>http://inlanefreight.com:80/includes<br>http://inlanefreight.com:80/index.html<br>http://inlanefreight.com:80/index.php<br>http://inlanefreight.com:80/info.php<br>http://inlanefreight.com:80/install<br>http://inlanefreight.com:80/js<br>http://inlanefreight.com:80/lib<br>http://inlanefreight.com:80/license<br>http://inlanefreight.com:80/login<br>http://inlanefreight.com:80/logon<br>http://inlanefreight.com:80/logs<br>http://inlanefreight.com:80/mail<br>http://inlanefreight.com:80/main.js<br>http://inlanefreight.com:80/media<br>http://inlanefreight.com:80/new<br>http://inlanefreight.com:80/news<br>http://inlanefreight.com:80/node_modules<br>http://inlanefreight.com:80/old<br>http://inlanefreight.com:80/panel<br>http://inlanefreight.com:80/phpinfo.php<br>http://inlanefreight.com:80/press<br>http://inlanefreight.com:80/private<br>http://inlanefreight.com:80/public<br>http://inlanefreight.com:80/public_html<br>http://inlanefreight.com:80/readme<br>http://inlanefreight.com:80/rest<br>http://inlanefreight.com:80/robots.txt<br>http://inlanefreight.com:80/scripts<br>http://inlanefreight.com:80/secret<br>http://inlanefreight.com:80/server-status<br>http://inlanefreight.com:80/settings<br>http://inlanefreight.com:80/shop<br>http://inlanefreight.com:80/signin<br>http://inlanefreight.com:80/sitemap.xml<br>http://inlanefreight.com:80/sql<br>http://inlanefreight.com:80/src<br>http://inlanefreight.com:80/stage<br>http://inlanefreight.com:80/staging<br>http://inlanefreight.com:80/static<br>http://inlanefreight.com:80/status<br>http://inlanefreight.com:80/store<br>http://inlanefreight.com:80/style.css<br>http://inlanefreight.com:80/temp<br>http://inlanefreight.com:80/test<br>http://inlanefreight.com:80/testing<br>http://inlanefreight.com:80/tmp<br>http://inlanefreight.com:80/tools<br>http://inlanefreight.com:80/uploads<br>http://inlanefreight.com:80/user<br>http://inlanefreight.com:80/users<br>http://inlanefreight.com:80/utils<br>http://inlanefreight.com:80/v1<br>http://inlanefreight.com:80/v2<br>http://inlanefreight.com:80/vendor<br>http://inlanefreight.com:80/web<br>http://inlanefreight.com:80/web.config<br>http://inlanefreight.com:80/wp-admin<br>http://inlanefreight.com:80/wp-content<br>http://inlanefreight.com:80/wp-includes<br>http://inlanefreight.com:80/wp-login.php<br>http://inlanefreight.com:80/www<br>http://inlanefreight.com:80/xmlrpc.php<br>http://www.inlanefreight.com:80/.env<br>http://www.inlanefreight.com:80/.git<br>http://www.inlanefreight.com:80/.htaccess<br>http://www.inlanefreight.com:80/FUZZ<br>http://www.inlanefreight.com:80/account<br>http://www.inlanefreight.com:80/admin<br>http://www.inlanefreight.com:80/administrator<br>http://www.inlanefreight.com:80/api<br>http://www.inlanefreight.com:80/app<br>http://www.inlanefreight.com:80/archive<br>http://www.inlanefreight.com:80/assets<br>http://www.inlanefreight.com:80/auth<br>http://www.inlanefreight.com:80/backup<br>http://www.inlanefreight.com:80/blog<br>http://www.inlanefreight.com:80/build<br>http://www.inlanefreight.com:80/cgi-bin<br>http://www.inlanefreight.com:80/common<br>http://www.inlanefreight.com:80/config<br>http://www.inlanefreight.com:80/configuration<br>http://www.inlanefreight.com:80/content<br>http://www.inlanefreight.com:80/core<br>http://www.inlanefreight.com:80/credentials<br>http://www.inlanefreight.com:80/css<br>http://www.inlanefreight.com:80/dashboard<br>http://www.inlanefreight.com:80/data<br>http://www.inlanefreight.com:80/database<br>http://www.inlanefreight.com:80/db<br>http://www.inlanefreight.com:80/dev<br>http://www.inlanefreight.com:80/development<br>http://www.inlanefreight.com:80/dist<br>http://www.inlanefreight.com:80/docs<br>http://www.inlanefreight.com:80/download<br>http://www.inlanefreight.com:80/dump<br>http://www.inlanefreight.com:80/examples<br>http://www.inlanefreight.com:80/export<br>http://www.inlanefreight.com:80/files<br>http://www.inlanefreight.com:80/forum<br>http://www.inlanefreight.com:80/graphql<br>http://www.inlanefreight.com:80/health<br>http://www.inlanefreight.com:80/images<br>http://www.inlanefreight.com:80/img<br>http://www.inlanefreight.com:80/import<br>http://www.inlanefreight.com:80/includes<br>http://www.inlanefreight.com:80/index.html<br>http://www.inlanefreight.com:80/index.php<br>http://www.inlanefreight.com:80/info.php<br>http://www.inlanefreight.com:80/install<br>http://www.inlanefreight.com:80/js<br>http://www.inlanefreight.com:80/lib<br>http://www.inlanefreight.com:80/license<br>http://www.inlanefreight.com:80/login<br>http://www.inlanefreight.com:80/logon<br>http://www.inlanefreight.com:80/logs<br>http://www.inlanefreight.com:80/mail<br>http://www.inlanefreight.com:80/main.js<br>http://www.inlanefreight.com:80/media<br>http://www.inlanefreight.com:80/new<br>http://www.inlanefreight.com:80/news<br>http://www.inlanefreight.com:80/node_modules<br>http://www.inlanefreight.com:80/old<br>http://www.inlanefreight.com:80/panel<br>http://www.inlanefreight.com:80/phpinfo.php<br>http://www.inlanefreight.com:80/press<br>http://www.inlanefreight.com:80/private<br>http://www.inlanefreight.com:80/public<br>http://www.inlanefreight.com:80/public_html<br>http://www.inlanefreight.com:80/readme<br>http://www.inlanefreight.com:80/rest<br>http://www.inlanefreight.com:80/robots.txt<br>http://www.inlanefreight.com:80/scripts<br>http://www.inlanefreight.com:80/secret<br>http://www.inlanefreight.com:80/server-status<br>http://www.inlanefreight.com:80/settings<br>http://www.inlanefreight.com:80/shop<br>http://www.inlanefreight.com:80/signin<br>http://www.inlanefreight.com:80/sitemap.xml<br>http://www.inlanefreight.com:80/sql<br>http://www.inlanefreight.com:80/src<br>http://www.inlanefreight.com:80/stage<br>http://www.inlanefreight.com:80/staging<br>http://www.inlanefreight.com:80/static<br>http://www.inlanefreight.com:80/status<br>http://www.inlanefreight.com:80/store<br>http://www.inlanefreight.com:80/style.css<br>http://www.inlanefreight.com:80/temp<br>http://www.inlanefreight.com:80/test<br>http://www.inlanefreight.com:80/testing<br>http://www.inlanefreight.com:80/tmp<br>http://www.inlanefreight.com:80/tools<br>http://www.inlanefreight.com:80/uploads<br>http://www.inlanefreight.com:80/user<br>http://www.inlanefreight.com:80/users<br>http://www.inlanefreight.com:80/utils<br>http://www.inlanefreight.com:80/v1<br>http://www.inlanefreight.com:80/v2<br>http://www.inlanefreight.com:80/vendor<br>http://www.inlanefreight.com:80/web<br>http://www.inlanefreight.com:80/web.config<br>http://www.inlanefreight.com:80/wp-admin<br>http://www.inlanefreight.com:80/wp-content<br>http://www.inlanefreight.com:80/wp-includes<br>http://www.inlanefreight.com:80/wp-login.php<br>http://www.inlanefreight.com:80/www<br>http://www.inlanefreight.com:80/xmlrpc.php<br>https://inlanefreight.com<br>https://inlanefreight.com/index.php<br>https://inlanefreight.com/server-status<br>https://inlanefreight.com/wp-admin<br>https://inlanefreight.com/wp-admin/css<br>https://inlanefreight.com/wp-admin/images<br>https://inlanefreight.com/wp-admin/includes<br>https://inlanefreight.com/wp-admin/js<br>https://inlanefreight.com/wp-admin/user<br>https://inlanefreight.com/wp-content<br>https://inlanefreight.com/wp-content/uploads<br>https://inlanefreight.com/wp-includes<br>https://inlanefreight.com/wp-includes/assets<br>https://inlanefreight.com/wp-includes/css<br>https://inlanefreight.com/wp-includes/css/dist<br>https://inlanefreight.com/wp-includes/images<br>https://inlanefreight.com/wp-includes/images/media<br>https://inlanefreight.com/wp-includes/js<br>https://inlanefreight.com/wp-includes/js/dist<br>https://inlanefreight.com/wp-includes/js/dist/vendor<br>https://inlanefreight.com/wp-login.php<br>https://inlanefreight.com/xmlrpc.php<br>https://inlanefreight.com:443/.htaccess<br>https://inlanefreight.com:443/FUZZ<br>https://inlanefreight.com:443/assets<br>https://inlanefreight.com:443/css<br>https://inlanefreight.com:443/images<br>https://inlanefreight.com:443/includes<br>https://inlanefreight.com:443/index.php<br>https://inlanefreight.com:443/js<br>https://inlanefreight.com:443/server-status<br>https://inlanefreight.com:443/uploads<br>https://inlanefreight.com:443/user<br>https://inlanefreight.com:443/wp-admin<br>https://inlanefreight.com:443/wp-admin/FUZZ<br>https://inlanefreight.com:443/wp-admin/css<br>https://inlanefreight.com:443/wp-admin/images<br>https://inlanefreight.com:443/wp-admin/includes<br>https://inlanefreight.com:443/wp-admin/js<br>https://inlanefreight.com:443/wp-admin/user<br>https://inlanefreight.com:443/wp-content<br>https://inlanefreight.com:443/wp-content/FUZZ<br>https://inlanefreight.com:443/wp-content/uploads<br>https://inlanefreight.com:443/wp-includes<br>https://inlanefreight.com:443/wp-includes/FUZZ<br>https://inlanefreight.com:443/wp-includes/assets<br>https://inlanefreight.com:443/wp-includes/css<br>https://inlanefreight.com:443/wp-includes/images<br>https://inlanefreight.com:443/wp-includes/js<br>https://inlanefreight.com:443/wp-login.php<br>https://inlanefreight.com:443/xmlrpc.php<br>https://setuptools.pypa.io/en/latest/pkg_resources.html<br>https://www.bing.com<br>https://www.inlanefreight.com<br>https://www.inlanefreight.com/index.php<br>https://www.inlanefreight.com/index.php/wp-json<br>https://www.inlanefreight.com/index.php/wp-json/oembed/1.0/embed<br>https://www.inlanefreight.com/index.php/wp-json/wp/v2/pages/7<br>https://www.inlanefreight.com/server-status<br>https://www.inlanefreight.com/wp-admin<br>https://www.inlanefreight.com/wp-admin/css<br>https://www.inlanefreight.com/wp-admin/css/forms.min.css<br>https://www.inlanefreight.com/wp-admin/css/l10n.min.css<br>https://www.inlanefreight.com/wp-admin/css/login.min.css<br>https://www.inlanefreight.com/wp-admin/images<br>https://www.inlanefreight.com/wp-admin/includes<br>https://www.inlanefreight.com/wp-admin/js<br>https://www.inlanefreight.com/wp-admin/js/password-strength-meter.min.js<br>https://www.inlanefreight.com/wp-admin/js/user-profile.min.js<br>https://www.inlanefreight.com/wp-admin/user<br>https://www.inlanefreight.com/wp-content<br>https://www.inlanefreight.com/wp-content/themes/ben_theme<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/animate.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/bootstrap-progressbar.min.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/bootstrap.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/colors/default.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/font-awesome.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/jquery.smartmenus.bootstrap.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/magnific-popup.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/owl.carousel.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/css/owl.transitions.css<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/images/breadcrumb-back.jpg<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/bootstrap.min.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/jquery.smartmenus.bootstrap.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/jquery.smartmenus.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/navigation.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/js/owl.carousel.min.js<br>https://www.inlanefreight.com/wp-content/themes/ben_theme/style.css<br>https://www.inlanefreight.com/wp-content/uploads<br>https://www.inlanefreight.com/wp-includes<br>https://www.inlanefreight.com/wp-includes/assets<br>https://www.inlanefreight.com/wp-includes/css<br>https://www.inlanefreight.com/wp-includes/css/buttons.min.css<br>https://www.inlanefreight.com/wp-includes/css/dashicons.min.css<br>https://www.inlanefreight.com/wp-includes/css/dist<br>https://www.inlanefreight.com/wp-includes/css/dist/block-library/style.min.css<br>https://www.inlanefreight.com/wp-includes/images<br>https://www.inlanefreight.com/wp-includes/images/media<br>https://www.inlanefreight.com/wp-includes/js<br>https://www.inlanefreight.com/wp-includes/js/dist<br>https://www.inlanefreight.com/wp-includes/js/dist/i18n.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-dom-rect.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-element-closest.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-fetch.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-formdata.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-node-contains.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill-url.min.js<br>https://www.inlanefreight.com/wp-includes/js/dist/vendor/wp-polyfill.min.js<br>https://www.inlanefreight.com/wp-includes/js/jquery/jquery-migrate.min.js<br>https://www.inlanefreight.com/wp-includes/js/jquery/jquery.min.js<br>https://www.inlanefreight.com/wp-includes/js/underscore.min.js<br>https://www.inlanefreight.com/wp-includes/js/wp-embed.min.js<br>https://www.inlanefreight.com/wp-includes/js/wp-util.min.js<br>https://www.inlanefreight.com/wp-includes/js/zxcvbn-async.min.js<br>https://www.inlanefreight.com/wp-includes/wlwmanifest.xml<br>https://www.inlanefreight.com/wp-login.php<br>https://www.inlanefreight.com/xmlrpc.php<br>https://www.inlanefreight.com:443/.htaccess<br>https://www.inlanefreight.com:443/FUZZ<br>https://www.inlanefreight.com:443/assets<br>https://www.inlanefreight.com:443/css<br>https://www.inlanefreight.com:443/images<br>https://www.inlanefreight.com:443/includes<br>https://www.inlanefreight.com:443/index.php<br>https://www.inlanefreight.com:443/js<br>https://www.inlanefreight.com:443/server-status<br>https://www.inlanefreight.com:443/uploads<br>https://www.inlanefreight.com:443/user<br>https://www.inlanefreight.com:443/wp-admin<br>https://www.inlanefreight.com:443/wp-admin/FUZZ<br>https://www.inlanefreight.com:443/wp-admin/css<br>https://www.inlanefreight.com:443/wp-admin/images<br>https://www.inlanefreight.com:443/wp-admin/includes<br>https://www.inlanefreight.com:443/wp-admin/js<br>https://www.inlanefreight.com:443/wp-admin/user<br>https://www.inlanefreight.com:443/wp-content<br>https://www.inlanefreight.com:443/wp-content/FUZZ<br>https://www.inlanefreight.com:443/wp-content/uploads<br>https://www.inlanefreight.com:443/wp-includes<br>https://www.inlanefreight.com:443/wp-includes/FUZZ<br>https://www.inlanefreight.com:443/wp-includes/assets<br>https://www.inlanefreight.com:443/wp-includes/css<br>https://www.inlanefreight.com:443/wp-includes/images<br>https://www.inlanefreight.com:443/wp-includes/js<br>https://www.inlanefreight.com:443/wp-login.php<br>https://www.inlanefreight.com:443/xmlrpc.php`;
+
+
+        function createResultCard(url, statusCode = null, icon = '🔗', priority = 'gray') { 
+            const card = document.createElement('div');
+            card.className = `result-card ${priority}-priority`;
+            
+            let statusHtml = '';
+            if (statusCode) {
+                statusHtml = `<div class="result-status"><span class="status-code">[${statusCode}]</span></div>`;
+            }
+            
+            card.innerHTML = `
+                <div class="result-header">
+                    <div class="result-icon">${icon}</div>
+                    <div class="result-url"><a href="${url}" target="_blank" title="${url}">${url}</a></div>
+                </div>
+                ${statusHtml}
+            `;
+            return card;
+        }
+        
+        function renderSimpleList(rawOutput, containerId, icon, priority, filterFn = null) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+
+            const lines = rawOutput.split('<br>').map(l => l.trim()).filter(l => l);
+            if (lines.length === 0 || rawOutput.includes("Brak danych")) {
+                container.textContent = "Brak wyników do wyświetlenia.";
+                container.style.color = "#888";
+                container.style.padding = "10px";
+                return;
+            }
+
+            lines.forEach(line => {
+                const itemUrl = line.split(/\s+/)[0];
+                let card = null;
+                if (filterFn) {
+                    const result = filterFn(itemUrl);
+                    if (result.display) {
+                        card = createResultCard(itemUrl, null, result.icon, result.priority);
+                    }
+                } else {
+                    card = createResultCard(itemUrl, null, icon, priority);
+                }
+
+                if (card) {
+                    container.appendChild(card);
+                }
+            });
+        }
+
+        function renderComplexList(rawOutput, containerId, filterFn) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            
+            const lines = rawOutput.split('\n').map(l => l.trim()).filter(l => l);
+             if (lines.length === 0 || rawOutput.includes("Brak danych")) {
+                container.textContent = "Brak wyników do wyświetlenia.";
+                container.style.color = "#888";
+                container.style.padding = "10px";
+                return;
+            }
+            
+            lines.forEach(line => {
+                const result = filterFn(line);
+                if (result.display) {
+                    const card = createResultCard(result.url, result.code, result.icon, result.priority);
+                    container.appendChild(card);
+                }
+            });
+        }
+        
+        // --- Filtry i Parsery ---
+        const sensitiveKeywords = ['admin', 'login', 'panel', 'dashboard', 'config', 'backup', 'db', '.git', '.env', 'secret', 'token', 'jwt', 'credentials', 'password'];
+        
+        function httpxFilter(line) {
+            let parsed = null;
+            try { parsed = JSON.parse(line); } catch (e) {}
+
+            let url = null, code = null;
+            if (parsed) {
+                url = parsed.url || parsed.target || parsed.host;
+                code = parsed.status_code || parsed.status || null;
+            } else {
+                let m = line.match(/(https?:\/\/[^\s\[]+)/i);
+                if (m) {
+                    url = m[1];
+                    const codeMatch = line.match(/\[(\d{3})\]/);
+                    if (codeMatch) code = parseInt(codeMatch[1], 10);
+                }
+            }
+            if (!url) return { display: false };
+            if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+            
+            let priority = 'gray', icon = '🔗', isRed = false;
+            if (code) {
+                if ([500, 502, 503, 401, 403].includes(code)) { priority = 'red'; icon = '🔥'; isRed = true; }
+                else if ([301, 302, 307].includes(code)) { priority = 'orange'; icon = '👉'; }
+                else if (code === 200) { priority = 'green'; icon = '✅'; }
+                else { priority = 'gray'; icon = '🚫'; }
+            }
+            if (sensitiveKeywords.some(kw => url.toLowerCase().includes(kw))) { priority = 'red'; icon = '🔥'; isRed = true; }
+
+            return { display: true, url, code, priority, icon, isRed };
+        }
+
+        function dirsearchFilter(line) {
+            let url = line.split(/\s+/)[0];
+            let isRed = sensitiveKeywords.some(kw => url.toLowerCase().includes(kw));
+            let priority = isRed ? 'red' : 'gray';
+            let icon = isRed ? '🔥' : '📁';
+            return { display: true, url, code: null, priority, icon, isRed };
+        }
+        
+        function crawlingFilter(line) {
+             let url = line.split(/\s+/)[0];
+             let isRed = sensitiveKeywords.some(kw => url.toLowerCase().includes(kw));
+             let priority = isRed ? 'red' : 'red';
+             let icon = isRed ? '🔥' : '🕸️';
+             return { display: true, url, code: null, priority, icon, isRed };
+        }
+
+        // --- Funkcje Aplikujące Filtry ---
+        function applyHttpxFilter() {
+            const showOnlyRed = document.getElementById('showOnlyRedHttpx').checked;
+            renderComplexList(rawHttpxOutput, 'httpx-results', (line) => {
+                const result = httpxFilter(line);
+                if (showOnlyRed && !result.isRed) result.display = false;
+                return result;
+            });
+        }
+
+        function applyDirsearchFilter() {
+            const showOnlyRed = document.getElementById('showOnlyRedDirsearch').checked;
+            renderComplexList(rawDirSearchAll, 'dirsearch-all-results', (line) => {
+                 const result = dirsearchFilter(line);
+                 if (showOnlyRed && !result.isRed) result.display = false;
+                 return result;
+            });
+        }
+        
+        function applyCrawlingFilter() {
+            const showOnlyRed = document.getElementById('showOnlyRedCrawling').checked;
+            renderComplexList(rawPhase3AllUrls, 'crawling-all-results', (line) => {
+                 const result = crawlingFilter(line);
+                 if (showOnlyRed && !result.isRed) result.display = false;
+                 return result;
+            });
+        }
+
+        // --- Nawigacja Zakładek ---
+        function openMainTab(evt, tabName) {
+            let i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("main-tab-button");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+
+        function openSubTab(evt, mainTabName, subTabName) {
+            let i, subtabcontent, subtablinks;
+            const mainTab = document.getElementById(mainTabName);
+            
+            subtabcontent = mainTab.getElementsByClassName("sub-tab-content");
+            for (i = 0; i < subtabcontent.length; i++) {
+                subtabcontent[i].style.display = "none";
+            }
+            
+            subtablinks = mainTab.getElementsByClassName("sub-tab-button");
+            for (i = 0; i < subtablinks.length; i++) {
+                subtablinks[i].className = subtablinks[i].className.replace(" active", "");
+            }
+            
+            document.getElementById(mainTabName + "-" + subTabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+
+        // --- Inicjalizacja ---
+        document.addEventListener('DOMContentLoaded', (event) => {
+            // Faza 1
+            applyHttpxFilter();
+            renderSimpleList(rawSubfinderOutput, 'subfinder-results', '🔍', 'gray');
+            renderSimpleList(rawAssetfinderOutput, 'assetfinder-results', '🎯', 'gray');
+            renderSimpleList(rawFindomain, 'findomain-results', '🌐', 'gray');
+            renderSimpleList(rawPuredns, 'puredns-results', '🔎', 'gray');
+            
+            // Faza 2
+            applyDirsearchFilter();
+            renderSimpleList(rawDirsearchSpecific, 'dirsearch-results-specific', '🔍', 'green');
+            renderSimpleList(rawFfufSpecific, 'ffuf-results-specific', '💥', 'orange');
+            renderSimpleList(rawFeroxbusterSpecific, 'feroxbuster-results-specific', '👹', 'red');
+            renderSimpleList(rawGobusterSpecific, 'gobuster-results-specific', '🏃‍♂️', 'yellow');
+
+            // Faza 3
+            applyCrawlingFilter();
+            renderSimpleList(rawParameters, 'parameters-results', '🔧', 'yellow');
+            renderSimpleList(rawJSFiles, 'js-files-results', '📄', 'green');
+            renderSimpleList(rawAPIEndpoints, 'api-endpoints-results', '🔌', 'orange');
+            renderSimpleList(rawInterestingPaths, 'interesting-paths-results', '📁', 'cyan');
+
+            // Zakładka 'Wszystkie Wyniki'
+            renderSimpleList(rawAllSubdomains, 'all-subdomains-results', '🌍', 'gray');
+            renderSimpleList(rawAllUrlsCombined, 'all-urls-combined-results', '🔗', 'gray');
+            
+            // Aktywuj pierwszą główną i podrzędną zakładkę
+            document.querySelector('.main-tab-button').click();
+            const firstSubTab = document.querySelector('.sub-tab-button');
+            if(firstSubTab) {
+                firstSubTab.click();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Dirsearch started Wed Sep 10 21:31:16 2025 as: /usr/lib/python3/dist-packages/dirsearch/dirsearch.py --quiet -w /home/xzar/Desktop/shadowmap/report_www.inlanefreight.com_20250910_212808/shuffled_wordlist_t_188w1d.txt -e php,html,js,aspx,jsp,json --full-url --recursive --delay 0.1 -m GET -u https://inlanefreight.com:443 -H User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.84 Safari/537.36 -H Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8 -H Accept-Language: pl-PL,pl;q=0.9,en-US;q=0.8 -H Referer: https://www.bing.com/ -H Upgrade-Insecure-Requests: 1 -H DNT: 1 -H Cache-Control: max-age=0 -H Cookie: sessionid=8bmiw9du5iw6czio1xls7elcveb78ntb
+
+403   283B   https://inlanefreight.com/server-status
+301   330B   https://inlanefreight.com/wp-includes    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/
+301   329B   https://inlanefreight.com/wp-content    -> REDIRECTS TO: https://inlanefreight.com/wp-content/
+301   327B   https://inlanefreight.com/wp-admin    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/
+405    42B   https://inlanefreight.com/xmlrpc.php
+200     2KB  https://inlanefreight.com/wp-login.php
+301   334B   https://inlanefreight.com/wp-includes/css    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/css/
+301   333B   https://inlanefreight.com/wp-includes/js    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/js/
+301   337B   https://inlanefreight.com/wp-includes/assets    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/assets/
+301   337B   https://inlanefreight.com/wp-includes/images    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/images/
+301   337B   https://inlanefreight.com/wp-content/uploads    -> REDIRECTS TO: https://inlanefreight.com/wp-content/uploads/
+301   331B   https://inlanefreight.com/wp-admin/css    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/css/
+301   330B   https://inlanefreight.com/wp-admin/js    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/js/
+301   336B   https://inlanefreight.com/wp-admin/includes    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/includes/
+301   334B   https://inlanefreight.com/wp-admin/images    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/images/
+301   332B   https://inlanefreight.com/wp-admin/user    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/user/
+301   339B   https://inlanefreight.com/wp-includes/css/dist    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/css/dist/
+301   338B   https://inlanefreight.com/wp-includes/js/dist    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/js/dist/
+301   343B   https://inlanefreight.com/wp-includes/images/media    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/images/media/
+301   345B   https://inlanefreight.com/wp-includes/js/dist/vendor    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/js/dist/vendor/
