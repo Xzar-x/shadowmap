@@ -247,7 +247,7 @@ def display_phase1_settings_menu():
             if SAFE_MODE and not USER_CUSTOMIZED_USER_AGENT and not CUSTOM_HEADER: CUSTOM_HEADER = shared_get_random_user_agent_header(user_agents_file=USER_AGENTS_FILE, console_obj=console)
             elif not SAFE_MODE and not USER_CUSTOMIZED_USER_AGENT: CUSTOM_HEADER = ""
         elif choice == '2':
-            new_path = Prompt.ask(Align.center("[bold cyan]Wpisz nową ścieżkę do listy słów (Faza 1)[/bold cyan] (puste=domyślna)"))
+            new_path = Prompt.ask("[bold cyan]Wpisz nową ścieżkę do listy słów (Faza 1)[/bold cyan] (puste=domyślna)")
             if not new_path:
                 WORDLIST_PHASE1, USER_CUSTOMIZED_WORDLIST_PHASE1 = DEFAULT_WORDLIST_PHASE1, False
                 console.print(Align.center(f"[bold green]Lista słów (Faza 1) zresetowana do domyślnej.[/bold green]"))
@@ -257,25 +257,25 @@ def display_phase1_settings_menu():
             else:
                 console.print(Align.center("[bold red]Ścieżka nieprawidłowa lub plik nieczytelny.[/bold red]"))
         elif choice == '3':
-            new_ua = Prompt.ask(Align.center("[bold cyan]Wpisz nowy User-Agent[/bold cyan] (puste=domyślny)"))
+            new_ua = Prompt.ask("[bold cyan]Wpisz nowy User-Agent[/bold cyan] (puste=domyślny)")
             CUSTOM_HEADER, USER_CUSTOMIZED_USER_AGENT = new_ua, bool(new_ua)
             console.print(Align.center(f"[bold green]User-Agent {'ustawiony' if new_ua else 'zresetowany'}.[/bold green]"))
         elif choice == '4':
-            new_threads_str = Prompt.ask(Align.center("[bold cyan]Wpisz nową liczbę wątków[/bold cyan]"))
+            new_threads_str = Prompt.ask("[bold cyan]Wpisz nową liczbę wątków[/bold cyan]")
             if new_threads_str.isdigit() and int(new_threads_str) > 0:
                 THREADS, USER_CUSTOMIZED_THREADS = int(new_threads_str), True
                 console.print(Align.center(f"[bold green]Liczba wątków ustawiona na: {THREADS}[/bold green]"))
             else:
                 console.print(Align.center("[bold red]Nieprawidłowa liczba wątków.[/bold red]"))
         elif choice == '5':
-            new_timeout_str = Prompt.ask(Align.center("[bold cyan]Wpisz nowy limit czasu w sekundach[/bold cyan]"))
+            new_timeout_str = Prompt.ask("[bold cyan]Wpisz nowy limit czasu w sekundach[/bold cyan]")
             if new_timeout_str.isdigit() and int(new_timeout_str) > 0:
                 TOOL_TIMEOUT_SECONDS, USER_CUSTOMIZED_TIMEOUT = int(new_timeout_str), True
                 console.print(Align.center(f"[bold green]Limit czasu ustawiony na: {TOOL_TIMEOUT_SECONDS}s[/bold green]"))
             else:
                 console.print(Align.center("[bold red]Nieprawidłowy limit czasu.[/bold red]"))
         elif choice == '6':
-            new_path = Prompt.ask(Align.center("[bold cyan]Wpisz nową ścieżkę do pliku resolverów[/bold cyan] (puste=domyślna)"))
+            new_path = Prompt.ask("[bold cyan]Wpisz nową ścieżkę do pliku resolverów[/bold cyan] (puste=domyślna)")
             if not new_path:
                 RESOLVERS_FILE, USER_CUSTOMIZED_RESOLVERS = DEFAULT_RESOLVERS_FILE, False
                 console.print(Align.center(f"[bold green]Plik resolverów zresetowany.[/bold green]"))
@@ -364,23 +364,23 @@ def display_phase2_settings_menu():
             elif not SAFE_MODE and not USER_CUSTOMIZED_USER_AGENT: CUSTOM_HEADER = ""
         elif choice == '2': SCAN_ONLY_CRITICAL, USER_CUSTOMIZED_SCAN_CRITICAL = not SCAN_ONLY_CRITICAL, True
         elif choice == '3':
-            new_path = Prompt.ask(Align.center("[bold cyan]Wpisz nową ścieżkę do listy słów (Faza 2)[/bold cyan] (puste=domyślna)"))
+            new_path = Prompt.ask("[bold cyan]Wpisz nową ścieżkę do listy słów (Faza 2)[/bold cyan] (puste=domyślna)")
             if not new_path: WORDLIST_PHASE2, USER_CUSTOMIZED_WORDLIST_PHASE2 = DEFAULT_WORDLIST_PHASE2, False
             elif os.path.isfile(new_path) and os.access(new_path, os.R_OK): WORDLIST_PHASE2, USER_CUSTOMIZED_WORDLIST_PHASE2 = new_path, True
             else: console.print(Align.center("[bold red]Ścieżka nieprawidłowa lub plik nieczytelny.[/bold red]"))
         elif choice == '4':
-            new_ua = Prompt.ask(Align.center("[bold cyan]Wpisz nowy User-Agent[/bold cyan] (puste=domyślny)"))
+            new_ua = Prompt.ask("[bold cyan]Wpisz nowy User-Agent[/bold cyan] (puste=domyślny)")
             CUSTOM_HEADER, USER_CUSTOMIZED_USER_AGENT = new_ua, bool(new_ua)
         elif choice == '5':
-            new_threads_str = Prompt.ask(Align.center("[bold cyan]Wpisz nową liczbę wątków[/bold cyan]"))
+            new_threads_str = Prompt.ask("[bold cyan]Wpisz nową liczbę wątków[/bold cyan]")
             if new_threads_str.isdigit() and int(new_threads_str) > 0: THREADS, USER_CUSTOMIZED_THREADS = int(new_threads_str), True
             else: console.print(Align.center("[bold red]Nieprawidłowa liczba wątków.[/bold red]"))
         elif choice == '6':
-            new_timeout_str = Prompt.ask(Align.center("[bold cyan]Wpisz nowy limit czasu w sekundach[/bold cyan]"))
+            new_timeout_str = Prompt.ask("[bold cyan]Wpisz nowy limit czasu w sekundach[/bold cyan]")
             if new_timeout_str.isdigit() and int(new_timeout_str) > 0: TOOL_TIMEOUT_SECONDS, USER_CUSTOMIZED_TIMEOUT = int(new_timeout_str), True
             else: console.print(Align.center("[bold red]Nieprawidłowy limit czasu.[/bold red]"))
         elif choice == '7':
-            new_depth_str = Prompt.ask(Align.center("[bold cyan]Wpisz nową głębokość rekurencji (0=wyłącz)[/bold cyan]"))
+            new_depth_str = Prompt.ask("[bold cyan]Wpisz nową głębokość rekurencji (0=wyłącz)[/bold cyan]")
             if new_depth_str.isdigit() and int(new_depth_str) >= 0: RECURSION_DEPTH, USER_CUSTOMIZED_RECURSION_DEPTH = int(new_depth_str), True
             else: console.print(Align.center("[bold red]Nieprawidłowa głębokość rekurencji.[/bold red]"))
         elif choice.lower() == 'b': break
@@ -562,7 +562,6 @@ def start_phase1_scan(global_progress: Progress, global_task: TaskID):
             TEMP_FILES_TO_CLEAN.append(shuffled_wordlist_p1_path)
     global_progress.console.print(Align.center(f"[bold green]Rozpoczynam Fazę 1 - Odkrywanie Subdomen dla {ORIGINAL_TARGET}...[/bold green]"))
     
-    # FIX: Przekazywanie CLEAN_DOMAIN_TARGET do narzędzi Fazy 1
     puredns_base_cmd = ["puredns", "bruteforce", current_wordlist_p1, CLEAN_DOMAIN_TARGET, "--resolvers", RESOLVERS_FILE]
     tool_configurations = [
         {"name": "Subfinder", "cmd_template": ["subfinder", "-d", CLEAN_DOMAIN_TARGET, "-silent"]},
@@ -863,34 +862,33 @@ def main(
             
             if phase1_run and not phase2_run and not QUIET_MODE and not phase2_only:
                 if httpx_active_urls:
-                    proceed_q = f"Faza 1 znalazła [bold green]{len(httpx_active_urls)}[/bold green] aktywnych hostów.\nCzy chcesz kontynuować do Fazy 2 (Wyszukiwanie katalogów)?"
+                    critical_urls = filter_critical_urls(httpx_active_urls)
+                    
+                    proceed_q = (
+                        f"Faza 1 znalazła [bold green]{len(httpx_active_urls)}[/bold green] aktywnych hostów, "
+                        f"w tym [bold yellow]{len(critical_urls)}[/bold yellow] krytycznych.\n\n"
+                        f"Czy chcesz kontynuować do Fazy 2 (Wyszukiwanie katalogów)?"
+                    )
+                    
                     if ask_user_decision(proceed_q, choices=["y", "n"], default="y") == 'y':
                         phase2_run = display_phase2_tool_selection_menu()
-            
-            if phase2_run and httpx_active_urls:
-                critical_urls = filter_critical_urls(httpx_active_urls)
-                
-                if critical_urls and not QUIET_MODE:
-                    summary_text = (
-                        f"Znaleziono łącznie [bold green]{len(httpx_active_urls)}[/bold green] aktywnych hostów.\n"
-                        f"Wśród nich jest [bold yellow]{len(critical_urls)}[/bold yellow] oznaczonych jako potencjalnie krytyczne."
-                    )
-                    summary_panel = Panel(Text.from_markup(summary_text, justify="center"), title="[cyan]Podsumowanie Fazy 1[/cyan]", border_style="cyan")
-                    console.print(Align.center(summary_panel))
-                    
-                    scan_q = "Wybierz zakres skanowania dla Fazy 2:\n([bold]a[/bold]) - wszystkie, ([bold]c[/bold]) - tylko krytyczne"
-                    scan_choice = ask_user_decision(scan_q, choices=["a", "c"], default="a")
 
-                    if scan_choice == 'c':
-                        urls_for_phase2 = critical_urls
-                        console.print(Align.center("[bold yellow]OK, Faza 2 przeskanuje tylko [underline]krytyczne[/underline] hosty.[/bold yellow]"))
-                    else:
-                        urls_for_phase2 = httpx_active_urls
-                        console.print(Align.center("[bold green]OK, Faza 2 przeskanuje [underline]wszystkie[/underline] znalezione hosty.[/bold green]"))
-                else:
-                    urls_for_phase2 = httpx_active_urls
-            elif not urls_for_phase2 and (phase2_run or phase2_only):
-                urls_for_phase2 = [ORIGINAL_TARGET]
+                        if phase2_run:
+                            if critical_urls:
+                                scan_q = "Chcesz skanować wszystkie hosty [bold](a)[/bold] czy tylko krytyczne [bold](c)[/bold]?"
+                                scan_choice = ask_user_decision(scan_q, choices=["a", "c"], default="a")
+
+                                if scan_choice == 'c':
+                                    urls_for_phase2 = critical_urls
+                                    console.print(Align.center("[bold yellow]OK, Faza 2 przeskanuje tylko [underline]krytyczne[/underline] hosty.[/bold yellow]"))
+                                else:
+                                    urls_for_phase2 = httpx_active_urls
+                                    console.print(Align.center("[bold green]OK, Faza 2 przeskanuje [underline]wszystkie[/underline] znalezione hosty.[/bold green]"))
+                            else:
+                                urls_for_phase2 = httpx_active_urls
+            
+            if not urls_for_phase2 and (phase2_run or phase2_only):
+                urls_for_phase2 = [ORIGINAL_TARGET] if not httpx_active_urls else httpx_active_urls
             
             if (phase2_run or phase2_only) and urls_for_phase2:
                 with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True) as progress:
