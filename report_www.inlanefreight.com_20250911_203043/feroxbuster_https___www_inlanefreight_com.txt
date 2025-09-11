@@ -1,5 +1,0 @@
-Could not connect to https://www.inlanefreight.com, skipping...
-  => error sending request for url (https://www.inlanefreight.com/)
-
-
-ERROR: Could not connect to any target provided

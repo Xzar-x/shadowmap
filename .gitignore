@@ -1,0 +1,14 @@
+# Ignoruj katalogi z raportami generowane przez ShadowMap
+report_*/
+reports/
+
+# Ignoruj pliki tymczasowe i cache Pythona
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignoruj pliki środowisk wirtualnych
+.venv/
+venv/
+env/
