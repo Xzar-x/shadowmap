@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ShadowMap Scan Report - {{DOMAIN}}</title>
+    <title>ShadowMap Scan Report - inlanefreight.com</title>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -217,7 +217,6 @@
         .result-header {
             display: flex;
             align-items: center;
-            width: 100%;
         }
 
         .result-icon {
@@ -341,26 +340,6 @@
             animation: iconPulse 0.6s ease-in-out;
         }
 
-        .copy-notification {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: #00d4ff;
-            color: #1a1a2e;
-            padding: 10px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.3s ease, transform 0.3s ease;
-            pointer-events: none;
-        }
-        .copy-notification.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(-10px);
-        }
-
         @media (max-width: 768px) {
             body { padding: 5px; }
             .container { padding: 10px; border-radius: 8px; }
@@ -407,7 +386,7 @@
     </div>
 
     <div class="container">
-        <h1>ShadowMap Scan Report for {{DOMAIN}}</h1>
+        <h1>ShadowMap Scan Report for inlanefreight.com</h1>
 
         <div class="main-tabs">
             <div class="main-tab-button active" onclick="openMainTab(event, 'summary')">Podsumowanie</div>
@@ -420,15 +399,15 @@
         <!-- Podsumowanie -->
         <div id="summary" class="tab-content active">
             <h2>Podsumowanie skanowania</h2>
-            <div class="summary-item"><strong>Domena:</strong> {{DOMAIN}}</div>
-            <div class="summary-item"><strong>Całkowita liczba znalezionych subdomen:</strong> {{COUNT_ALL_SUBDOMAINS}}</div>
-            <div class="summary-item"><strong>Liczba aktywnych subdomen (HTTP/S):</strong> {{COUNT_HTTPX}}</div>
-            <div class="summary-item"><strong>Liczba znalezionych katalogów/plików (Faza 2):</strong> {{COUNT_DIR_SEARCH}}</div>
-            <div class="summary-item"><strong>Liczba unikalnych URL-i z crawlera (Faza 3):</strong> {{COUNT_ALL_URLS}}</div>
-            <div class="summary-item"><strong>Liczba znalezionych parametrów:</strong> {{COUNT_PARAMETERS}}</div>
-            <div class="summary-item"><strong>Liczba plików JavaScript:</strong> {{COUNT_JS_FILES}}</div>
-            <div class="summary-item"><strong>Liczba endpointów API:</strong> {{COUNT_API_ENDPOINTS}}</div>
-            <div class="summary-item"><strong>Liczba interesujących ścieżek:</strong> {{COUNT_INTERESTING_PATHS}}</div>
+            <div class="summary-item"><strong>Domena:</strong> inlanefreight.com</div>
+            <div class="summary-item"><strong>Całkowita liczba znalezionych subdomen:</strong> 9</div>
+            <div class="summary-item"><strong>Liczba aktywnych subdomen (HTTP/S):</strong> 14</div>
+            <div class="summary-item"><strong>Liczba znalezionych katalogów/plików (Faza 2):</strong> 0</div>
+            <div class="summary-item"><strong>Liczba unikalnych URL-i z crawlera (Faza 3):</strong> 0</div>
+            <div class="summary-item"><strong>Liczba znalezionych parametrów:</strong> 0</div>
+            <div class="summary-item"><strong>Liczba plików JavaScript:</strong> 0</div>
+            <div class="summary-item"><strong>Liczba endpointów API:</strong> 0</div>
+            <div class="summary-item"><strong>Liczba interesujących ścieżek:</strong> 0</div>
         </div>
 
         <!-- Faza 1: Enumeracja Subdomen -->
@@ -443,7 +422,7 @@
             </div>
 
             <div id="phase1-httpx" class="sub-tab-content active">
-                <h3>HTTPX Output ({{COUNT_HTTPX}} aktywnych)</h3>
+                <h3>HTTPX Output (14 aktywnych)</h3>
                 <div class="filter-section">
                     <input type="checkbox" id="showOnlyRedHttpx" onchange="applyHttpxFilter()">
                     <label for="showOnlyRedHttpx">Pokaż tylko czerwone 🔥</label>
@@ -451,19 +430,19 @@
                 <div id="httpx-results" class="results-grid"></div>
             </div>
             <div id="phase1-subfinder" class="sub-tab-content">
-                <h3>Subfinder Output ({{COUNT_SUBFINDER}} znalezionych)</h3>
+                <h3>Subfinder Output (8 znalezionych)</h3>
                 <div id="subfinder-results" class="results-grid"></div>
             </div>
             <div id="phase1-assetfinder" class="sub-tab-content">
-                <h3>Assetfinder Output ({{COUNT_ASSETFINDER}} znalezionych)</h3>
+                <h3>Assetfinder Output (11 znalezionych)</h3>
                 <div id="assetfinder-results" class="results-grid"></div>
             </div>
             <div id="phase1-findomain" class="sub-tab-content">
-                <h3>Findomain Output ({{COUNT_FINDOMAIN}} znalezionych)</h3>
+                <h3>Findomain Output (2 znalezionych)</h3>
                 <div id="findomain-results" class="results-grid"></div>
             </div>
             <div id="phase1-puredns" class="sub-tab-content">
-                <h3>Puredns Output ({{COUNT_PUREDNS}} znalezionych)</h3>
+                <h3>Puredns Output (4 znalezionych)</h3>
                 <div id="puredns-results" class="results-grid"></div>
             </div>
         </div>
@@ -479,7 +458,7 @@
                 <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'gobuster')">Gobuster</div>
             </div>
             <div id="phase2-all_dirsearch" class="sub-tab-content active">
-                <h3>Wszystkie znalezione katalogi i pliki ({{COUNT_DIR_SEARCH}} znalezionych)</h3>
+                <h3>Wszystkie znalezione katalogi i pliki (0 znalezionych)</h3>
                 <div class="filter-section">
                     <input type="checkbox" id="showOnlyRedDirsearch" onchange="applyDirsearchFilter()">
                     <label for="showOnlyRedDirsearch">Pokaż tylko czerwone 🔥</label>
@@ -516,7 +495,7 @@
             </div>
 
             <div id="phase3-all_crawled" class="sub-tab-content active">
-                <h3>Wszystkie znalezione URL-e ({{COUNT_ALL_URLS}} znalezionych)</h3>
+                <h3>Wszystkie znalezione URL-e (0 znalezionych)</h3>
                 <div class="filter-section">
                     <input type="checkbox" id="showOnlyRedCrawling" onchange="applyCrawlingFilter()">
                     <label for="showOnlyRedCrawling">Pokaż tylko czerwone 🔥</label>
@@ -524,19 +503,19 @@
                 <div id="crawling-all-results" class="results-grid"></div>
             </div>
             <div id="phase3-parameters" class="sub-tab-content">
-                <h3>Znalezione parametry ({{COUNT_PARAMETERS}} znalezionych)</h3>
+                <h3>Znalezione parametry (0 znalezionych)</h3>
                 <div id="parameters-results" class="results-grid"></div>
             </div>
             <div id="phase3-js_files" class="sub-tab-content">
-                <h3>Pliki JavaScript ({{COUNT_JS_FILES}} znalezionych)</h3>
+                <h3>Pliki JavaScript (0 znalezionych)</h3>
                 <div id="js-files-results" class="results-grid"></div>
             </div>
             <div id="phase3-api_endpoints" class="sub-tab-content">
-                <h3>Endpointy API ({{COUNT_API_ENDPOINTS}} znalezionych)</h3>
+                <h3>Endpointy API (0 znalezionych)</h3>
                 <div id="api-endpoints-results" class="results-grid"></div>
             </div>
             <div id="phase3-interesting_paths" class="sub-tab-content">
-                <h3>Interesujące ścieżki ({{COUNT_INTERESTING_PATHS}} znalezionych)</h3>
+                <h3>Interesujące ścieżki (0 znalezionych)</h3>
                 <div id="interesting-paths-results" class="results-grid"></div>
             </div>
         </div>
@@ -544,9 +523,9 @@
         <!-- Wszystkie wyniki (scalony output) -->
         <div id="all_results" class="tab-content">
             <h2>Wszystkie znalezione subdomeny i URL-e</h2>
-            <h3>Wszystkie subdomeny ({{COUNT_ALL_SUBDOMAINS}} znalezionych)</h3>
+            <h3>Wszystkie subdomeny (9 znalezionych)</h3>
             <div id="all-subdomains-results" class="results-grid"></div>
-            <h3>Wszystkie URL-e z Fazy 2 i 3 ({{COUNT_ALL_URLS_COMBINED}} znalezionych)</h3>
+            <h3>Wszystkie URL-e z Fazy 2 i 3 (0 znalezionych)</h3>
             <div id="all-urls-combined-results" class="results-grid"></div>
         </div>
 
@@ -557,75 +536,36 @@
         <img src="https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/logo.png" alt="Logo" class="footer-logo">
     </div>
 
-    <div id="copy-notification" class="copy-notification"></div>
-
     <script>
         function stripAnsiCodes(str) {
             return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
         }
 
-        function copyToClipboard(text) {
-            const notification = document.getElementById('copy-notification');
-            if (!text || !notification) return;
-
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = 'fixed'; 
-            textArea.style.top = '0';
-            textArea.style.left = '0';
-            textArea.style.opacity = '0';
-
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-
-            try {
-                document.execCommand('copy');
-                notification.textContent = 'Skopiowano: ' + text;
-                notification.style.backgroundColor = '#00d4ff';
-                notification.classList.add('show');
-                setTimeout(() => {
-                    notification.classList.remove('show');
-                }, 2000);
-            } catch (err) {
-                console.error('Błąd podczas kopiowania do schowka', err);
-                notification.textContent = 'Błąd kopiowania!';
-                notification.style.backgroundColor = '#ff4d4d';
-                notification.classList.add('show');
-                 setTimeout(() => {
-                    notification.classList.remove('show');
-                }, 2000);
-            }
-
-            document.body.removeChild(textArea);
-        }
-
         // --- Globalne dane ---
-        let rawHttpxOutput = stripAnsiCodes(`{{HTTPX_OUTPUT_RAW_FOR_JS}}`);
-        let rawDirSearchAll = stripAnsiCodes(`{{DIR_SEARCH_ALL_OUTPUT}}`);
-        let rawDirsearchSpecific = stripAnsiCodes(`{{DIRSEARCH_SPECIFIC_OUTPUT}}`);
-        let rawFfufSpecific = stripAnsiCodes(`{{FFUF_SPECIFIC_OUTPUT}}`);
-        let rawFeroxbusterSpecific = stripAnsiCodes(`{{FEROXBUSTER_SPECIFIC_OUTPUT}}`);
-        let rawGobusterSpecific = stripAnsiCodes(`{{GOBUSTER_SPECIFIC_OUTPUT}}`);
+        let rawHttpxOutput = stripAnsiCodes(`{\"timestamp\":\"2025-09-11T20:16:43.247245159+02:00\",\"port\":\"443\",\"url\":\"https://inlanefreight.com:443\",\"input\":\"inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"scheme\":\"https\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"443.380517ms\",\"a\":[\"134.209.24.248\"],\"aaaa\":[\"2a03:b0c0:1:e0::32c:b001\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":0,\"lines\":0,\"status_code\":301,\"content_length\":0,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"8.8.4.4:53\",\"1.0.0.1:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:43.293865819+02:00\",\"port\":\"443\",\"url\":\"https://customer.inlanefreight.com:443\",\"input\":\"customer.inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"scheme\":\"https\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"491.219899ms\",\"a\":[\"134.209.24.248\"],\"aaaa\":[\"2a03:b0c0:1:e0::32c:b001\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":0,\"lines\":0,\"status_code\":301,\"content_length\":0,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"8.8.8.8:53\",\"8.8.4.4:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:45.053724829+02:00\",\"port\":\"443\",\"url\":\"https://ns3.inlanefreight.com:443\",\"input\":\"ns3.inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"scheme\":\"https\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"252.252721ms\",\"a\":[\"134.209.24.248\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":0,\"lines\":0,\"status_code\":301,\"content_length\":0,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"8.8.4.4:53\",\"1.1.1.1:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:45.14632383+02:00\",\"port\":\"443\",\"url\":\"https://support.inlanefreight.com:443\",\"input\":\"support.inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"scheme\":\"https\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"345.050272ms\",\"a\":[\"134.209.24.248\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":0,\"lines\":0,\"status_code\":301,\"content_length\":0,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"8.8.8.8:53\",\"1.1.1.1:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:45.184926572+02:00\",\"port\":\"443\",\"url\":\"https://www.inlanefreight.com:443\",\"input\":\"www.inlanefreight.com\",\"title\":\"Inlanefreight \u2013 Protected by Wordfence\",\"scheme\":\"https\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"239.732366ms\",\"a\":[\"134.209.24.248\"],\"aaaa\":[\"2a03:b0c0:1:e0::32c:b001\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Bootstrap\",\"MySQL\",\"OWL Carousel\",\"PHP\",\"Ubuntu\",\"WordPress Block Editor\",\"WordPress:5.6.15\",\"jQuery\",\"jQuery Migrate:3.3.2\"],\"words\":2903,\"lines\":316,\"status_code\":200,\"content_length\":22266,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"1.0.0.1:53\",\"8.8.4.4:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:45.977542465+02:00\",\"port\":\"443\",\"url\":\"https://my.inlanefreight.com:443\",\"input\":\"my.inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"scheme\":\"https\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"174.94295ms\",\"a\":[\"134.209.24.248\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":0,\"lines\":0,\"status_code\":301,\"content_length\":0,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"1.1.1.1:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:46.045313124+02:00\",\"port\":\"443\",\"url\":\"https://blog.inlanefreight.com:443\",\"input\":\"blog.inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"scheme\":\"https\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"3.240155394s\",\"a\":[\"134.209.24.248\"],\"aaaa\":[\"2a03:b0c0:1:e0::32c:b001\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":0,\"lines\":0,\"status_code\":301,\"content_length\":0,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"8.8.8.8:53\",\"1.0.0.1:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:46.899711175+02:00\",\"port\":\"80\",\"url\":\"http://inlanefreight.com:80\",\"input\":\"inlanefreight.com\",\"location\":\"https://inlanefreight.com/\",\"title\":\"301 Moved Permanently\",\"scheme\":\"http\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"93.368054ms\",\"a\":[\"134.209.24.248\"],\"aaaa\":[\"2a03:b0c0:1:e0::32c:b001\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":20,\"lines\":9,\"status_code\":301,\"content_length\":317,\"failed\":false,\"knowledgebase\":{\"PageType\":\"error\",\"pHash\":0},\"resolvers\":[\"8.8.4.4:53\",\"1.0.0.1:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:47.087395752+02:00\",\"port\":\"80\",\"url\":\"http://customer.inlanefreight.com:80\",\"input\":\"customer.inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"scheme\":\"http\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"284.6829ms\",\"a\":[\"134.209.24.248\"],\"aaaa\":[\"2a03:b0c0:1:e0::32c:b001\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":0,\"lines\":0,\"status_code\":301,\"content_length\":0,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"8.8.8.8:53\",\"8.8.4.4:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:47.088274197+02:00\",\"port\":\"80\",\"url\":\"http://ns3.inlanefreight.com:80\",\"input\":\"ns3.inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"scheme\":\"http\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"284.566889ms\",\"a\":[\"134.209.24.248\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":0,\"lines\":0,\"status_code\":301,\"content_length\":0,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"8.8.4.4:53\",\"1.1.1.1:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:47.096899477+02:00\",\"port\":\"80\",\"url\":\"http://my.inlanefreight.com:80\",\"input\":\"my.inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"scheme\":\"http\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"295.116602ms\",\"a\":[\"134.209.24.248\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":0,\"lines\":0,\"status_code\":301,\"content_length\":0,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"1.1.1.1:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:47.09755489+02:00\",\"port\":\"80\",\"url\":\"http://support.inlanefreight.com:80\",\"input\":\"support.inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"scheme\":\"http\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"296.082543ms\",\"a\":[\"134.209.24.248\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":0,\"lines\":0,\"status_code\":301,\"content_length\":0,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"8.8.8.8:53\",\"1.1.1.1:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:47.890187157+02:00\",\"port\":\"80\",\"url\":\"http://www.inlanefreight.com:80\",\"input\":\"www.inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"title\":\"301 Moved Permanently\",\"scheme\":\"http\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"85.197419ms\",\"a\":[\"134.209.24.248\"],\"aaaa\":[\"2a03:b0c0:1:e0::32c:b001\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":20,\"lines\":9,\"status_code\":301,\"content_length\":325,\"failed\":false,\"knowledgebase\":{\"PageType\":\"error\",\"pHash\":0},\"resolvers\":[\"1.0.0.1:53\",\"8.8.4.4:53\"]}\n{\"timestamp\":\"2025-09-11T20:16:47.936528628+02:00\",\"port\":\"80\",\"url\":\"http://blog.inlanefreight.com:80\",\"input\":\"blog.inlanefreight.com\",\"location\":\"https://www.inlanefreight.com/\",\"scheme\":\"http\",\"webserver\":\"Apache/2.4.41 (Ubuntu)\",\"content_type\":\"text/html\",\"method\":\"GET\",\"host\":\"134.209.24.248\",\"path\":\"/\",\"time\":\"134.50189ms\",\"a\":[\"134.209.24.248\"],\"aaaa\":[\"2a03:b0c0:1:e0::32c:b001\"],\"tech\":[\"Apache HTTP Server:2.4.41\",\"Ubuntu\"],\"words\":0,\"lines\":0,\"status_code\":301,\"content_length\":0,\"failed\":false,\"knowledgebase\":{\"PageType\":\"other\",\"pHash\":0},\"resolvers\":[\"8.8.8.8:53\",\"1.0.0.1:53\"]}\n`);
+        let rawDirSearchAll = stripAnsiCodes(``);
+        let rawDirsearchSpecific = stripAnsiCodes(``);
+        let rawFfufSpecific = stripAnsiCodes(``);
+        let rawFeroxbusterSpecific = stripAnsiCodes(``);
+        let rawGobusterSpecific = stripAnsiCodes(``);
         
-        let rawSubfinderOutput = `{{SUBFINDER_OUTPUT}}`;
-        let rawAssetfinderOutput = `{{ASSETFINDER_OUTPUT}}`;
-        let rawFindomain = `{{FINDOMAIN_OUTPUT}}`;
-        let rawPuredns = `{{PUREDNS_OUTPUT}}`;
-        let rawAllSubdomains = `{{ALL_SUBDOMAINS_OUTPUT}}`;
+        let rawSubfinderOutput = `www.inlanefreight.com<br>blog.inlanefreight.com<br>customer.inlanefreight.com<br>my.inlanefreight.com<br>ns1.inlanefreight.com<br>ns2.inlanefreight.com<br>ns3.inlanefreight.com<br>support.inlanefreight.com`;
+        let rawAssetfinderOutput = `inlanefreight.com<br>www.inlanefreight.com<br>inlanefreight.com<br>www.inlanefreight.com<br>blog.inlanefreight.com<br>customer.inlanefreight.com<br>my.inlanefreight.com<br>ns1.inlanefreight.com<br>ns2.inlanefreight.com<br>ns3.inlanefreight.com<br>support.inlanefreight.com`;
+        let rawFindomain = `www.inlanefreight.com<br>inlanefreight.com`;
+        let rawPuredns = `customer.inlanefreight.com<br>blog.inlanefreight.com<br>www.inlanefreight.com<br>support.inlanefreight.com`;
+        let rawAllSubdomains = `blog.inlanefreight.com<br>customer.inlanefreight.com<br>inlanefreight.com<br>my.inlanefreight.com<br>ns1.inlanefreight.com<br>ns2.inlanefreight.com<br>ns3.inlanefreight.com<br>support.inlanefreight.com<br>www.inlanefreight.com`;
         
-        let rawPhase3AllUrls = `{{PHASE3_ALL_URLS_OUTPUT}}`;
-        let rawParameters = `{{PARAMETERS_OUTPUT}}`;
-        let rawJSFiles = `{{JS_FILES_OUTPUT}}`;
-        let rawAPIEndpoints = `{{API_ENDPOINTS_OUTPUT}}`;
-        let rawInterestingPaths = `{{INTERESTING_PATHS_OUTPUT}}`;
-        let rawAllUrlsCombined = `{{ALL_URLS_COMBINED_OUTPUT}}`;
+        let rawPhase3AllUrls = ``;
+        let rawParameters = ``;
+        let rawJSFiles = ``;
+        let rawAPIEndpoints = ``;
+        let rawInterestingPaths = ``;
+        let rawAllUrlsCombined = ``;
 
 
         function createResultCard(url, statusCode = null, icon = '🔗', priority = 'gray') { 
             const card = document.createElement('div');
             card.className = `result-card ${priority}-priority`;
-            card.addEventListener('click', () => copyToClipboard(url));
             
             let statusHtml = '';
             if (statusCode) {
@@ -635,9 +575,9 @@
             card.innerHTML = `
                 <div class="result-header">
                     <div class="result-icon">${icon}</div>
-                    <div class="result-url"><a href="${url}" target="_blank" title="${url}" onclick="event.stopPropagation()">${url}</a></div>
-                    ${statusHtml}
+                    <div class="result-url"><a href="${url}" target="_blank" title="${url}">${url}</a></div>
                 </div>
+                ${statusHtml}
             `;
             return card;
         }

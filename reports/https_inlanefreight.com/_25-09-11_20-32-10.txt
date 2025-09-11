@@ -1,0 +1,30 @@
+# Dirsearch started Thu Sep 11 20:35:03 2025 as: /usr/lib/python3/dist-packages/dirsearch/dirsearch.py --quiet -w /usr/share/seclists/Discovery/Web-Content/common.txt -e php,html,js,aspx,jsp,json --full-url --recursive -u https://inlanefreight.com
+
+403   283B   https://inlanefreight.com/server-status
+301   327B   https://inlanefreight.com/wp-admin    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/
+301   329B   https://inlanefreight.com/wp-content    -> REDIRECTS TO: https://inlanefreight.com/wp-content/
+301   330B   https://inlanefreight.com/wp-includes    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/
+405    42B   https://inlanefreight.com/xmlrpc.php
+301   331B   https://inlanefreight.com/wp-admin/css    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/css/
+301   334B   https://inlanefreight.com/wp-admin/images    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/images/
+301   336B   https://inlanefreight.com/wp-admin/includes    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/includes/
+301   330B   https://inlanefreight.com/wp-admin/js    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/js/
+301   333B   https://inlanefreight.com/wp-admin/maint    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/maint/
+301   335B   https://inlanefreight.com/wp-admin/network    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/network/
+301   332B   https://inlanefreight.com/wp-admin/user    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/user/
+301   337B   https://inlanefreight.com/wp-content/plugins    -> REDIRECTS TO: https://inlanefreight.com/wp-content/plugins/
+301   336B   https://inlanefreight.com/wp-content/themes    -> REDIRECTS TO: https://inlanefreight.com/wp-content/themes/
+301   337B   https://inlanefreight.com/wp-content/upgrade    -> REDIRECTS TO: https://inlanefreight.com/wp-content/upgrade/
+301   337B   https://inlanefreight.com/wp-content/uploads    -> REDIRECTS TO: https://inlanefreight.com/wp-content/uploads/
+301   337B   https://inlanefreight.com/wp-includes/assets    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/assets/
+301   337B   https://inlanefreight.com/wp-includes/blocks    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/blocks/
+301   343B   https://inlanefreight.com/wp-includes/certificates    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/certificates/
+301   334B   https://inlanefreight.com/wp-includes/css    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/css/
+301   340B   https://inlanefreight.com/wp-includes/customize    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/customize/
+301   336B   https://inlanefreight.com/wp-includes/fonts    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/fonts/
+301   337B   https://inlanefreight.com/wp-includes/images    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/images/
+301   333B   https://inlanefreight.com/wp-includes/js    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/js/
+301   339B   https://inlanefreight.com/wp-includes/sitemaps    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/sitemaps/
+301   338B   https://inlanefreight.com/wp-includes/widgets    -> REDIRECTS TO: https://inlanefreight.com/wp-includes/widgets/
+500     0B   https://inlanefreight.com/wp-admin/includes/admin.php
+301   338B   https://inlanefreight.com/wp-admin/js/widgets    -> REDIRECTS TO: https://inlanefreight.com/wp-admin/js/widgets/
