@@ -148,7 +148,9 @@ def ask_user_decision(question: str, choices: List[str], default: str) -> str:
     choice_str = '/'.join(f"[bold]{c}[/bold]" for c in choices)
     prompt_str = f"\n[cyan]Wybierz opcję ({choice_str})[/cyan] [dim]({default}=Enter)[/dim]: "
 
-    return Prompt.ask(Align.center(prompt_str), choices=choices, default=default)
+    # FIX: Usunięto `Align.center()` wokół `prompt_str`, co powodowało błąd.
+    # `Prompt.ask` oczekuje obiektu string lub Text, a nie Align.
+    return Prompt.ask(prompt_str, choices=choices, default=default)
 
 def display_phase1_tool_selection_menu():
     global selected_phase1_tools, SAFE_MODE
@@ -536,8 +538,6 @@ def detect_waf_and_propose_safe_mode():
     except Exception as e:
         log_and_echo(f"Błąd podczas uruchamiania wafw00f: {e}", "ERROR")
         error_message = Text(f"Błąd podczas detekcji WAF: {e}", justify="center", style="bold red")
-        # FIX: Avoid potential rendering crash by printing a simple Panel.
-        # The text inside is already centered, achieving a similar visual effect.
         error_panel = Panel(error_message, title="[red]Błąd Krytyczny[/red]", expand=False, border_style="red")
         console.print(error_panel)
 
