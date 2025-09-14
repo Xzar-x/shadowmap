@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import shutil
 import argparse
 import tempfile
+from urllib.parse import urljoin
 
 # --- Surowe logowanie do stderr przed inicjalizacją rich ---
 def raw_log_error(message: str):
@@ -59,14 +60,8 @@ USER_AGENTS_FILE: Optional[str] = None
 
 # --- Wyrażenia regularne ---
 ansi_escape_pattern = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-DIRSEARCH_RESULT_PATTERN = re.compile(
-    r'^\[\d{2}:\d{2}:\d{2}\]\s+'
-    r'(\d{3})\s+'
-    r'(?:-\s*\d+B\s*-\s*)?'
-    r'(https?://\S+)'
-    r'(?:\s*->\s*(https?://\S+))?'
-    r'(?:.*$|$)'
-)
+# <<< ZMIANA TUTAJ: Uproszczone wyrażenie regularne do wyciągania URL-i i ścieżek >>>
+URL_OR_PATH_PATTERN = re.compile(r'(https?://[^\s/$.?#].[^\s]*)|(^/[^\s]*)')
 
 # --- Nagłówki do rotacji w Safe Mode ---
 ACCEPT_HEADERS = [
@@ -226,7 +221,8 @@ def start_dir_search(
 
     log_and_echo(f"Używam listy słów: {wordlist_to_use}", "INFO", console_obj=console_obj)
 
-    all_tool_results: Dict[str, List[str]] = {
+    # <<< ZMIANA TUTAJ: 'all_tool_results' będzie teraz tylko przechowywać surowe linie do raportu >>>
+    all_tool_outputs_for_report: Dict[str, List[str]] = {
         "ffuf": [], "feroxbuster": [], "dirsearch": [], "gobuster": [], "all_dirsearch_results": []
     }
     
@@ -256,7 +252,6 @@ def start_dir_search(
         {"name": "Gobuster", "enabled": selected_tools_config[3], "base_cmd": gobuster_base_cmd}
     ]
 
-    # Add recursion options based on the provided depth
     if recursion_depth > 0:
         for config in tool_configs:
             if config["name"] == "Ffuf":
@@ -265,7 +260,7 @@ def start_dir_search(
                 config["base_cmd"].extend(["--depth", str(recursion_depth)])
             elif config["name"] == "Dirsearch":
                 config["base_cmd"].extend(["--recursive"])
-    else: # recursion_depth is 0, explicitly disable it for tools that are recursive by default
+    else:
         for config in tool_configs:
             if config["name"] == "Feroxbuster":
                 config["base_cmd"].append("--no-recursion")
@@ -311,6 +306,8 @@ def start_dir_search(
                     future = executor.submit(_execute_tool_command, tool_name, cmd, url, output_path, tool_timeout, console_obj)
                     futures_map[future] = {"tool": tool_name, "url": url}
 
+        # <<< ZMIANA TUTAJ: Uproszczone parsowanie i zbieranie kandydatów do weryfikacji przez HTTPX >>>
+        all_candidate_urls = set()
         for future in as_completed(futures_map):
             task_info = futures_map[future]
             tool_name = task_info["tool"]
@@ -321,43 +318,28 @@ def start_dir_search(
                 if result_file and os.path.exists(result_file):
                     with open(result_file, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
+                        # Zapisz surowe linie dla raportu
+                        all_tool_outputs_for_report[tool_name.lower()].extend([ansi_escape_pattern.sub('', line).strip() for line in lines])
                         
-                        filtered_results = []
+                        # Wyciągnij kandydatów do weryfikacji
                         for line in lines:
                             cleaned_line = ansi_escape_pattern.sub('', line).strip()
-                            if not cleaned_line or ":: Progress:" in cleaned_line: continue
+                            if not cleaned_line or "Progress" in cleaned_line or "Target" in cleaned_line or "::" in cleaned_line:
+                                continue
                             
-                            full_url = None
-                            
-                            if tool_name == "Feroxbuster":
-                                match = re.match(r'^\s*(\d{3})\s+\S+\s+\S+l\s+\S+w\s+\S+c\s+(https?:\/\/\S+)$', cleaned_line)
-                                if match: full_url = match.group(2).rstrip('/')
-                            elif tool_name == "Dirsearch":
-                                match = DIRSEARCH_RESULT_PATTERN.match(cleaned_line)
-                                if match: full_url = (match.group(3) or match.group(2)).rstrip('/')
+                            # Proste wyciąganie URL-i lub ścieżek
+                            # Gobuster/Ffuf często zwracają tylko ścieżkę
+                            match = re.search(r'https?://[^\s,]+', cleaned_line)
+                            if match:
+                                all_candidate_urls.add(match.group(0).strip())
                             else:
-                                match_status = re.match(r'^(.*?)\s+\[Status:\s*(\d{3}),.*', cleaned_line)
-                                if match_status:
-                                    path = match_status.group(1).strip()
-                                    if path and not path.startswith("http"): full_url = f"{base_url}/{path}"
-                                elif "(Status: " in cleaned_line:
-                                    path = cleaned_line.split(" (Status:")[0].strip()
-                                    if path and not path.startswith("http"): full_url = f"{base_url}/{path}"
-                                elif cleaned_line.startswith("http"): full_url = cleaned_line.split()[0].rstrip('/')
-
-                            if not full_url:
-                                generic_match = re.search(r'(https?://[^\s/$.?#].[^\s]*)', cleaned_line)
-                                if generic_match and "Progress" not in cleaned_line and "Target" not in cleaned_line:
-                                    full_url = generic_match.group(1).rstrip('/')
-
-                            if full_url and full_url != base_url:
-                                if "://" in full_url:
-                                    protocol, rest = full_url.split("://", 1)
-                                    full_url = f"{protocol}://{rest.replace('//', '/')}"
-                                filtered_results.append(full_url)
-
-                        all_tool_results[tool_name.lower()].extend(filtered_results)
-                        all_tool_results["all_dirsearch_results"].extend(filtered_results)
+                                # Spróbuj złożyć URL z base_url i pierwszej części linii
+                                potential_path = cleaned_line.split()[0]
+                                if not potential_path.startswith(('http', 'ftp', '#', '//')):
+                                    # Użyj urljoin dla bezpiecznego łączenia
+                                    full_url = urljoin(base_url + '/', potential_path.lstrip('/'))
+                                    all_candidate_urls.add(full_url)
+                                    
             except Exception as e:
                 log_and_echo(f"Błąd podczas przetwarzania wyników dla {tool_name} na {base_url}: {e}", "ERROR")
 
@@ -368,30 +350,32 @@ def start_dir_search(
         try: os.remove(shuffled_wordlist_path)
         except OSError: pass
 
-    for tool_name in all_tool_results:
-        all_tool_results[tool_name] = safe_sort_unique(all_tool_results[tool_name])
+    # Sortuj surowe dane dla raportu
+    for tool_name in all_tool_outputs_for_report:
+        all_tool_outputs_for_report[tool_name] = safe_sort_unique(all_tool_outputs_for_report[tool_name])
+    all_tool_outputs_for_report['all_dirsearch_results'] = sorted(list(all_candidate_urls))
 
     log_and_echo("Ukończono fazę 2 - wyszukiwanie katalogów (zbieranie surowych danych).", "INFO", console_obj=console_obj)
     
-    # <<< ZMIANA TUTAJ: Weryfikacja HTTPX jest teraz w osobnym kroku z własnym spinnerem >>>
+    # <<< ZMIANA TUTAJ: HTTPX jest teraz jedynym źródłem zweryfikowanych danych >>>
     verified_results_httpx_output = ""
-    all_unique_urls = all_tool_results.get("all_dirsearch_results", [])
-
-    if all_unique_urls:
-        with console_obj.status(Spinner("dots", style="bold green"), f" Weryfikuję {len(all_unique_urls)} znalezionych ścieżek za pomocą HTTPX..."):
+    if all_candidate_urls:
+        with console_obj.status(Spinner("dots", style="bold green"), f" Weryfikuję {len(all_candidate_urls)} znalezionych ścieżek za pomocą HTTPX..."):
             urls_to_scan_file = None
             try:
+                # Używamy posortowanej listy, aby plik był deterministyczny
+                sorted_candidates = sorted(list(all_candidate_urls))
                 with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, dir=report_dir, prefix='phase2_urls_for_httpx_', suffix='.txt') as tmp_file:
-                    tmp_file.write('\n'.join(all_unique_urls))
+                    tmp_file.write('\n'.join(sorted_candidates))
                     urls_to_scan_file = tmp_file.name
 
                 httpx_output_file = os.path.join(report_dir, "httpx_results_phase2_verified.txt")
-                httpx_command = ["httpx", "-l", urls_to_scan_file, "-silent", "-json"]
+                httpx_command = ["httpx", "-l", urls_to_scan_file, "-silent", "-json", "-fc", "404"]
                 
                 process = subprocess.run(
                     httpx_command,
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                    timeout=tool_timeout * 2, # Dłuższy timeout dla potencjalnie dużej liczby URL-i
+                    timeout=tool_timeout * 2,
                     text=True, check=False, encoding='utf-8', errors='ignore'
                 )
                 verified_results_httpx_output = process.stdout
@@ -406,5 +390,4 @@ def start_dir_search(
                     except OSError: pass
         log_and_echo(f"Weryfikacja HTTPX zakończona.", "INFO", console_obj=console_obj)
 
-    return all_tool_results, verified_results_httpx_output
-
+    return all_tool_outputs_for_report, verified_results_httpx_output
