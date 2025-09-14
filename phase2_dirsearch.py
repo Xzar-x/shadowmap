@@ -271,8 +271,10 @@ def start_dir_search(
     status_codes_to_match = "200,204,301,302,307,401,403,405"
     extensions = "php,html,js,aspx,jsp,json"
     
-    # ZMIANA: Dodano "-b", "" aby wyłączyć domyślną czarną listę kodów statusu w Gobusterze.
-    gobuster_base_cmd = ["gobuster", "dir", "-w", wordlist_to_use, "-k", "-t", str(threads), "-s", status_codes_to_match, "-b", "", "-x", extensions, "--timeout", f"{tool_timeout}s", "--retry", "--retry-attempts", "5", "--no-error"]
+    # ZMIANA: Dodano flagę "-f" (--follow-redirect), aby gobuster podążał za przekierowaniami.
+    # ROZWIĄZUJE TO PROBLEM: "the server returns a status code that matches the provided options for non existing urls"
+    # w przypadku globalnych przekierowań HTTP na HTTPS.
+    gobuster_base_cmd = ["gobuster", "dir", "-f", "-w", wordlist_to_use, "-k", "-t", str(threads), "-s", status_codes_to_match, "-b", "", "-x", extensions, "--timeout", f"{tool_timeout}s", "--retry", "--retry-attempts", "5", "--no-error"]
 
     tool_configs = [
         {"name": "Ffuf", "enabled": selected_tools_config[0], "base_cmd": ["ffuf", "-mc", status_codes_to_match, "-fc", "404", "-t", str(threads), "-w", wordlist_to_use]},
@@ -373,4 +375,3 @@ def start_dir_search(
         log_and_echo(f"Weryfikacja HTTPX zakończona.", "INFO", console_obj=console_obj)
 
     return final_results, verified_httpx_output
-
