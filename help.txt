@@ -1,0 +1,591 @@
+Fuzz Faster U Fool - v2.1.0-dev
+
+HTTP OPTIONS:
+  -H                  Header `"Name: Value"`, separated by colon. Multiple -H flags are accepted.
+  -X                  HTTP method to use
+  -b                  Cookie data `"NAME1=VALUE1; NAME2=VALUE2"` for copy as curl functionality.
+  -cc                 Client cert for authentication. Client key needs to be defined as well for this to work
+  -ck                 Client key for authentication. Client certificate needs to be defined as well for this to work
+  -d                  POST data
+  -http2              Use HTTP2 protocol (default: false)
+  -ignore-body        Do not fetch the response content. (default: false)
+  -r                  Follow redirects (default: false)
+  -raw                Do not encode URI (default: false)
+  -recursion          Scan recursively. Only FUZZ keyword is supported, and URL (-u) has to end in it. (default: false)
+  -recursion-depth    Maximum recursion depth. (default: 0)
+  -recursion-strategy Recursion strategy: "default" for a redirect based, and "greedy" to recurse on all matches (default: default)
+  -replay-proxy       Replay matched requests using this proxy.
+  -sni                Target TLS SNI, does not support FUZZ keyword
+  -timeout            HTTP request timeout in seconds. (default: 10)
+  -u                  Target URL
+  -x                  Proxy URL (SOCKS5 or HTTP). For example: http://127.0.0.1:8080 or socks5://127.0.0.1:8080
+
+GENERAL OPTIONS:
+  -V                  Show version information. (default: false)
+  -ac                 Automatically calibrate filtering options (default: false)
+  -acc                Custom auto-calibration string. Can be used multiple times. Implies -ac
+  -ach                Per host autocalibration (default: false)
+  -ack                Autocalibration keyword (default: FUZZ)
+  -acs                Custom auto-calibration strategies. Can be used multiple times. Implies -ac
+  -c                  Colorize output. (default: false)
+  -config             Load configuration from a file
+  -json               JSON output, printing newline-delimited JSON records (default: false)
+  -maxtime            Maximum running time in seconds for entire process. (default: 0)
+  -maxtime-job        Maximum running time in seconds per job. (default: 0)
+  -noninteractive     Disable the interactive console functionality (default: false)
+  -p                  Seconds of `delay` between requests, or a range of random delay. For example "0.1" or "0.1-2.0"
+  -rate               Rate of requests per second (default: 0)
+  -s                  Do not print additional information (silent mode) (default: false)
+  -sa                 Stop on all error cases. Implies -sf and -se. (default: false)
+  -scraperfile        Custom scraper file path
+  -scrapers           Active scraper groups (default: all)
+  -se                 Stop on spurious errors (default: false)
+  -search             Search for a FFUFHASH payload from ffuf history
+  -sf                 Stop when > 95% of responses return 403 Forbidden (default: false)
+  -t                  Number of concurrent threads. (default: 40)
+  -v                  Verbose output, printing full URL and redirect location (if any) with the results. (default: false)
+
+MATCHER OPTIONS:
+  -mc                 Match HTTP status codes, or "all" for everything. (default: 200-299,301,302,307,401,403,405,500)
+  -ml                 Match amount of lines in response
+  -mmode              Matcher set operator. Either of: and, or (default: or)
+  -mr                 Match regexp
+  -ms                 Match HTTP response size
+  -mt                 Match how many milliseconds to the first response byte, either greater or less than. EG: >100 or <100
+  -mw                 Match amount of words in response
+
+FILTER OPTIONS:
+  -fc                 Filter HTTP status codes from response. Comma separated list of codes and ranges
+  -fl                 Filter by amount of lines in response. Comma separated list of line counts and ranges
+  -fmode              Filter set operator. Either of: and, or (default: or)
+  -fr                 Filter regexp
+  -fs                 Filter HTTP response size. Comma separated list of sizes and ranges
+  -ft                 Filter by number of milliseconds to the first response byte, either greater or less than. EG: >100 or <100
+  -fw                 Filter by amount of words in response. Comma separated list of word counts and ranges
+
+INPUT OPTIONS:
+  -D                  DirSearch wordlist compatibility mode. Used in conjunction with -e flag. (default: false)
+  -e                  Comma separated list of extensions. Extends FUZZ keyword.
+  -enc                Encoders for keywords, eg. 'FUZZ:urlencode b64encode'
+  -ic                 Ignore wordlist comments (default: false)
+  -input-cmd          Command producing the input. --input-num is required when using this input method. Overrides -w.
+  -input-num          Number of inputs to test. Used in conjunction with --input-cmd. (default: 100)
+  -input-shell        Shell to be used for running command
+  -mode               Multi-wordlist operation mode. Available modes: clusterbomb, pitchfork, sniper (default: clusterbomb)
+  -request            File containing the raw http request
+  -request-proto      Protocol to use along with raw request (default: https)
+  -w                  Wordlist file path and (optional) keyword separated by colon. eg. '/path/to/wordlist:KEYWORD'
+
+OUTPUT OPTIONS:
+  -debug-log          Write all of the internal logging to the specified file.
+  -o                  Write output to file
+  -od                 Directory path to store matched results to.
+  -of                 Output file format. Available formats: json, ejson, html, md, csv, ecsv (or, 'all' for all formats) (default: json)
+  -or                 Don't create the output file if we don't have results (default: false)
+
+EXAMPLE USAGE:
+  Fuzz file paths from wordlist.txt, match all responses but filter out those with content-size 42.
+  Colored, verbose output.
+    ffuf -w wordlist.txt -u https://example.org/FUZZ -mc all -fs 42 -c -v
+
+  Fuzz Host-header, match HTTP 200 responses.
+    ffuf -w hosts.txt -u https://example.org/ -H "Host: FUZZ" -mc 200
+
+  Fuzz POST JSON data. Match all responses not containing text "error".
+    ffuf -w entries.txt -u https://example.org/ -X POST -H "Content-Type: application/json" \
+      -d '{"name": "FUZZ", "anotherkey": "anothervalue"}' -fr "error"
+
+  Fuzz multiple locations. Match only responses reflecting the value of "VAL" keyword. Colored.
+    ffuf -w params.txt:PARAM -w values.txt:VAL -u https://example.org/?PARAM=VAL -mr "VAL" -c
+
+  More information and examples: https://github.com/ffuf/ffuf
+
+A fast, simple, recursive content discovery tool.
+
+Usage: feroxbuster [OPTIONS]
+
+Options:
+  -h, --help     Print help (see more with '--help')
+  -V, --version  Print version
+
+Target selection:
+  -u, --url <URL>                    The target URL (required, unless [--stdin || --resume-from ||
+                                     --request-file] used)
+      --stdin                        Read url(s) from STDIN
+      --resume-from <STATE_FILE>     State file from which to resume a partially complete scan (ex.
+                                     --resume-from ferox-1606586780.state)
+      --request-file <REQUEST_FILE>  Raw HTTP request file to use as a template for all requests
+
+Composite settings:
+      --burp         Set --proxy to http://127.0.0.1:8080 and set --insecure to true
+      --burp-replay  Set --replay-proxy to http://127.0.0.1:8080 and set --insecure to true
+      --smart        Set --auto-tune, --collect-words, and --collect-backups to true
+      --thorough     Use the same settings as --smart and set --collect-extensions and
+                     --scan-dir-listings to true
+
+Proxy settings:
+  -p, --proxy <PROXY>                  Proxy to use for requests (ex: http(s)://host:port,
+                                       socks5(h)://host:port)
+  -P, --replay-proxy <REPLAY_PROXY>    Send only unfiltered requests through a Replay Proxy, instead
+                                       of all requests
+  -R, --replay-codes <REPLAY_CODE>...  Status Codes to send through a Replay Proxy when found
+                                       (default: --status-codes value)
+
+Request settings:
+  -a, --user-agent <USER_AGENT>         Sets the User-Agent (default: feroxbuster/2.11.0)
+  -A, --random-agent                    Use a random User-Agent
+  -x, --extensions <FILE_EXTENSION>...  File extension(s) to search for (ex: -x php -x pdf js); reads
+                                        values (newline-separated) from file if input starts with an @
+                                        (ex: @ext.txt)
+  -m, --methods <HTTP_METHODS>...       Which HTTP request method(s) should be sent (default: GET)
+      --data <DATA>                     Request's Body; can read data from a file if input starts with
+                                        an @ (ex: @post.bin)
+  -H, --headers <HEADER>...             Specify HTTP headers to be used in each request (ex: -H
+                                        Header:val -H 'stuff: things')
+  -b, --cookies <COOKIE>...             Specify HTTP cookies to be used in each request (ex: -b
+                                        stuff=things)
+  -Q, --query <QUERY>...                Request's URL query parameters (ex: -Q token=stuff -Q
+                                        secret=key)
+  -f, --add-slash                       Append / to each request's URL
+      --protocol <PROTOCOL>             Specify the protocol to use when targeting via --request-file
+                                        or --url with domain only (default: https)
+
+Request filters:
+      --dont-scan <URL>...  URL(s) or Regex Pattern(s) to exclude from recursion/scans
+
+Response filters:
+  -S, --filter-size <SIZE>...
+          Filter out messages of a particular size (ex: -S 5120 -S 4927,1970)
+  -X, --filter-regex <REGEX>...
+          Filter out messages via regular expression matching on the response's body/headers (ex: -X
+          '^ignore me$')
+  -W, --filter-words <WORDS>...
+          Filter out messages of a particular word count (ex: -W 312 -W 91,82)
+  -N, --filter-lines <LINES>...
+          Filter out messages of a particular line count (ex: -N 20 -N 31,30)
+  -C, --filter-status <STATUS_CODE>...
+          Filter out status codes (deny list) (ex: -C 200 -C 401)
+      --filter-similar-to <UNWANTED_PAGE>...
+          Filter out pages that are similar to the given page (ex. --filter-similar-to
+          http://site.xyz/soft404)
+  -s, --status-codes <STATUS_CODE>...
+          Status Codes to include (allow list) (default: All Status Codes)
+
+Client settings:
+  -T, --timeout <SECONDS>          Number of seconds before a client's request times out (default: 7)
+  -r, --redirects                  Allow client to follow redirects
+  -k, --insecure                   Disables TLS certificate validation in the client
+      --server-certs <PEM|DER>...  Add custom root certificate(s) for servers with unknown
+                                   certificates
+      --client-cert <PEM>          Add a PEM encoded certificate for mutual authentication (mTLS)
+      --client-key <PEM>           Add a PEM encoded private key for mutual authentication (mTLS)
+
+Scan settings:
+  -t, --threads <THREADS>          Number of concurrent threads (default: 50)
+  -n, --no-recursion               Do not scan recursively
+  -d, --depth <RECURSION_DEPTH>    Maximum recursion depth, a depth of 0 is infinite recursion
+                                   (default: 4)
+      --force-recursion            Force recursion attempts on all 'found' endpoints (still respects
+                                   recursion depth)
+      --dont-extract-links         Don't extract links from response body (html, javascript, etc...)
+  -L, --scan-limit <SCAN_LIMIT>    Limit total number of concurrent scans (default: 0, i.e. no limit)
+      --parallel <PARALLEL_SCANS>  Run parallel feroxbuster instances (one child process per url
+                                   passed via stdin)
+      --rate-limit <RATE_LIMIT>    Limit number of requests per second (per directory) (default: 0,
+                                   i.e. no limit)
+      --time-limit <TIME_SPEC>     Limit total run time of all scans (ex: --time-limit 10m)
+  -w, --wordlist <FILE>            Path or URL of the wordlist
+      --auto-tune                  Automatically lower scan rate when an excessive amount of errors
+                                   are encountered
+      --auto-bail                  Automatically stop scanning when an excessive amount of errors are
+                                   encountered
+  -D, --dont-filter                Don't auto-filter wildcard responses
+      --scan-dir-listings          Force scans to recurse into directory listings
+
+Dynamic collection settings:
+  -E, --collect-extensions
+          Automatically discover extensions and add them to --extensions (unless they're in
+          --dont-collect)
+  -B, --collect-backups [<collect_backups>...]
+          Automatically request likely backup extensions for "found" urls (default: ~, .bak, .bak2,
+          .old, .1)
+  -g, --collect-words
+          Automatically discover important words from within responses and add them to the wordlist
+  -I, --dont-collect <FILE_EXTENSION>...
+          File extension(s) to Ignore while collecting extensions (only used with
+          --collect-extensions)
+
+Output settings:
+  -v, --verbosity...                   Increase verbosity level (use -vv or more for greater effect.
+                                       [CAUTION] 4 -v's is probably too much)
+      --silent                         Only print URLs (or JSON w/ --json) + turn off logging (good
+                                       for piping a list of urls to other commands)
+  -q, --quiet                          Hide progress bars and banner (good for tmux windows w/
+                                       notifications)
+      --json                           Emit JSON logs to --output and --debug-log instead of normal
+                                       text
+  -o, --output <FILE>                  Output file to write results to (use w/ --json for JSON
+                                       entries)
+      --debug-log <FILE>               Output file to write log entries (use w/ --json for JSON
+                                       entries)
+      --no-state                       Disable state output file (*.state)
+      --limit-bars <NUM_BARS_TO_SHOW>  Number of directory scan bars to show at any given time
+                                       (default: no limit)
+
+Update settings:
+  -U, --update  Update feroxbuster to the latest version
+
+NAME:
+   gobuster dir - Uses directory/file enumeration mode
+
+USAGE:
+   gobuster dir [command options] [arguments...]
+
+OPTIONS:
+   --url value, -u value                                    The target URL
+   --cookies value, -c value                                Cookies to use for the requests
+   --username value, -U value                               Username for Basic Auth
+   --password value, -P value                               Password for Basic Auth
+   --follow-redirect, -r                                    Follow redirects (default: false)
+   --headers value, -H value [ --headers value, -H value ]  Specify HTTP headers, -H 'Header1: val1' -H 'Header2: val2'
+   --no-canonicalize-headers, --nch                         Do not canonicalize HTTP header names. If set header names are sent as is (default: false)
+   --method value, -m value                                 the password to the p12 file (default: "GET")
+   --useragent value, -a value                              Set the User-Agent string (default: "gobuster/3.8")
+   --random-agent, --rua                                    Use a random User-Agent string (default: false)
+   --proxy value                                            Proxy to use for requests [http(s)://host:port] or [socks5://host:port]
+   --timeout value, --to value                              HTTP Timeout (default: 10s)
+   --no-tls-validation, -k                                  Skip TLS certificate verification (default: false)
+   --retry                                                  Should retry on request timeout (default: false)
+   --retry-attempts value, --ra value                       Times to retry on request timeout (default: 3)
+   --client-cert-pem value, --ccp value                     public key in PEM format for optional TLS client certificates]
+   --client-cert-pem-key value, --ccpk value                private key in PEM format for optional TLS client certificates (this key needs to have no password)
+   --client-cert-p12 value, --ccp12 value                   a p12 file to use for options TLS client certificates
+   --client-cert-p12-password value, --ccp12p value         the password to the p12 file
+   --tls-renegotiation                                      Enable TLS renegotiation (default: false)
+   --interface value, --iface value                         specify network interface to use. Can't be used with local-ip
+   --local-ip value                                         specify local ip of network interface to use. Can't be used with interface
+   --wordlist value, -w value                               Path to the wordlist. Set to - to use STDIN.
+   --delay value, -d value                                  Time each thread waits between requests (e.g. 1500ms) (default: 0s)
+   --threads value, -t value                                Number of concurrent threads (default: 10)
+   --wordlist-offset value, --wo value                      Resume from a given position in the wordlist (default: 0)
+   --output value, -o value                                 Output file to write results to (defaults to stdout)
+   --quiet, -q                                              Don't print the banner and other noise (default: false)
+   --no-progress, --np                                      Don't display progress (default: false)
+   --no-error, --ne                                         Don't display errors (default: false)
+   --pattern value, -p value                                File containing replacement patterns
+   --discover-pattern value, --pd value                     File containing replacement patterns applied to successful guesses
+   --no-color, --nc                                         Disable color output (default: false)
+   --debug                                                  enable debug output (default: false)
+   --status-codes value, -s value                           Positive status codes (will be overwritten with status-codes-blacklist if set). Can also handle ranges like 200,300-400,404
+   --status-codes-blacklist value, -b value                 Negative status codes (will override status-codes if set). Can also handle ranges like 200,300-400,404. (default: "404")
+   --extensions value, -x value                             File extension(s) to search for
+   --extensions-file value, -X value                        Read file extension(s) to search from the file
+   --expanded, -e                                           Expanded mode, print full URLs (default: false)
+   --no-status, -n                                          Don't print status codes (default: false)
+   --hide-length, --hl                                      Hide the length of the body in the output (default: false)
+   --add-slash, -f                                          Append / to each request (default: false)
+   --discover-backup, --db                                  Upon finding a file search for backup files by appending multiple backup extensions (default: false)
+   --exclude-length value, --xl value                       exclude the following content lengths (completely ignores the status). You can separate multiple lengths by comma and it also supports ranges like 203-206
+   --force                                                  Continue even if the prechecks fail. Please only use this if you know what you are doing, it can lead to unexpected results. (default: false)
+   --help, -h                                               show help
+Usage: dirsearch.py [-u|--url] target [-e|--extensions] extensions [options]
+
+Options:
+  --version             show program's version number and exit
+  -h, --help            show this help message and exit
+
+  Mandatory:
+    -u URL, --url=URL   Target URL(s), can use multiple flags
+    -l PATH, --url-file=PATH
+                        URL list file
+    --stdin             Read URL(s) from STDIN
+    --cidr=CIDR         Target CIDR
+    --raw=PATH          Load raw HTTP request from file (use `--scheme` flag
+                        to set the scheme)
+    -s SESSION_FILE, --session=SESSION_FILE
+                        Session file
+    --config=PATH       Full path to config file, see 'config.ini' for example
+                        (Default: config.ini)
+
+  Dictionary Settings:
+    -w WORDLISTS, --wordlists=WORDLISTS
+                        Customize wordlists (separated by commas)
+    -e EXTENSIONS, --extensions=EXTENSIONS
+                        Extension list separated by commas (e.g. php,asp)
+    -f, --force-extensions
+                        Add extensions to the end of every wordlist entry. By
+                        default dirsearch only replaces the %EXT% keyword with
+                        extensions
+    -O, --overwrite-extensions
+                        Overwrite other extensions in the wordlist with your
+                        extensions (selected via `-e`)
+    --exclude-extensions=EXTENSIONS
+                        Exclude extension list separated by commas (e.g.
+                        asp,jsp)
+    --remove-extensions
+                        Remove extensions in all paths (e.g. admin.php ->
+                        admin)
+    --prefixes=PREFIXES
+                        Add custom prefixes to all wordlist entries (separated
+                        by commas)
+    --suffixes=SUFFIXES
+                        Add custom suffixes to all wordlist entries, ignore
+                        directories (separated by commas)
+    -U, --uppercase     Uppercase wordlist
+    -L, --lowercase     Lowercase wordlist
+    -C, --capital       Capital wordlist
+
+  General Settings:
+    -t THREADS, --threads=THREADS
+                        Number of threads
+    -r, --recursive     Brute-force recursively
+    --deep-recursive    Perform recursive scan on every directory depth (e.g.
+                        api/users -> api/)
+    --force-recursive   Do recursive brute-force for every found path, not
+                        only directories
+    -R DEPTH, --max-recursion-depth=DEPTH
+                        Maximum recursion depth
+    --recursion-status=CODES
+                        Valid status codes to perform recursive scan, support
+                        ranges (separated by commas)
+    --subdirs=SUBDIRS   Scan sub-directories of the given URL[s] (separated by
+                        commas)
+    --exclude-subdirs=SUBDIRS
+                        Exclude the following subdirectories during recursive
+                        scan (separated by commas)
+    -i CODES, --include-status=CODES
+                        Include status codes, separated by commas, support
+                        ranges (e.g. 200,300-399)
+    -x CODES, --exclude-status=CODES
+                        Exclude status codes, separated by commas, support
+                        ranges (e.g. 301,500-599)
+    --exclude-sizes=SIZES
+                        Exclude responses by sizes, separated by commas (e.g.
+                        0B,4KB)
+    --exclude-text=TEXTS
+                        Exclude responses by text, can use multiple flags
+    --exclude-regex=REGEX
+                        Exclude responses by regular expression
+    --exclude-redirect=STRING
+                        Exclude responses if this regex (or text) matches
+                        redirect URL (e.g. '/index.html')
+    --exclude-response=PATH
+                        Exclude responses similar to response of this page,
+                        path as input (e.g. 404.html)
+    --skip-on-status=CODES
+                        Skip target whenever hit one of these status codes,
+                        separated by commas, support ranges
+    --min-response-size=LENGTH
+                        Minimum response length
+    --max-response-size=LENGTH
+                        Maximum response length
+    --max-time=SECONDS  Maximum runtime for the scan
+    --exit-on-error     Exit whenever an error occurs
+
+  Request Settings:
+    -m METHOD, --http-method=METHOD
+                        HTTP method (default: GET)
+    -d DATA, --data=DATA
+                        HTTP request data
+    --data-file=PATH    File contains HTTP request data
+    -H HEADERS, --header=HEADERS
+                        HTTP request header, can use multiple flags
+    --header-file=PATH  File contains HTTP request headers
+    -F, --follow-redirects
+                        Follow HTTP redirects
+    --random-agent      Choose a random User-Agent for each request
+    --auth=CREDENTIAL   Authentication credential (e.g. user:password or
+                        bearer token)
+    --auth-type=TYPE    Authentication type (basic, digest, bearer, ntlm, jwt,
+                        oauth2)
+    --cert-file=PATH    File contains client-side certificate
+    --key-file=PATH     File contains client-side certificate private key
+                        (unencrypted)
+    --user-agent=USER_AGENT
+    --cookie=COOKIE     
+
+  Connection Settings:
+    --timeout=TIMEOUT   Connection timeout
+    --delay=DELAY       Delay between requests
+    --proxy=PROXY       Proxy URL (HTTP/SOCKS), can use multiple flags
+    --proxy-file=PATH   File contains proxy servers
+    --proxy-auth=CREDENTIAL
+                        Proxy authentication credential
+    --replay-proxy=PROXY
+                        Proxy to replay with found paths
+    --tor               Use Tor network as proxy
+    --scheme=SCHEME     Scheme for raw request or if there is no scheme in the
+                        URL (Default: auto-detect)
+    --max-rate=RATE     Max requests per second
+    --retries=RETRIES   Number of retries for failed requests
+    --ip=IP             Server IP address
+
+  Advanced Settings:
+    --crawl             Crawl for new paths in responses
+
+  View Settings:
+    --full-url          Full URLs in the output (enabled automatically in
+                        quiet mode)
+    --redirects-history
+                        Show redirects history
+    --no-color          No colored output
+    -q, --quiet-mode    Quiet mode
+
+  Output Settings:
+    -o PATH, --output=PATH
+                        Output file
+    --format=FORMAT     Report format (Available: simple, plain, json, xml,
+                        md, csv, html, sqlite)
+    --log=PATH          Log file
+    
+    /usr/lib/python3/dist-packages/dirsearch/dirsearch.py:23: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
+  from pkg_resources import DistributionNotFound, VersionConflict
+Usage: dirsearch.py [-u|--url] target [-e|--extensions] extensions [options]
+
+Options:
+  --version             show program's version number and exit
+  -h, --help            show this help message and exit
+
+  Mandatory:
+    -u URL, --url=URL   Target URL(s), can use multiple flags
+    -l PATH, --url-file=PATH
+                        URL list file
+    --stdin             Read URL(s) from STDIN
+    --cidr=CIDR         Target CIDR
+    --raw=PATH          Load raw HTTP request from file (use `--scheme` flag
+                        to set the scheme)
+    -s SESSION_FILE, --session=SESSION_FILE
+                        Session file
+    --config=PATH       Full path to config file, see 'config.ini' for example
+                        (Default: config.ini)
+
+  Dictionary Settings:
+    -w WORDLISTS, --wordlists=WORDLISTS
+                        Customize wordlists (separated by commas)
+    -e EXTENSIONS, --extensions=EXTENSIONS
+                        Extension list separated by commas (e.g. php,asp)
+    -f, --force-extensions
+                        Add extensions to the end of every wordlist entry. By
+                        default dirsearch only replaces the %EXT% keyword with
+                        extensions
+    -O, --overwrite-extensions
+                        Overwrite other extensions in the wordlist with your
+                        extensions (selected via `-e`)
+    --exclude-extensions=EXTENSIONS
+                        Exclude extension list separated by commas (e.g.
+                        asp,jsp)
+    --remove-extensions
+                        Remove extensions in all paths (e.g. admin.php ->
+                        admin)
+    --prefixes=PREFIXES
+                        Add custom prefixes to all wordlist entries (separated
+                        by commas)
+    --suffixes=SUFFIXES
+                        Add custom suffixes to all wordlist entries, ignore
+                        directories (separated by commas)
+    -U, --uppercase     Uppercase wordlist
+    -L, --lowercase     Lowercase wordlist
+    -C, --capital       Capital wordlist
+
+  General Settings:
+    -t THREADS, --threads=THREADS
+                        Number of threads
+    -r, --recursive     Brute-force recursively
+    --deep-recursive    Perform recursive scan on every directory depth (e.g.
+                        api/users -> api/)
+    --force-recursive   Do recursive brute-force for every found path, not
+                        only directories
+    -R DEPTH, --max-recursion-depth=DEPTH
+                        Maximum recursion depth
+    --recursion-status=CODES
+                        Valid status codes to perform recursive scan, support
+                        ranges (separated by commas)
+    --subdirs=SUBDIRS   Scan sub-directories of the given URL[s] (separated by
+                        commas)
+    --exclude-subdirs=SUBDIRS
+                        Exclude the following subdirectories during recursive
+                        scan (separated by commas)
+    -i CODES, --include-status=CODES
+                        Include status codes, separated by commas, support
+                        ranges (e.g. 200,300-399)
+    -x CODES, --exclude-status=CODES
+                        Exclude status codes, separated by commas, support
+                        ranges (e.g. 301,500-599)
+    --exclude-sizes=SIZES
+                        Exclude responses by sizes, separated by commas (e.g.
+                        0B,4KB)
+    --exclude-text=TEXTS
+                        Exclude responses by text, can use multiple flags
+    --exclude-regex=REGEX
+                        Exclude responses by regular expression
+    --exclude-redirect=STRING
+                        Exclude responses if this regex (or text) matches
+                        redirect URL (e.g. '/index.html')
+    --exclude-response=PATH
+                        Exclude responses similar to response of this page,
+                        path as input (e.g. 404.html)
+    --skip-on-status=CODES
+                        Skip target whenever hit one of these status codes,
+                        separated by commas, support ranges
+    --min-response-size=LENGTH
+                        Minimum response length
+    --max-response-size=LENGTH
+                        Maximum response length
+    --max-time=SECONDS  Maximum runtime for the scan
+    --exit-on-error     Exit whenever an error occurs
+
+  Request Settings:
+    -m METHOD, --http-method=METHOD
+                        HTTP method (default: GET)
+    -d DATA, --data=DATA
+                        HTTP request data
+    --data-file=PATH    File contains HTTP request data
+    -H HEADERS, --header=HEADERS
+                        HTTP request header, can use multiple flags
+    --header-file=PATH  File contains HTTP request headers
+    -F, --follow-redirects
+                        Follow HTTP redirects
+    --random-agent      Choose a random User-Agent for each request
+    --auth=CREDENTIAL   Authentication credential (e.g. user:password or
+                        bearer token)
+    --auth-type=TYPE    Authentication type (basic, digest, bearer, ntlm, jwt,
+                        oauth2)
+    --cert-file=PATH    File contains client-side certificate
+    --key-file=PATH     File contains client-side certificate private key
+                        (unencrypted)
+    --user-agent=USER_AGENT
+    --cookie=COOKIE     
+
+  Connection Settings:
+    --timeout=TIMEOUT   Connection timeout
+    --delay=DELAY       Delay between requests
+    --proxy=PROXY       Proxy URL (HTTP/SOCKS), can use multiple flags
+    --proxy-file=PATH   File contains proxy servers
+    --proxy-auth=CREDENTIAL
+                        Proxy authentication credential
+    --replay-proxy=PROXY
+                        Proxy to replay with found paths
+    --tor               Use Tor network as proxy
+    --scheme=SCHEME     Scheme for raw request or if there is no scheme in the
+                        URL (Default: auto-detect)
+    --max-rate=RATE     Max requests per second
+    --retries=RETRIES   Number of retries for failed requests
+    --ip=IP             Server IP address
+
+  Advanced Settings:
+    --crawl             Crawl for new paths in responses
+
+  View Settings:
+    --full-url          Full URLs in the output (enabled automatically in
+                        quiet mode)
+    --redirects-history
+                        Show redirects history
+    --no-color          No colored output
+    -q, --quiet-mode    Quiet mode
+
+  Output Settings:
+    -o PATH, --output=PATH
+                        Output file
+    --format=FORMAT     Report format (Available: simple, plain, json, xml,
+                        md, csv, html, sqlite)
+    --log=PATH          Log file
