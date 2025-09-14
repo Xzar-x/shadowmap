@@ -19,6 +19,7 @@ from rich.prompt import Prompt
 from rich.align import Align
 from rich.text import Text
 from rich.table import Table
+from rich.spinner import Spinner
 from pyfiglet import Figlet
 from typing import Optional, List, Dict, Tuple
 from pathlib import Path
@@ -514,7 +515,8 @@ def detect_waf_and_propose_safe_mode():
     console.print(Align.center(Panel(initial_message, title="[cyan]Detekcja WAF[/cyan]", expand=False, border_style="cyan")))
     
     try:
-        process = subprocess.run(["wafw00f", "-a", ORIGINAL_TARGET], capture_output=True, text=True, timeout=TOOL_TIMEOUT_SECONDS, check=False)
+        wafw00f_command = ["wafw00f", "--noredirect", ORIGINAL_TARGET]
+        process = subprocess.run(wafw00f_command, capture_output=True, text=True, timeout=300, check=False, encoding='utf-8', errors='ignore')
         
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         cleaned_stdout = ansi_escape.sub('', process.stdout)
@@ -549,49 +551,57 @@ def detect_waf_and_propose_safe_mode():
         error_panel = Panel(error_message, title="[red]Błąd Krytyczny[/red]", expand=False, border_style="red")
         console.print(error_panel)
 
-def start_phase1_scan(global_progress: Progress, global_task: TaskID):
+# <<< ZMIANA TUTAJ: Usunięcie argumentów paska postępu >>>
+def start_phase1_scan():
     global REPORT_DIR, selected_phase1_tools, ORIGINAL_TARGET, THREADS, TOOL_TIMEOUT_SECONDS, WORDLIST_PHASE1, SAFE_MODE, CUSTOM_HEADER, RESOLVERS_FILE, CLEAN_DOMAIN_TARGET
-    current_wordlist_p1 = WORDLIST_PHASE1
-    shuffled_wordlist_p1_path = None
-    if SAFE_MODE:
-        if not USER_CUSTOMIZED_WORDLIST_PHASE1: current_wordlist_p1 = SMALL_WORDLIST_PHASE1
-        if not USER_CUSTOMIZED_USER_AGENT and not CUSTOM_HEADER: CUSTOM_HEADER = shared_get_random_user_agent_header(USER_AGENTS_FILE, console)
-        shuffled_wordlist_p1_path = shared_shuffle_wordlist(current_wordlist_p1, REPORT_DIR)
-        if shuffled_wordlist_p1_path:
-            current_wordlist_p1 = shuffled_wordlist_p1_path
-            TEMP_FILES_TO_CLEAN.append(shuffled_wordlist_p1_path)
-    global_progress.console.print(Align.center(f"[bold green]Rozpoczynam Fazę 1 - Odkrywanie Subdomen dla {ORIGINAL_TARGET}...[/bold green]"))
     
-    puredns_base_cmd = ["puredns", "bruteforce", current_wordlist_p1, CLEAN_DOMAIN_TARGET, "--resolvers", RESOLVERS_FILE]
-    tool_configurations = [
-        {"name": "Subfinder", "cmd_template": ["subfinder", "-d", CLEAN_DOMAIN_TARGET, "-silent"]},
-        {"name": "Assetfinder", "cmd_template": ["assetfinder", "--subs-only", CLEAN_DOMAIN_TARGET]},
-        {"name": "Findomain", "cmd_template": ["findomain", "--target", CLEAN_DOMAIN_TARGET, "-q"]},
-        {"name": "Puredns", "cmd_template": puredns_base_cmd + ["--rate-limit", "1000", "-q"]}
-    ]
+    console.print(Align.center(f"[bold green]Rozpoczynam Fazę 1 - Odkrywanie Subdomen dla {ORIGINAL_TARGET}...[/bold green]"))
+    
+    # <<< ZMIANA TUTAJ: Pasek postępu tworzony i zarządzany lokalnie >>>
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True) as progress:
+        task1_total = sum(1 for i, enabled in enumerate(selected_phase1_tools) if enabled and not (TARGET_IS_IP and i < 3))
+        task1 = progress.add_task("[green]Faza 1 (Narzędzia)[/green]", total=task1_total)
 
-    if SAFE_MODE:
-        tool_configurations[3]["cmd_template"] = puredns_base_cmd + ["--rate-limit", "50", "-q"]
-    tasks_to_run = []
-    for i, config in enumerate(tool_configurations):
-        if selected_phase1_tools[i] == 1:
-            if TARGET_IS_IP and config["name"] in ["Subfinder", "Assetfinder", "Findomain"]: continue
-            output_path = os.path.join(REPORT_DIR, f"{config['name'].lower()}_results.txt")
-            tasks_to_run.append((config["name"], config["cmd_template"], output_path))
-            TEMP_FILES_TO_CLEAN.append(output_path)
-    if not tasks_to_run:
-        global_progress.console.print(Align.center("Nie wybrano narzędzi do odkrywania subdomen. Pomijam.", style="bold yellow"))
-        return {}, []
-    output_files_collected = {}
-    with ThreadPoolExecutor(max_workers=THREADS) as executor:
-        futures = {executor.submit(_execute_tool_command, name, cmd, out, TOOL_TIMEOUT_SECONDS): name for name, cmd, out in tasks_to_run}
-        for future in as_completed(futures):
-            tool_name = futures[future]
-            result_file = future.result()
-            if result_file:
-                output_files_collected[tool_name] = result_file
-            global_progress.update(global_task, advance=1)
-    global_progress.console.print(Align.center("Integracja wyników...", style="bold green"))
+        current_wordlist_p1 = WORDLIST_PHASE1
+        if SAFE_MODE:
+            if not USER_CUSTOMIZED_WORDLIST_PHASE1: current_wordlist_p1 = SMALL_WORDLIST_PHASE1
+            if not USER_CUSTOMIZED_USER_AGENT and not CUSTOM_HEADER: CUSTOM_HEADER = shared_get_random_user_agent_header(USER_AGENTS_FILE, console)
+            shuffled_wordlist_p1_path = shared_shuffle_wordlist(current_wordlist_p1, REPORT_DIR)
+            if shuffled_wordlist_p1_path:
+                current_wordlist_p1 = shuffled_wordlist_p1_path
+                TEMP_FILES_TO_CLEAN.append(shuffled_wordlist_p1_path)
+        
+        puredns_base_cmd = ["puredns", "bruteforce", current_wordlist_p1, CLEAN_DOMAIN_TARGET, "--resolvers", RESOLVERS_FILE]
+        tool_configurations = [
+            {"name": "Subfinder", "cmd_template": ["subfinder", "-d", CLEAN_DOMAIN_TARGET, "-silent"]},
+            {"name": "Assetfinder", "cmd_template": ["assetfinder", "--subs-only", CLEAN_DOMAIN_TARGET]},
+            {"name": "Findomain", "cmd_template": ["findomain", "--target", CLEAN_DOMAIN_TARGET, "-q"]},
+            {"name": "Puredns", "cmd_template": puredns_base_cmd + ["--rate-limit", "1000", "-q"]}
+        ]
+
+        if SAFE_MODE:
+            tool_configurations[3]["cmd_template"] = puredns_base_cmd + ["--rate-limit", "50", "-q"]
+        tasks_to_run = []
+        for i, config in enumerate(tool_configurations):
+            if selected_phase1_tools[i] == 1:
+                if TARGET_IS_IP and config["name"] in ["Subfinder", "Assetfinder", "Findomain"]: continue
+                output_path = os.path.join(REPORT_DIR, f"{config['name'].lower()}_results.txt")
+                tasks_to_run.append((config["name"], config["cmd_template"], output_path))
+                TEMP_FILES_TO_CLEAN.append(output_path)
+        if not tasks_to_run:
+            console.print(Align.center("Nie wybrano narzędzi do odkrywania subdomen. Pomijam.", style="bold yellow"))
+            return {}, []
+        output_files_collected = {}
+        with ThreadPoolExecutor(max_workers=THREADS) as executor:
+            futures = {executor.submit(_execute_tool_command, name, cmd, out, TOOL_TIMEOUT_SECONDS): name for name, cmd, out in tasks_to_run}
+            for future in as_completed(futures):
+                tool_name = futures[future]
+                result_file = future.result()
+                if result_file:
+                    output_files_collected[tool_name] = result_file
+                progress.update(task1, advance=1)
+
+    console.print(Align.center("Integracja wyników...", style="bold green"))
     unique_subdomains_file = os.path.join(REPORT_DIR, "all_subdomains_unique.txt")
     TEMP_FILES_TO_CLEAN.append(unique_subdomains_file)
     all_lines = []
@@ -600,41 +610,66 @@ def start_phase1_scan(global_progress: Progress, global_task: TaskID):
             with open(f_path, 'r', encoding='utf-8') as f:
                 all_lines.extend(f.readlines())
     
-    unique_lines = sorted(list(set(line.strip() for line in all_lines if line.strip() and CLEAN_DOMAIN_TARGET in line)))
+    unique_lines = sorted(list(set(line.strip().lower() for line in all_lines if line.strip() and (f".{CLEAN_DOMAIN_TARGET}" in line.lower() or line.strip().lower() == CLEAN_DOMAIN_TARGET))))
     
     with open(unique_subdomains_file, 'w', encoding='utf-8') as f:
         f.write('\n'.join(unique_lines))
-    global_progress.update(global_task, advance=1)
-    global_progress.console.print(Align.center("Uruchamiam HTTPX...", style="bold green"))
-    httpx_output_file = os.path.join(REPORT_DIR, "httpx_results_phase1.txt")
-    httpx_command = ["httpx", "-l", unique_subdomains_file, "-silent", "-fc", "404", "-json"]
-    if SAFE_MODE:
-        httpx_command.extend(["-p", "80,443,8000,8080,8443", "-rate-limit", "10"])
-        extra_headers = shared_get_random_browser_headers()
-        for header in extra_headers: httpx_command.extend(["-H", header])
-        if CUSTOM_HEADER: httpx_command.extend(["-H", f"User-Agent: {CUSTOM_HEADER}"])
-        else: httpx_command.extend(["-H", f"User-Agent: {shared_get_random_user_agent_header(USER_AGENTS_FILE)}"])
-    elif CUSTOM_HEADER: httpx_command.extend(["-H", f"User-Agent: {CUSTOM_HEADER}"])
+    
     active_urls = []
-    if os.path.exists(unique_subdomains_file) and os.path.getsize(unique_subdomains_file) > 0:
-        httpx_result_file = _execute_tool_command("Httpx (Faza 1)", httpx_command, httpx_output_file, TOOL_TIMEOUT_SECONDS)
-        if httpx_result_file:
-            output_files_collected["Httpx"] = httpx_result_file
-            with open(httpx_result_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    try:
-                        url = json.loads(line).get("url")
-                        if url: active_urls.append(url)
-                    except (json.JSONDecodeError, TypeError): continue
-    global_progress.update(global_task, advance=1)
+    with console.status(Spinner("dots", style="bold green"), " Weryfikuję subdomeny za pomocą HTTPX..."):
+        httpx_output_file = os.path.join(REPORT_DIR, "httpx_results_phase1.txt")
+        httpx_command = ["httpx", "-l", unique_subdomains_file, "-silent", "-fc", "404", "-json"]
+        if SAFE_MODE:
+            httpx_command.extend(["-p", "80,443,8000,8080,8443", "-rate-limit", "10"])
+            extra_headers = shared_get_random_browser_headers()
+            for header in extra_headers: httpx_command.extend(["-H", header])
+            if CUSTOM_HEADER: httpx_command.extend(["-H", f"User-Agent: {CUSTOM_HEADER}"])
+            else: httpx_command.extend(["-H", f"User-Agent: {shared_get_random_user_agent_header(USER_AGENTS_FILE)}"])
+        elif CUSTOM_HEADER: httpx_command.extend(["-H", f"User-Agent: {CUSTOM_HEADER}"])
+        
+        if os.path.exists(unique_subdomains_file) and os.path.getsize(unique_subdomains_file) > 0:
+            httpx_result_file = _execute_tool_command("Httpx (Faza 1)", httpx_command, httpx_output_file, TOOL_TIMEOUT_SECONDS)
+            if httpx_result_file:
+                output_files_collected["Httpx"] = httpx_result_file
+                with open(httpx_result_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            url = json.loads(line).get("url")
+                            if url: active_urls.append(url)
+                        except (json.JSONDecodeError, TypeError): continue
+    
     return output_files_collected, sorted(list(set(active_urls)))
 
-def start_phase2_scan(httpx_results_urls: List[str], global_progress: Progress, global_task: TaskID):
+def start_phase2_scan(httpx_results_urls: List[str]):
     if not httpx_results_urls:
         console.print(Align.center("[bold yellow]Brak URL-i do skanowania w Fazie 2.[/bold yellow]"))
-        return {}
+        return {}, ""
+    
     console.print(Align.center(f"\n[bold green]Rozpoczynam Fazę 2 - Wyszukiwanie Katalogów dla {len(httpx_results_urls)} aktywnych URL-i...[/bold green]"))
-    return phase2_start_dir_search(urls=httpx_results_urls, report_dir=REPORT_DIR, safe_mode=SAFE_MODE, custom_header=CUSTOM_HEADER, wordlist_path=WORDLIST_PHASE2, small_wordlist_path=SMALL_WORDLIST_PHASE2, threads=THREADS, tool_timeout=TOOL_TIMEOUT_SECONDS, log_file=LOG_FILE, user_agents_file=USER_AGENTS_FILE, selected_tools_config=selected_phase2_tools, recursion_depth=RECURSION_DEPTH, console_obj=console, progress_obj=global_progress, main_task_id=global_task)
+    
+    task2_total = len(httpx_results_urls) * sum(selected_phase2_tools)
+    
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True) as progress:
+        task2 = progress.add_task("[green]Faza 2 (Narzędzia)[/green]", total=task2_total if task2_total > 0 else 1)
+        phase2_all_results, phase2_verified_results_httpx = phase2_start_dir_search(
+            urls=httpx_results_urls, 
+            report_dir=REPORT_DIR, 
+            safe_mode=SAFE_MODE, 
+            custom_header=CUSTOM_HEADER, 
+            wordlist_path=WORDLIST_PHASE2, 
+            small_wordlist_path=SMALL_WORDLIST_PHASE2, 
+            threads=THREADS, 
+            tool_timeout=TOOL_TIMEOUT_SECONDS, 
+            log_file=LOG_FILE, 
+            user_agents_file=USER_AGENTS_FILE, 
+            selected_tools_config=selected_phase2_tools, 
+            recursion_depth=RECURSION_DEPTH, 
+            console_obj=console, 
+            progress_obj=progress, 
+            main_task_id=task2
+        )
+    
+    return phase2_all_results, phase2_verified_results_httpx
 
 def start_phase3_scan(urls_to_scan: List[str], global_progress: Progress, global_task: TaskID):
     if not urls_to_scan:
@@ -693,6 +728,7 @@ def open_html_report(report_path: str):
 def generate_html_report(
     p1_files: Dict, 
     p2_results: Dict, 
+    p2_verified_httpx: str,
     p3_raw_results: Dict,
     p3_httpx_file_path: str
 ):
@@ -740,7 +776,7 @@ def generate_html_report(
     replacements['{{FINDOMAIN_OUTPUT}}'], replacements['{{COUNT_FINDOMAIN}}'] = get_content_and_count(p1_files.get('Findomain'))
     replacements['{{PUREDNS_OUTPUT}}'], replacements['{{COUNT_PUREDNS}}'] = get_content_and_count(p1_files.get('Puredns'))
     replacements['{{ALL_SUBDOMAINS_OUTPUT}}'] = "<br>".join(all_subdomains_unique)
-    replacements['{{COUNT_ALL_SUBDOMAINS}}'] = len(all_subdomains_unique)
+    replacements['{{COUNT_ALL_SUBDOMAINS}}'] = str(len(all_subdomains_unique))
 
     httpx_p1_content_raw = ""
     httpx_p1_count = 0
@@ -750,17 +786,21 @@ def generate_html_report(
             httpx_p1_count = len(lines)
             httpx_p1_content_raw = "".join(lines)
     replacements['{{HTTPX_OUTPUT_RAW_FOR_JS}}'] = escape_for_js(httpx_p1_content_raw)
-    replacements['{{COUNT_HTTPX}}'] = httpx_p1_count
+    replacements['{{COUNT_HTTPX}}'] = str(httpx_p1_count)
 
-    dirsearch_all, dirsearch_all_count = get_content_and_count(p2_results.get('all_dirsearch_results'), is_file=False)
-    replacements['{{DIR_SEARCH_ALL_OUTPUT}}'] = escape_for_js(dirsearch_all)
-    replacements['{{COUNT_DIR_SEARCH}}'] = dirsearch_all_count
+    # Faza 2
+    p2_all_results_list = p2_results.get('all_dirsearch_results', [])
+    dirsearch_all_for_js = "\n".join(p2_all_results_list)
+    replacements['{{DIR_SEARCH_ALL_OUTPUT}}'] = escape_for_js(dirsearch_all_for_js)
+    replacements['{{COUNT_DIR_SEARCH}}'] = str(len(p2_all_results_list))
     
     replacements['{{DIRSEARCH_SPECIFIC_OUTPUT}}'], _ = get_content_and_count(p2_results.get('dirsearch'), is_file=False)
     replacements['{{FFUF_SPECIFIC_OUTPUT}}'], _ = get_content_and_count(p2_results.get('ffuf'), is_file=False)
     replacements['{{FEROXBUSTER_SPECIFIC_OUTPUT}}'], _ = get_content_and_count(p2_results.get('feroxbuster'), is_file=False)
     replacements['{{GOBUSTER_SPECIFIC_OUTPUT}}'], _ = get_content_and_count(p2_results.get('gobuster'), is_file=False)
-    
+    replacements['{{HTTPX_PHASE2_VERIFIED_OUTPUT}}'] = escape_for_js(p2_verified_httpx)
+
+    # Faza 3
     replacements['{{PHASE3_ALL_URLS_OUTPUT}}'], replacements['{{COUNT_ALL_URLS}}'] = get_content_and_count(p3_raw_results.get('all_urls'), is_file=False)
     replacements['{{PARAMETERS_OUTPUT}}'], replacements['{{COUNT_PARAMETERS}}'] = get_content_and_count(p3_raw_results.get('parameters'), is_file=False)
     replacements['{{JS_FILES_OUTPUT}}'], replacements['{{COUNT_JS_FILES}}'] = get_content_and_count(p3_raw_results.get('js_files'), is_file=False)
@@ -770,7 +810,7 @@ def generate_html_report(
     all_urls_combined = sorted(list(set(p2_results.get('all_dirsearch_results', []) + p3_raw_results.get('all_urls', []))))
     all_urls_combined_content, all_urls_combined_count = get_content_and_count(all_urls_combined, is_file=False)
     replacements['{{ALL_URLS_COMBINED_OUTPUT}}'] = all_urls_combined_content
-    replacements['{{COUNT_ALL_URLS_COMBINED}}'] = all_urls_combined_count
+    replacements['{{COUNT_ALL_URLS_COMBINED}}'] = str(all_urls_combined_count)
 
     for placeholder, value in replacements.items():
         template = template.replace(str(placeholder), str(value))
@@ -826,7 +866,9 @@ def main(
         check_dependencies()
         
         phase1_output_files, httpx_active_urls, phase2_all_results, phase3_raw_results, phase3_httpx_file = {}, [], {}, {}, ""
+        phase2_verified_results_httpx = ""
         urls_for_phase2 = []
+        selected_paths_from_p2 = []
 
         phase1_run, phase2_run, phase3_run = False, False, False
 
@@ -855,55 +897,59 @@ def main(
                 detect_waf_and_propose_safe_mode()
 
             if phase1_run:
-                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True) as progress:
-                    task1_total = sum(1 for i, enabled in enumerate(selected_phase1_tools) if enabled and not (TARGET_IS_IP and i < 3)) + 2
-                    task1 = progress.add_task("[green]Faza 1 (Subdomeny)[/green]", total=task1_total)
-                    phase1_output_files, httpx_active_urls = start_phase1_scan(progress, task1)
+                phase1_output_files, httpx_active_urls = start_phase1_scan()
             
             if phase1_run and not phase2_run and not QUIET_MODE and not phase2_only:
                 if httpx_active_urls:
-                    critical_urls = filter_critical_urls(httpx_active_urls)
-                    
-                    proceed_q = (
-                        f"Faza 1 znalazła [bold green]{len(httpx_active_urls)}[/bold green] aktywnych hostów, "
-                        f"w tym [bold yellow]{len(critical_urls)}[/bold yellow] krytycznych.\n\n"
-                        f"Czy chcesz kontynuować do Fazy 2 (Wyszukiwanie katalogów)?"
-                    )
-                    
-                    if ask_user_decision(proceed_q, choices=["y", "n"], default="y") == 'y':
-                        phase2_run = display_phase2_tool_selection_menu()
-
-                        if phase2_run:
-                            if critical_urls:
-                                scan_q = "Chcesz skanować wszystkie hosty [bold](a)[/bold] czy tylko krytyczne [bold](c)[/bold]?"
-                                scan_choice = ask_user_decision(scan_q, choices=["a", "c"], default="a")
-
-                                if scan_choice == 'c':
-                                    urls_for_phase2 = critical_urls
-                                    console.print(Align.center("[bold yellow]OK, Faza 2 przeskanuje tylko [underline]krytyczne[/underline] hosty.[/bold yellow]"))
-                                else:
-                                    urls_for_phase2 = httpx_active_urls
-                                    console.print(Align.center("[bold green]OK, Faza 2 przeskanuje [underline]wszystkie[/underline] znalezione hosty.[/bold green]"))
+                    if ask_user_decision("Czy chcesz kontynuować do Fazy 2 (Wyszukiwanie katalogów)?", ["y", "n"], "y") == 'y':
+                        critical_urls = filter_critical_urls(httpx_active_urls)
+                        if critical_urls:
+                            summary_q = (f"Faza 1 znalazła [bold green]{len(httpx_active_urls)}[/bold green] aktywnych hostów, w tym [bold yellow]{len(critical_urls)}[/bold yellow] krytycznych.\n"
+                                         "Skanować wszystkie [bold](a)[/bold] czy tylko krytyczne [bold](c)[/bold]?")
+                            scan_choice = ask_user_decision(summary_q, choices=["a", "c"], default="a")
+                            if scan_choice == 'c':
+                                urls_for_phase2 = critical_urls
+                                console.print(Align.center(Panel(Text.from_markup("OK, Faza 2 przeskanuje tylko [underline]krytyczne[/underline] hosty.", justify="center"), title="[yellow]Informacja[/yellow]", border_style="yellow", expand=False)))
                             else:
                                 urls_for_phase2 = httpx_active_urls
-            
+                                console.print(Align.center(Panel(Text.from_markup("OK, Faza 2 przeskanuje [underline]wszystkie[/underline] znalezione hosty.", justify="center"), title="[green]Informacja[/green]", border_style="green", expand=False)))
+                        else:
+                            info_text = f"Faza 1 znalazła [bold green]{len(httpx_active_urls)}[/bold green] aktywnych hostów (brak krytycznych). Skanuję wszystkie."
+                            console.print(Align.center(Panel(Text.from_markup(info_text, justify="center"), title="[green]Informacja[/green]", border_style="green", expand=False)))
+                            urls_for_phase2 = httpx_active_urls
+                        
+                        phase2_run = display_phase2_tool_selection_menu()
+
             if not urls_for_phase2 and (phase2_run or phase2_only):
                 urls_for_phase2 = [ORIGINAL_TARGET] if not httpx_active_urls else httpx_active_urls
             
             if (phase2_run or phase2_only) and urls_for_phase2:
-                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True) as progress:
-                    task2_total = len(urls_for_phase2) * sum(selected_phase2_tools)
-                    task2 = progress.add_task("[green]Faza 2 (Katalogi)[/green]", total=task2_total if task2_total > 0 else 1)
-                    phase2_all_results = start_phase2_scan(urls_for_phase2, progress, task2)
+                phase2_all_results, phase2_verified_results_httpx = start_phase2_scan(urls_for_phase2)
 
             if (phase2_run or phase2_only) and not phase3_run and not QUIET_MODE and not phase3_only:
-                if phase2_all_results.get("all_dirsearch_results"):
-                    proceed_q3 = f"Faza 2 znalazła [bold green]{len(phase2_all_results.get('all_dirsearch_results', []))}[/bold green] nowych ścieżek.\nCzy chcesz kontynuować do Fazy 3 (Web Crawling)?"
-                    if ask_user_decision(proceed_q3, choices=["y", "n"], default="y") == 'y':
+                phase2_found_paths = phase2_all_results.get("all_dirsearch_results", [])
+                if phase2_found_paths:
+                    if ask_user_decision("Czy chcesz kontynuować do Fazy 3 (Web Crawling)?", ["y", "n"], "y") == 'y':
+                        critical_paths = filter_critical_urls(phase2_found_paths)
+                        if critical_paths:
+                            summary_q = (f"Faza 2 znalazła [bold green]{len(phase2_found_paths)}[/bold green] ścieżek, w tym [bold yellow]{len(critical_paths)}[/bold yellow] krytycznych.\n"
+                                         "Skanować wszystkie [bold](a)[/bold] czy tylko krytyczne [bold](c)[/bold]?")
+                            scan_choice = ask_user_decision(summary_q, choices=["a", "c"], default="a")
+                            if scan_choice == 'c':
+                                selected_paths_from_p2 = critical_paths
+                                console.print(Align.center(Panel(Text.from_markup("OK, Faza 3 przeskanuje tylko [underline]krytyczne[/underline] ścieżki.", justify="center"), title="[yellow]Informacja[/yellow]", border_style="yellow", expand=False)))
+                            else:
+                                selected_paths_from_p2 = phase2_found_paths
+                                console.print(Align.center(Panel(Text.from_markup("OK, Faza 3 przeskanuje [underline]wszystkie[/underline] znalezione ścieżki.", justify="center"), title="[green]Informacja[/green]", border_style="green", expand=False)))
+                        else:
+                            info_text_p2 = f"Faza 2 znalazła [bold green]{len(phase2_found_paths)}[/bold green] ścieżek (brak krytycznych). Skanuję wszystkie."
+                            console.print(Align.center(Panel(Text.from_markup(info_text_p2, justify="center"), title="[green]Informacja[/green]", border_style="green", expand=False)))
+                            selected_paths_from_p2 = phase2_found_paths
+                        
                         phase3_run = display_phase3_tool_selection_menu()
 
-            urls_for_phase3 = sorted(list(set(httpx_active_urls + phase2_all_results.get("all_dirsearch_results", []))))
-            if not urls_for_phase3:
+            urls_for_phase3 = sorted(list(set(httpx_active_urls + selected_paths_from_p2)))
+            if not urls_for_phase3 and (phase3_run or phase3_only):
                 urls_for_phase3 = [ORIGINAL_TARGET]
 
             if phase3_run or phase3_only:
@@ -922,7 +968,7 @@ def main(
             
             console.print(Align.center(f"\n[bold green]Skanowanie zakończono dla: {ORIGINAL_TARGET}[/bold green]"))
             if not no_report:
-                generate_html_report(phase1_output_files, phase2_all_results, phase3_raw_results, phase3_httpx_file)
+                generate_html_report(phase1_output_files, phase2_all_results, phase2_verified_results_httpx, phase3_raw_results, phase3_httpx_file)
                 report_path = os.path.join(REPORT_DIR, "report.html")
                 if os.path.exists(report_path):
                     if not QUIET_MODE:

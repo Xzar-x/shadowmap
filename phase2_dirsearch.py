@@ -7,7 +7,7 @@ import json
 import random
 import time
 import re
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import shutil
 import argparse
@@ -21,6 +21,7 @@ try:
     from rich.console import Console
     from rich.progress import Progress, BarColumn, TextColumn, SpinnerColumn, TimeElapsedColumn, TaskProgressColumn, TaskID
     from rich.align import Align
+    from rich.spinner import Spinner
     console = Console(stderr=True)
     RICH_AVAILABLE = True
     
@@ -133,12 +134,12 @@ def get_random_user_agent_header(user_agents_file: Optional[str] = None, console
     return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 
 
-def _execute_tool_command(tool_name: str, command_parts: List[str], target_url: str, output_file: str, timeout: int, progress_obj: Progress):
+def _execute_tool_command(tool_name: str, command_parts: List[str], target_url: str, output_file: str, timeout: int, console_obj: Console):
     """
     Executes a single tool command and saves its output to a file.
     """
     cmd_str = ' '.join(command_parts)
-    progress_obj.console.print(f"[bold cyan]Uruchamiam: {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
+    console_obj.print(f"[bold cyan]Uruchamiam: {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
     
     try:
         process = subprocess.run(
@@ -147,39 +148,39 @@ def _execute_tool_command(tool_name: str, command_parts: List[str], target_url: 
             stderr=subprocess.PIPE,
             timeout=timeout,
             text=True,
-            check=False
+            check=False,
+            encoding='utf-8',
+            errors='ignore'
         )
         
         combined_output = process.stdout
         if process.stderr:
-            combined_output += "\n" + process.stderr
+            combined_output += "\n--- STDERR ---\n" + process.stderr
 
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(combined_output)
 
         if process.returncode == 0:
-            progress_obj.console.print(f"[bold green]✅ {tool_name} zakończył skanowanie dla {target_url}.[/bold green]")
+            console_obj.print(f"[bold green]✅ {tool_name} zakończył skanowanie dla {target_url}.[/bold green]")
             return output_file
         else:
-            log_and_echo(f"Błąd wykonania {tool_name} (kod: {process.returncode}) dla {target_url}.", "ERROR", progress_obj=progress_obj)
-            if process.stderr:
-                log_and_echo(f"STDERR (narzędzie) {tool_name} dla {target_url}: {process.stderr}", "ERROR", progress_obj=progress_obj)
-            progress_obj.console.print(f"[bold red]❌ Błąd wykonania {tool_name} (kod: {process.returncode}) dla {target_url}. Sprawdź logi.[/bold red]")
-            return None
+            log_and_echo(f"Narzędzie {tool_name} zakończyło pracę z błędem (kod: {process.returncode}) dla {target_url}. Sprawdzam output.", "WARN", console_obj=console_obj)
+            return output_file
+
     except subprocess.TimeoutExpired:
         msg = f"Komenda '{tool_name}' przekroczyła limit czasu ({timeout}s) dla {target_url}."
-        log_and_echo(msg, "WARN", progress_obj=progress_obj)
-        progress_obj.console.print(f"[bold yellow]⚠️ OSTRZEŻENIE: {msg}[/bold yellow]")
+        log_and_echo(msg, "WARN", console_obj=console_obj)
+        console_obj.print(f"[bold yellow]⚠️ OSTRZEŻENIE: {msg}[/bold yellow]")
         return None
     except FileNotFoundError:
         msg = f"Narzędzie '{command_parts[0]}' nie zostało znalezione (sprawdź PATH)."
-        log_and_echo(msg, "ERROR", progress_obj=progress_obj)
-        progress_obj.console.print(f"[bold red]❌ BŁĄD: {msg}[/bold red]")
+        log_and_echo(msg, "ERROR", console_obj=console_obj)
+        console_obj.print(f"[bold red]❌ BŁĄD: {msg}[/bold red]")
         return None
     except Exception as e:
         msg = f"Ogólny błąd wykonania komendy '{tool_name}' dla {target_url}: {e}"
-        log_and_echo(msg, "ERROR", progress_obj=progress_obj)
-        progress_obj.console.print(f"[bold red]❌ BŁĄD: {msg}[/bold red]")
+        log_and_echo(msg, "ERROR", console_obj=console_obj)
+        console_obj.print(f"[bold red]❌ BŁĄD: {msg}[/bold red]")
         return None
 
 
@@ -204,9 +205,10 @@ def start_dir_search(
     console_obj: Console,
     progress_obj: Optional[Progress],
     main_task_id: Optional[TaskID]
-) -> Dict[str, List[str]]:
+) -> Tuple[Dict[str, List[str]], str]:
     """
-    Orchestrates directory searching using selected tools.
+    Orchestrates directory searching and verifies results with HTTPX.
+    Returns a tuple: (raw_tool_results, verified_httpx_output_string)
     """
     global LOG_FILE, USER_AGENTS_FILE
     LOG_FILE, USER_AGENTS_FILE = log_file, user_agents_file
@@ -215,14 +217,14 @@ def start_dir_search(
     
     shuffled_wordlist_path = None
     if safe_mode:
-        log_and_echo("Tryb Bezpieczny: tasuję listę słów...", "INFO", console_obj=console_obj, progress_obj=progress_obj)
+        log_and_echo("Tryb Bezpieczny: tasuję listę słów...", "INFO", console_obj=console_obj)
         shuffled_wordlist_path = shuffle_wordlist(wordlist_to_use, report_dir)
         if shuffled_wordlist_path:
             wordlist_to_use = shuffled_wordlist_path
         else:
-            log_and_echo(f"Nie udało się stasować listy słów, używam oryginalnej: {wordlist_to_use}", "WARN", console_obj=console_obj, progress_obj=progress_obj)
+            log_and_echo(f"Nie udało się stasować listy słów, używam oryginalnej: {wordlist_to_use}", "WARN", console_obj=console_obj)
 
-    log_and_echo(f"Używam listy słów: {wordlist_to_use}", "INFO", console_obj=console_obj, progress_obj=progress_obj)
+    log_and_echo(f"Używam listy słów: {wordlist_to_use}", "INFO", console_obj=console_obj)
 
     all_tool_results: Dict[str, List[str]] = {
         "ffuf": [], "feroxbuster": [], "dirsearch": [], "gobuster": [], "all_dirsearch_results": []
@@ -230,7 +232,7 @@ def start_dir_search(
     
     safe_mode_params = {}
     if safe_mode:
-        log_and_echo("Tryb Bezpieczny: aktywuję techniki omijania WAF.", "INFO", console_obj=console_obj, progress_obj=progress_obj)
+        log_and_echo("Tryb Bezpieczny: aktywuję techniki omijania WAF.", "INFO", console_obj=console_obj)
         safe_mode_params = {
             "ffuf_rate": "50",
             "gobuster_delay": "500ms",
@@ -239,16 +241,18 @@ def start_dir_search(
             "http_method": random.choice(["GET", "HEAD"]),
             "extra_headers": get_random_browser_headers()
         }
-        threads = 10 
+        threads = 10
     
-    gobuster_base_cmd = ["gobuster", "dir", "-w", wordlist_to_use, "-k", "-t", str(threads), "-b", "404", "-q", "--timeout", f"{tool_timeout}s", "--retry", "--retry-attempts", "5", "--no-error"]
+    status_codes_to_match = "200,204,301,302,307,403,405"
+    
+    gobuster_base_cmd = ["gobuster", "dir", "-w", wordlist_to_use, "-k", "-t", str(threads), "-s", status_codes_to_match, "-q", "--timeout", f"{tool_timeout}s", "--retry", "--retry-attempts", "5", "--no-error", "--wildcard"]
     if recursion_depth > 0:
         gobuster_base_cmd.append("-r")
         
     tool_configs = [
-        {"name": "Ffuf", "enabled": selected_tools_config[0], "base_cmd": ["ffuf", "-mc", "200,204,301,302,307,403,405", "-fc", "404", "-t", str(threads), "-w", wordlist_to_use]},
-        {"name": "Feroxbuster", "enabled": selected_tools_config[1], "base_cmd": ["feroxbuster", "--wordlist", wordlist_to_use, "-C", "404", "--threads", str(threads), "-q"]},
-        {"name": "Dirsearch", "enabled": selected_tools_config[2], "base_cmd": ["dirsearch", "--quiet", "-w", wordlist_to_use, "-e", "php,html,js,aspx,jsp,json", "--full-url"]},
+        {"name": "Ffuf", "enabled": selected_tools_config[0], "base_cmd": ["ffuf", "-mc", status_codes_to_match, "-fc", "404", "-t", str(threads), "-w", wordlist_to_use]},
+        {"name": "Feroxbuster", "enabled": selected_tools_config[1], "base_cmd": ["feroxbuster", "--wordlist", wordlist_to_use, "-s", status_codes_to_match, "--threads", str(threads)]},
+        {"name": "Dirsearch", "enabled": selected_tools_config[2], "base_cmd": ["dirsearch", "--allow-status", status_codes_to_match.replace(",", "-"), "-w", wordlist_to_use, "-e", "php,html,js,aspx,jsp,json", "--full-url"]},
         {"name": "Gobuster", "enabled": selected_tools_config[3], "base_cmd": gobuster_base_cmd}
     ]
 
@@ -279,7 +283,7 @@ def start_dir_search(
     if safe_mode and not custom_header:
         final_custom_header = get_random_user_agent_header(user_agents_file, console_obj)
     
-    futures = []
+    futures_map = {}
     
     with ThreadPoolExecutor(max_workers=threads) as executor:
         for url in urls:
@@ -299,82 +303,66 @@ def start_dir_search(
                     if safe_mode and "extra_headers" in safe_mode_params:
                         for header in safe_mode_params["extra_headers"]:
                             if not header.lower().startswith("user-agent:"):
-                                header_value = header
-                                if tool_name == "Gobuster" and "," in header_value:
-                                    try:
-                                        key, value = header_value.split(":", 1)
-                                        value_without_comma = value.split(",")[0].strip()
-                                        header_value = f"{key}: {value_without_comma}"
-                                    except ValueError:
-                                        continue
-                                
-                                cmd.extend(["-H", header_value])
+                                cmd.extend(["-H", header])
 
                     output_file_name = f"{tool_name.lower()}_{re.sub(r'[^a-zA-Z0-9]', '_', url).lower()}.txt"
                     output_path = os.path.join(report_dir, output_file_name)
                     
-                    future = executor.submit(_execute_tool_command, tool_name, cmd, url, output_path, tool_timeout, progress_obj)
-                    futures.append({"future": future, "tool": tool_name, "url": url})
+                    future = executor.submit(_execute_tool_command, tool_name, cmd, url, output_path, tool_timeout, console_obj)
+                    futures_map[future] = {"tool": tool_name, "url": url}
 
-        for f_data in as_completed([f["future"] for f in futures]):
-            for f_entry in futures:
-                if f_entry["future"] == f_data:
-                    tool_name = f_entry["tool"]
-                    base_url = f_entry["url"].rstrip('/')
-                    result_file = f_data.result()
-
-                    if result_file and os.path.exists(result_file):
-                        with open(result_file, 'r', encoding='utf-8') as f:
-                            lines = f.readlines()
+        for future in as_completed(futures_map):
+            task_info = futures_map[future]
+            tool_name = task_info["tool"]
+            base_url = task_info["url"].rstrip('/')
+            
+            try:
+                result_file = future.result()
+                if result_file and os.path.exists(result_file):
+                    with open(result_file, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                        
+                        filtered_results = []
+                        for line in lines:
+                            cleaned_line = ansi_escape_pattern.sub('', line).strip()
+                            if not cleaned_line or ":: Progress:" in cleaned_line: continue
                             
-                            filtered_results = []
-                            for line in lines:
-                                cleaned_line = ansi_escape_pattern.sub('', line).strip()
-                                if not cleaned_line or ":: Progress:" in cleaned_line: continue
-                                
-                                full_url = None
-                                
-                                # Ulepszona logika parsowania
-                                if tool_name == "Feroxbuster":
-                                    match = re.match(r'^\s*(\d{3})\s+\S+\s+\S+l\s+\S+w\s+\S+c\s+(https?:\/\/\S+)$', cleaned_line)
-                                    if match and 200 <= int(match.group(1)) < 400:
-                                        full_url = match.group(2).rstrip('/')
-                                elif tool_name == "Dirsearch":
-                                    match = DIRSEARCH_RESULT_PATTERN.match(cleaned_line)
-                                    if match and (200 <= int(match.group(1)) < 400 or int(match.group(1)) in [403, 405]):
-                                        full_url = (match.group(3) or match.group(2)).rstrip('/')
-                                else:
-                                    match_status = re.match(r'^(.*?)\s+\[Status:\s*(\d{3}),.*', cleaned_line)
-                                    if match_status:
-                                        path = match_status.group(1).strip()
-                                        if path and not path.startswith("http"):
-                                            full_url = f"{base_url}/{path}"
-                                    elif "(Status: " in cleaned_line:
-                                        path = cleaned_line.split(" (Status:")[0].strip()
-                                        if path and not path.startswith("http"):
-                                            full_url = f"{base_url}/{path}"
-                                    elif cleaned_line.startswith("http"):
-                                        full_url = cleaned_line.split()[0].rstrip('/')
+                            full_url = None
+                            
+                            if tool_name == "Feroxbuster":
+                                match = re.match(r'^\s*(\d{3})\s+\S+\s+\S+l\s+\S+w\s+\S+c\s+(https?:\/\/\S+)$', cleaned_line)
+                                if match: full_url = match.group(2).rstrip('/')
+                            elif tool_name == "Dirsearch":
+                                match = DIRSEARCH_RESULT_PATTERN.match(cleaned_line)
+                                if match: full_url = (match.group(3) or match.group(2)).rstrip('/')
+                            else:
+                                match_status = re.match(r'^(.*?)\s+\[Status:\s*(\d{3}),.*', cleaned_line)
+                                if match_status:
+                                    path = match_status.group(1).strip()
+                                    if path and not path.startswith("http"): full_url = f"{base_url}/{path}"
+                                elif "(Status: " in cleaned_line:
+                                    path = cleaned_line.split(" (Status:")[0].strip()
+                                    if path and not path.startswith("http"): full_url = f"{base_url}/{path}"
+                                elif cleaned_line.startswith("http"): full_url = cleaned_line.split()[0].rstrip('/')
 
-                                if not full_url:
-                                    generic_match = re.search(r'(https?://[^\s/$.?#].[^\s]*)', cleaned_line)
-                                    if generic_match:
-                                        if not "Progress" in cleaned_line and not "Target" in cleaned_line:
-                                            full_url = generic_match.group(1).rstrip('/')
+                            if not full_url:
+                                generic_match = re.search(r'(https?://[^\s/$.?#].[^\s]*)', cleaned_line)
+                                if generic_match and "Progress" not in cleaned_line and "Target" not in cleaned_line:
+                                    full_url = generic_match.group(1).rstrip('/')
 
-                                if full_url and full_url != base_url:
-                                    if "://" in full_url:
-                                        protocol, rest = full_url.split("://", 1)
-                                        full_url = f"{protocol}://{rest.replace('//', '/')}"
-                                    filtered_results.append(full_url)
+                            if full_url and full_url != base_url:
+                                if "://" in full_url:
+                                    protocol, rest = full_url.split("://", 1)
+                                    full_url = f"{protocol}://{rest.replace('//', '/')}"
+                                filtered_results.append(full_url)
 
+                        all_tool_results[tool_name.lower()].extend(filtered_results)
+                        all_tool_results["all_dirsearch_results"].extend(filtered_results)
+            except Exception as e:
+                log_and_echo(f"Błąd podczas przetwarzania wyników dla {tool_name} na {base_url}: {e}", "ERROR")
 
-                            all_tool_results[tool_name.lower()].extend(filtered_results)
-                            all_tool_results["all_dirsearch_results"].extend(filtered_results)
-                    
-                    if progress_obj and main_task_id is not None:
-                        progress_obj.update(main_task_id, advance=1)
-                    break 
+            if progress_obj and main_task_id is not None:
+                progress_obj.update(main_task_id, advance=1)
 
     if shuffled_wordlist_path and os.path.exists(shuffled_wordlist_path):
         try: os.remove(shuffled_wordlist_path)
@@ -383,32 +371,40 @@ def start_dir_search(
     for tool_name in all_tool_results:
         all_tool_results[tool_name] = safe_sort_unique(all_tool_results[tool_name])
 
-    log_and_echo("Ukończono fazę 2 - wyszukiwanie katalogów.", "INFO", console_obj=console_obj)
+    log_and_echo("Ukończono fazę 2 - wyszukiwanie katalogów (zbieranie surowych danych).", "INFO", console_obj=console_obj)
     
-    return all_tool_results
+    # <<< ZMIANA TUTAJ: Weryfikacja HTTPX jest teraz w osobnym kroku z własnym spinnerem >>>
+    verified_results_httpx_output = ""
+    all_unique_urls = all_tool_results.get("all_dirsearch_results", [])
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Phase 2 - Directory Searching Script")
-    parser.add_argument("--urls", nargs='+', required=True, help="List of target URLs")
-    parser.add_argument("--report-dir", required=True, help="Directory to save reports")
-    # ... reszta argumentów
-    args = parser.parse_args()
-    local_console = Console(stderr=True)
-    results = start_dir_search(
-        urls=args.urls,
-        report_dir=args.report_dir,
-        safe_mode=args.safe_mode,
-        custom_header=args.custom_header,
-        wordlist_path=args.wordlist_path,
-        small_wordlist_path=args.small_wordlist_path,
-        threads=args.threads,
-        tool_timeout=args.tool_timeout,
-        log_file=args.log_file,
-        user_agents_file=args.user_agents_file,
-        selected_tools_config=args.selected_tools_config,
-        recursion_depth=1, # Domyślna wartość, gdy uruchamiany bezpośrednio
-        console_obj=local_console,
-        progress_obj=None,
-        main_task_id=None
-    )
-    print(json.dumps(results, indent=2))
+    if all_unique_urls:
+        with console_obj.status(Spinner("dots", style="bold green"), f" Weryfikuję {len(all_unique_urls)} znalezionych ścieżek za pomocą HTTPX..."):
+            urls_to_scan_file = None
+            try:
+                with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, dir=report_dir, prefix='phase2_urls_for_httpx_', suffix='.txt') as tmp_file:
+                    tmp_file.write('\n'.join(all_unique_urls))
+                    urls_to_scan_file = tmp_file.name
+
+                httpx_output_file = os.path.join(report_dir, "httpx_results_phase2_verified.txt")
+                httpx_command = ["httpx", "-l", urls_to_scan_file, "-silent", "-json"]
+                
+                process = subprocess.run(
+                    httpx_command,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    timeout=tool_timeout * 2, # Dłuższy timeout dla potencjalnie dużej liczby URL-i
+                    text=True, check=False, encoding='utf-8', errors='ignore'
+                )
+                verified_results_httpx_output = process.stdout
+                with open(httpx_output_file, 'w', encoding='utf-8') as f:
+                    f.write(verified_results_httpx_output)
+
+            except Exception as e:
+                log_and_echo(f"Błąd podczas weryfikacji HTTPX w Fazie 2: {e}", "ERROR", console_obj=console_obj)
+            finally:
+                if urls_to_scan_file and os.path.exists(urls_to_scan_file):
+                    try: os.remove(urls_to_scan_file)
+                    except OSError: pass
+        log_and_echo(f"Weryfikacja HTTPX zakończona.", "INFO", console_obj=console_obj)
+
+    return all_tool_results, verified_results_httpx_output
+

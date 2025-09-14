@@ -162,7 +162,7 @@
             overflow: hidden;
             backdrop-filter: blur(5px);
             cursor: pointer;
-            height: 16px;
+            min-height: 16px;
             display: flex;
             align-items: center;
         }
@@ -253,8 +253,8 @@
         }
 
         .status-code {
-            background: linear-gradient(135deg, var(--priority-color, #666) 0%, rgba(255,255,255,0.1) 100%);
-            color: white;
+            background-color: var(--priority-color, #666);
+            color: #1a1a2e;
             padding: 4px 12px;
             border-radius: 20px;
             font-size: 0.85em;
@@ -472,13 +472,20 @@
         <div id="phase2" class="tab-content">
             <h2>Faza 2: Wyszukiwanie Katalogów</h2>
             <div class="sub-tabs">
-                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase2', 'all_dirsearch')">Wszystkie wyniki (Faza 2)</div>
+                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase2', 'verified_httpx')">✅ Zweryfikowane (HTTPX)</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'all_dirsearch')">Wszystkie wyniki (surowe)</div>
                 <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'dirsearch')">Dirsearch</div>
                 <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'ffuf')">Ffuf</div>
                 <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'feroxbuster')">Feroxbuster</div>
                 <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'gobuster')">Gobuster</div>
             </div>
-            <div id="phase2-all_dirsearch" class="sub-tab-content active">
+
+            <div id="phase2-verified_httpx" class="sub-tab-content active">
+                <h3>Wyniki z Fazy 2 zweryfikowane przez HTTPX</h3>
+                <div id="verified-httpx-results" class="results-grid"></div>
+            </div>
+
+            <div id="phase2-all_dirsearch" class="sub-tab-content">
                 <h3>Wszystkie znalezione katalogi i pliki ({{COUNT_DIR_SEARCH}} znalezionych)</h3>
                 <div class="filter-section">
                     <input type="checkbox" id="showOnlyRedDirsearch" onchange="applyDirsearchFilter()">
@@ -602,7 +609,9 @@
 
         // --- Globalne dane ---
         let rawHttpxOutput = stripAnsiCodes(`{{HTTPX_OUTPUT_RAW_FOR_JS}}`);
-        let rawDirSearchAll = stripAnsiCodes(`{{DIR_SEARCH_ALL_OUTPUT}}`);
+        
+        let rawHttpxPhase2Verified = stripAnsiCodes(`{{HTTPX_PHASE2_VERIFIED_OUTPUT}}`);
+        let rawDirSearchAll = stripAnsiCodes(`{{DIR_SEARCH_ALL_OUTPUT}}`).replace(/\\n/g, '\n');;
         let rawDirsearchSpecific = stripAnsiCodes(`{{DIRSEARCH_SPECIFIC_OUTPUT}}`);
         let rawFfufSpecific = stripAnsiCodes(`{{FFUF_SPECIFIC_OUTPUT}}`);
         let rawFeroxbusterSpecific = stripAnsiCodes(`{{FEROXBUSTER_SPECIFIC_OUTPUT}}`);
@@ -816,6 +825,7 @@
             renderSimpleList(rawPuredns, 'puredns-results', '🔎', 'gray');
             
             // Faza 2
+            renderComplexList(rawHttpxPhase2Verified, 'verified-httpx-results', httpxFilter);
             applyDirsearchFilter();
             renderSimpleList(rawDirsearchSpecific, 'dirsearch-results-specific', '🔍', 'green');
             renderSimpleList(rawFfufSpecific, 'ffuf-results-specific', '💥', 'orange');
