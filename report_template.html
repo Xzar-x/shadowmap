@@ -482,6 +482,10 @@
 
             <div id="phase2-verified_httpx" class="sub-tab-content active">
                 <h3>Wyniki z Fazy 2 zweryfikowane przez HTTPX</h3>
+                <div class="filter-section">
+                    <input type="checkbox" id="showOnlyRedVerifiedHttpx" onchange="applyVerifiedHttpxFilter()">
+                    <label for="showOnlyRedVerifiedHttpx">Pokaż tylko krytyczne 🔥</label>
+                </div>
                 <div id="verified-httpx-results" class="results-grid"></div>
             </div>
 
@@ -764,6 +768,15 @@
             });
         }
 
+        function applyVerifiedHttpxFilter() {
+            const showOnlyRed = document.getElementById('showOnlyRedVerifiedHttpx').checked;
+            renderComplexList(rawHttpxPhase2Verified, 'verified-httpx-results', (line) => {
+                const result = httpxFilter(line);
+                if (showOnlyRed && !result.isRed) result.display = false;
+                return result;
+            });
+        }
+
         function applyDirsearchFilter() {
             const showOnlyRed = document.getElementById('showOnlyRedDirsearch').checked;
             renderComplexList(rawDirSearchAll, 'dirsearch-all-results', (line) => {
@@ -825,7 +838,7 @@
             renderSimpleList(rawPuredns, 'puredns-results', '🔎', 'gray');
             
             // Faza 2
-            renderComplexList(rawHttpxPhase2Verified, 'verified-httpx-results', httpxFilter);
+            applyVerifiedHttpxFilter();
             applyDirsearchFilter();
             renderSimpleList(rawDirsearchSpecific, 'dirsearch-results-specific', '🔍', 'green');
             renderSimpleList(rawFfufSpecific, 'ffuf-results-specific', '💥', 'orange');

@@ -426,6 +426,7 @@ def display_phase3_tool_selection_menu():
                 console.print(Align.center("[bold yellow]Proszę wybrać co najmniej jedno narzędzie.[/bold yellow]"))
         else: 
             console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
+        
         time.sleep(0.1)
 
 def display_main_menu():
@@ -515,17 +516,22 @@ def detect_waf_and_propose_safe_mode():
     console.print(Align.center(Panel(initial_message, title="[cyan]Detekcja WAF[/cyan]", expand=False, border_style="cyan")))
     
     try:
-        wafw00f_command = ["wafw00f", "--noredirect", ORIGINAL_TARGET]
+        wafw00f_command = ["wafw00f", "-T", "150", ORIGINAL_TARGET]
         process = subprocess.run(wafw00f_command, capture_output=True, text=True, timeout=300, check=False, encoding='utf-8', errors='ignore')
         
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        cleaned_stdout = ansi_escape.sub('', process.stdout)
-        
         waf_name = None
-        if "is behind" in cleaned_stdout or "WAF detected" in cleaned_stdout:
-            waf_name_match = re.search(r'is behind\s+([^(\n]+)', cleaned_stdout)
-            waf_name = waf_name_match.group(1).strip() if waf_name_match else "Nieznany WAF"
-        
+        try:
+            results = json.loads(process.stdout)
+            if isinstance(results, list) and results:
+                if results[0].get("waf_name"):
+                    waf_name = results[0]["waf_name"]
+        except (json.JSONDecodeError, IndexError):
+            ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+            cleaned_stdout = ansi_escape.sub('', process.stdout)
+            if "is behind" in cleaned_stdout or "WAF detected" in cleaned_stdout:
+                 waf_name_match = re.search(r'is behind\s+([^(\n]+)', cleaned_stdout)
+                 waf_name = waf_name_match.group(1).strip() if waf_name_match else "Nieznany WAF"
+
         if waf_name:
             waf_message = Text.from_markup(f"[bold yellow]Wykryto WAF:[/bold yellow] {waf_name}!\nZalecany tryb bezpieczny.")
             console.print(Align.center(Panel(waf_message, title="[yellow]Wynik Detekcji[/yellow]", expand=False, border_style="yellow")))
@@ -551,16 +557,14 @@ def detect_waf_and_propose_safe_mode():
         error_panel = Panel(error_message, title="[red]Błąd Krytyczny[/red]", expand=False, border_style="red")
         console.print(error_panel)
 
-# <<< ZMIANA TUTAJ: Usunięcie argumentów paska postępu >>>
 def start_phase1_scan():
     global REPORT_DIR, selected_phase1_tools, ORIGINAL_TARGET, THREADS, TOOL_TIMEOUT_SECONDS, WORDLIST_PHASE1, SAFE_MODE, CUSTOM_HEADER, RESOLVERS_FILE, CLEAN_DOMAIN_TARGET
     
     console.print(Align.center(f"[bold green]Rozpoczynam Fazę 1 - Odkrywanie Subdomen dla {ORIGINAL_TARGET}...[/bold green]"))
     
-    # <<< ZMIANA TUTAJ: Pasek postępu tworzony i zarządzany lokalnie >>>
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True) as progress:
         task1_total = sum(1 for i, enabled in enumerate(selected_phase1_tools) if enabled and not (TARGET_IS_IP and i < 3))
-        task1 = progress.add_task("[green]Faza 1 (Narzędzia)[/green]", total=task1_total)
+        task1 = progress.add_task("[green]Faza 1 (Subdomeny)[/green]", total=task1_total)
 
         current_wordlist_p1 = WORDLIST_PHASE1
         if SAFE_MODE:
@@ -616,7 +620,7 @@ def start_phase1_scan():
         f.write('\n'.join(unique_lines))
     
     active_urls = []
-    with console.status(Spinner("dots", style="bold green"), " Weryfikuję subdomeny za pomocą HTTPX..."):
+    with console.status("[bold green]Weryfikuję subdomeny za pomocą HTTPX...[/bold green]"):
         httpx_output_file = os.path.join(REPORT_DIR, "httpx_results_phase1.txt")
         httpx_command = ["httpx", "-l", unique_subdomains_file, "-silent", "-fc", "404", "-json"]
         if SAFE_MODE:
@@ -650,7 +654,7 @@ def start_phase2_scan(httpx_results_urls: List[str]):
     task2_total = len(httpx_results_urls) * sum(selected_phase2_tools)
     
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True) as progress:
-        task2 = progress.add_task("[green]Faza 2 (Narzędzia)[/green]", total=task2_total if task2_total > 0 else 1)
+        task2 = progress.add_task("[green]Faza 2 (Katalogi)[/green]", total=task2_total if task2_total > 0 else 1)
         phase2_all_results, phase2_verified_results_httpx = phase2_start_dir_search(
             urls=httpx_results_urls, 
             report_dir=REPORT_DIR, 
@@ -905,7 +909,7 @@ def main(
                         critical_urls = filter_critical_urls(httpx_active_urls)
                         if critical_urls:
                             summary_q = (f"Faza 1 znalazła [bold green]{len(httpx_active_urls)}[/bold green] aktywnych hostów, w tym [bold yellow]{len(critical_urls)}[/bold yellow] krytycznych.\n"
-                                         "Skanować wszystkie [bold](a)[/bold] czy tylko krytyczne [bold](c)[/bold]?")
+                                       "Skanować wszystkie [bold](a)[/bold] czy tylko krytyczne [bold](c)[/bold]?")
                             scan_choice = ask_user_decision(summary_q, choices=["a", "c"], default="a")
                             if scan_choice == 'c':
                                 urls_for_phase2 = critical_urls
@@ -933,7 +937,7 @@ def main(
                         critical_paths = filter_critical_urls(phase2_found_paths)
                         if critical_paths:
                             summary_q = (f"Faza 2 znalazła [bold green]{len(phase2_found_paths)}[/bold green] ścieżek, w tym [bold yellow]{len(critical_paths)}[/bold yellow] krytycznych.\n"
-                                         "Skanować wszystkie [bold](a)[/bold] czy tylko krytyczne [bold](c)[/bold]?")
+                                       "Skanować wszystkie [bold](a)[/bold] czy tylko krytyczne [bold](c)[/bold]?")
                             scan_choice = ask_user_decision(summary_q, choices=["a", "c"], default="a")
                             if scan_choice == 'c':
                                 selected_paths_from_p2 = critical_paths
