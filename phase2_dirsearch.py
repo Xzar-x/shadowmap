@@ -24,14 +24,14 @@ try:
     from rich.spinner import Spinner
     console = Console(stderr=True)
     RICH_AVAILABLE = True
-    
+
     def log_and_echo(message: str, level: str = "INFO", console_obj: Console = console, progress_obj: Optional[Progress] = None):
         if LOG_FILE:
             with open(LOG_FILE, 'a', encoding='utf-8') as f:
                 f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {level.upper()} - {message}\n")
-        
+
         console_target = progress_obj.console if progress_obj and progress_obj.live.is_started else console_obj
-        
+
         if level == "ERROR":
             console_target.print(f"[bold red]BŁĄD W FAZIE 2: {message}[/bold red]")
         elif level == "WARN":
@@ -102,13 +102,13 @@ def shuffle_wordlist(input_path: str, report_dir: str) -> Optional[str]:
     try:
         with open(input_path, 'r', encoding='utf-8') as f:
             lines = [line for line in f if line.strip()]
-        
+
         random.shuffle(lines)
-        
+
         temp_file = tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, dir=report_dir, prefix='shuffled_wordlist_', suffix='.txt')
         temp_file.writelines(lines)
         temp_file.close()
-        
+
         return temp_file.name
     except Exception as e:
         raw_log_error(f"Nie udało się potasować listy słów '{input_path}': {e}")
@@ -118,7 +118,7 @@ def get_random_user_agent_header(user_agents_file: Optional[str] = None, console
     """Odczytuje losowy User-Agent z pliku."""
     if user_agents_file is None:
         user_agents_file = USER_AGENTS_FILE
-    
+
     if user_agents_file and os.path.exists(user_agents_file):
         try:
             with open(user_agents_file, 'r', encoding='utf-8') as f:
@@ -133,7 +133,7 @@ def get_random_user_agent_header(user_agents_file: Optional[str] = None, console
         msg = f"Plik User-Agenta '{user_agents_file}' nie znaleziony. Używam domyślnego."
         if console_obj: console_obj.print(Align.center(f"[bold yellow]OSTRZEŻENIE: {msg}[/bold yellow]"))
         else: raw_log_error(msg)
-            
+
     return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 
 def _parse_tool_output_line(line: str, tool_name: str, base_url: Optional[str] = None) -> Optional[str]:
@@ -143,10 +143,10 @@ def _parse_tool_output_line(line: str, tool_name: str, base_url: Optional[str] =
         return None
 
     full_url = None
-    
+
     if tool_name == "Feroxbuster":
         match = re.match(r'^\s*(\d{3})\s+\S+\s+\S+l\s+\S+w\s+\S+c\s+(https?:\/\/\S+)', cleaned_line)
-        if match: 
+        if match:
             full_url = match.group(2)
     elif tool_name == "Dirsearch":
         match = DIRSEARCH_RESULT_PATTERN.match(cleaned_line)
@@ -157,7 +157,7 @@ def _parse_tool_output_line(line: str, tool_name: str, base_url: Optional[str] =
             full_url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
         else:
             full_url = path
-    
+
     if not full_url:
         generic_match = GENERIC_URL_PATTERN.search(cleaned_line)
         if generic_match:
@@ -179,7 +179,7 @@ def _run_and_stream_tool(tool_name: str, command: List[str], base_url: Optional[
     """Uruchamia narzędzie i przetwarza jego output w czasie rzeczywistym."""
     cmd_str = ' '.join(f'"{p}"' if ' ' in p else p for p in command)
     console_obj.print(f"[bold cyan]Uruchamiam: {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
-    
+
     try:
         process = subprocess.Popen(
             command,
@@ -196,7 +196,7 @@ def _run_and_stream_tool(tool_name: str, command: List[str], base_url: Optional[
             if parsed_url:
                 all_urls_set.add(parsed_url)
                 per_tool_list.append(parsed_url)
-        
+
         stdout, stderr = process.communicate(timeout=15)
         if stdout:
              for line in stdout.splitlines():
@@ -216,7 +216,7 @@ def _run_and_stream_tool(tool_name: str, command: List[str], base_url: Optional[
                  console_obj.print(f"[bold green]✅ {tool_name} zakończył skanowanie (z ostrzeżeniem) {desc}.[/bold green]")
             else:
                 log_and_echo(f"Narzędzie {tool_name} zakończyło pracę z błędem (kod: {process.returncode}) {desc}. STDERR: {stderr[:250].strip()}...", "WARN", console_obj=console_obj)
-            
+
     except subprocess.TimeoutExpired:
         process.kill()
         msg = f"Komenda '{tool_name}' przekroczyła limit czasu ({timeout}s) {desc}."
@@ -244,6 +244,7 @@ def start_dir_search(
     user_agents_file: Optional[str],
     selected_tools_config: List[int],
     recursion_depth: int,
+    proxy: Optional[str],
     console_obj: Console,
     progress_obj: Optional[Progress],
     main_task_id: Optional[TaskID]
@@ -252,7 +253,7 @@ def start_dir_search(
     LOG_FILE, USER_AGENTS_FILE = log_file, user_agents_file
 
     wordlist_to_use = small_wordlist_path if safe_mode and os.path.exists(small_wordlist_path) else wordlist_path
-    
+
     shuffled_wordlist_path = None
     if safe_mode:
         log_and_echo("Tryb Bezpieczny: tasuję listę słów...", "INFO", console_obj=console_obj)
@@ -261,6 +262,8 @@ def start_dir_search(
             wordlist_to_use = shuffled_wordlist_path
 
     log_and_echo(f"Używam listy słów: {wordlist_to_use}", "INFO", console_obj=console_obj)
+    if proxy:
+        log_and_echo(f"Używam proxy: {proxy}", "INFO", console_obj=console_obj)
 
     all_unique_urls: Set[str] = set()
     per_tool_results: Dict[str, List[str]] = {"ffuf": [], "feroxbuster": [], "dirsearch": [], "gobuster": []}
@@ -274,10 +277,10 @@ def start_dir_search(
             "extra_headers": get_random_browser_headers()
         }
         threads = 10
-    
+
     status_codes_to_match = "200,204,301,302,307,401,403,405"
     extensions = "php,html,js,aspx,jsp,json"
-    
+
     gobuster_base_cmd = ["gobuster", "dir", "-f", "-w", wordlist_to_use, "-k", "-t", str(threads), "-s", status_codes_to_match, "-b", "", "-x", extensions, "--timeout", f"{tool_timeout}s", "--retry", "--retry-attempts", "5", "--no-error"]
     dirsearch_base_cmd = ["dirsearch", "--stdin", "-i", status_codes_to_match, "-w", wordlist_to_use, "-e", extensions, "--full-url", "--force-extensions", "--no-color"]
 
@@ -287,6 +290,15 @@ def start_dir_search(
         {"name": "Dirsearch", "enabled": selected_tools_config[2], "base_cmd": dirsearch_base_cmd},
         {"name": "Gobuster", "enabled": selected_tools_config[3], "base_cmd": gobuster_base_cmd}
     ]
+    
+    # Dodawanie proxy do poleceń
+    if proxy:
+        for config in tool_configs:
+            tool_name = config["name"]
+            if tool_name == "Ffuf": config["base_cmd"].extend(["-x", proxy])
+            elif tool_name == "Feroxbuster": config["base_cmd"].extend(["-p", proxy])
+            elif tool_name == "Dirsearch": config["base_cmd"].extend([f"--proxy={proxy}"])
+            elif tool_name == "Gobuster": config["base_cmd"].extend(["--proxy", proxy])
 
     if recursion_depth > 0:
         for config in tool_configs:
@@ -295,11 +307,11 @@ def start_dir_search(
                 if "--no-recursion" in config["base_cmd"]: config["base_cmd"].remove("--no-recursion")
                 config["base_cmd"].extend(["--depth", str(recursion_depth)])
             elif config["name"] == "Dirsearch": config["base_cmd"].extend(["--recursive", f"--max-recursion-depth={recursion_depth}"])
-    
+
     final_user_agent = custom_header or (get_random_user_agent_header(user_agents_file, console_obj) if safe_mode else "")
-    
+
     dirsearch_enabled = tool_configs[2]["enabled"]
-    
+
     with ThreadPoolExecutor(max_workers=len(urls) * 3 + (1 if dirsearch_enabled else 0)) as executor:
         futures = []
         for url in urls:
@@ -307,11 +319,10 @@ def start_dir_search(
                 if config["enabled"] and config["name"] != "Dirsearch":
                     tool_name = config["name"]
                     cmd = list(config["base_cmd"])
-                    
+
                     if tool_name == "Ffuf": cmd.extend(["-u", f"{url}/FUZZ"])
                     else: cmd.extend(["-u", url])
-                    
-                    # --- POCZĄTEK POPRAWKI DLA GOBUSTER ---
+
                     headers_to_add = []
                     if final_user_agent:
                         headers_to_add.append(f"User-Agent: {final_user_agent}")
@@ -320,39 +331,36 @@ def start_dir_search(
 
                     for header in headers_to_add:
                         is_user_agent = header.lower().startswith("user-agent:")
-                        
+
                         if tool_name == "Gobuster" and is_user_agent:
-                            # Użyj dedykowanego przełącznika -a dla User-Agent w Gobusterze, aby uniknąć problemów z parsowaniem
                             ua_value = header.split(":", 1)[1].strip()
                             cmd.extend(["-a", ua_value])
                         else:
-                            # Dla innych nagłówków w Gobusterze i wszystkich nagłówków w innych narzędziach użyj -H
                             cmd.extend(["-H", header])
-                    # --- KONIEC POPRAWKI DLA GOBUSTER ---
-                    
+
                     futures.append(executor.submit(
-                        _run_and_stream_tool, tool_name, cmd, url, all_unique_urls, 
+                        _run_and_stream_tool, tool_name, cmd, url, all_unique_urls,
                         per_tool_results[tool_name.lower()], console_obj, tool_timeout
                     ))
-        
+
         if dirsearch_enabled:
             dirsearch_cmd = list(tool_configs[2]["base_cmd"])
             urls_file_path = os.path.join(report_dir, "dirsearch_targets.txt")
             with open(urls_file_path, "w") as f:
                 f.write("\n".join(urls))
             dirsearch_cmd.extend(["-l", urls_file_path])
-            
+
             headers_to_add = []
             if final_user_agent: headers_to_add.append(f"User-Agent: {final_user_agent}")
             if safe_mode and "extra_headers" in safe_mode_params: headers_to_add.extend(safe_mode_params["extra_headers"])
             for header in headers_to_add:
                 dirsearch_cmd.extend(["-H", header])
-            
+
             futures.append(executor.submit(
-                _run_and_stream_tool, "Dirsearch", dirsearch_cmd, None, all_unique_urls, 
+                _run_and_stream_tool, "Dirsearch", dirsearch_cmd, None, all_unique_urls,
                 per_tool_results["dirsearch"], console_obj, tool_timeout * len(urls)
             ))
-        
+
         for future in as_completed(futures):
             try: future.result()
             except Exception as e: log_and_echo(f"Błąd w wątku wykonawczym: {e}", "ERROR")
@@ -370,21 +378,24 @@ def start_dir_search(
     for tool_name, results_list in per_tool_results.items():
         final_results[tool_name] = safe_sort_unique(results_list)
     final_results["all_dirsearch_results"] = sorted(list(all_unique_urls))
-    
+
     log_and_echo("Ukończono fazę 2 - wyszukiwanie katalogów (zbieranie surowych danych).", "INFO", console_obj=console_obj)
-    
+
     verified_httpx_output = ""
     if all_unique_urls:
         task_desc = f"[bold green]Weryfikuję {len(all_unique_urls)} unikalnych ścieżek (HTTPX)...[/bold green]"
         verification_task = progress_obj.add_task(task_desc, total=1) if progress_obj else None
-        
+
         urls_file = None
         try:
             with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=report_dir, suffix='.txt') as tmp:
                 tmp.write('\n'.join(sorted(list(all_unique_urls))))
                 urls_file = tmp.name
-            
+
             httpx_cmd = ["httpx", "-l", urls_file, "-silent", "-json"]
+            if proxy:
+                httpx_cmd.extend(["-proxy", proxy])
+                
             process = subprocess.run(
                 httpx_cmd, capture_output=True, text=True, timeout=tool_timeout * 2,
                 encoding='utf-8', errors='ignore'
@@ -399,7 +410,7 @@ def start_dir_search(
             if urls_file and os.path.exists(urls_file): os.remove(urls_file)
             if progress_obj and verification_task is not None:
                 progress_obj.update(verification_task, completed=1)
-        
+
         log_and_echo(f"Weryfikacja HTTPX zakończona.", "INFO", console_obj=console_obj)
 
     return final_results, verified_httpx_output

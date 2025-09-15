@@ -113,23 +113,23 @@ def main():
     f = Figlet(font='slant')
     console.print(Align.center(Text(f.renderText('ShadowMap'), style="blue")))
     console.print(Panel(Text("--- Narzędzie do instalacji i konfiguracji ---", justify="center"), style="bold blue"))
-    
+
     is_root = os.geteuid() == 0
     pkg_manager = []
     if shutil.which("apt-get"): pkg_manager = ["apt-get", "install", "-y"]
     elif shutil.which("yum"): pkg_manager = ["yum", "install", "-y"]
     elif shutil.which("pacman"): pkg_manager = ["pacman", "-S", "--noconfirm"]
-    
-    system_and_python_deps_list = ["Go", "Python3", "git", "pip3", "pipx", "SecLists"] + [f"Python-pkg: {p}" for p in PYTHON_PKGS]
+
+    system_and_python_deps_list = ["Go", "Python3", "git", "pip3", "pipx", "tor", "proxychains4", "SecLists"] + [f"Python-pkg: {p}" for p in PYTHON_PKGS]
     recon_tools_list = list(GO_TOOLS_TO_INSTALL.keys()) + ["dirsearch", "ParamSpider", "wafw00f", "LinkFinder"]
-    
+
     dependencies = {}
-    
+
     go_ok, gobin_path = check_go_installation()
     python_ok = check_python_installation()
     dependencies["Go"], dependencies["Python3"] = go_ok, python_ok
-    
-    all_tools_to_check = recon_tools_list + ["git", "pip3", "pipx", "SecLists"] + [f"Python-pkg: {p}" for p in PYTHON_PKGS]
+
+    all_tools_to_check = recon_tools_list + ["git", "pip3", "pipx", "tor", "proxychains4", "SecLists"] + [f"Python-pkg: {p}" for p in PYTHON_PKGS]
 
     for tool in all_tools_to_check:
         if tool.startswith("Python-pkg:"):
@@ -147,7 +147,7 @@ def main():
             dependencies[tool] = status and "paramspider" in out
         elif tool not in ["Go", "Python3"]:
             dependencies[tool] = shutil.which(tool) is not None
-            
+
     # --- Wyświetlanie tabel ---
     table_system = Table(title="Zależności Systemowe i Pythonowe", title_style="bold blue", box=box.MINIMAL, show_header=True)
     table_system.add_column("Narzędzie", style="blue", no_wrap=True)
@@ -166,7 +166,7 @@ def main():
         table_recon.add_row(tool_name, "[green]✓[/green]" if status_ok else "[red]✗[/red]")
 
     console.print(Columns([table_system, table_recon], equal=True, expand=True))
-    
+
     missing_deps = [dep for dep, installed in dependencies.items() if not installed]
 
     if not missing_deps:
@@ -174,10 +174,17 @@ def main():
     else:
         console.print(f"\n[yellow]Brakujące zależności:[/yellow] {', '.join(missing_deps)}")
         if NONINTERACTIVE or ASSUME_YES or questionary.confirm("Zainstalować brakujące zależności?").ask():
-            if "git" in missing_deps and pkg_manager: install_with_pkg_manager(["git"], pkg_manager, is_root, "git")
-            if "Go" in missing_deps and pkg_manager: install_with_pkg_manager(["golang-go"] if "apt-get" in pkg_manager else ["go"], pkg_manager, is_root, "Go")
-            if ("Python3" in missing_deps or "pip3" in missing_deps) and pkg_manager: install_with_pkg_manager(["python3", "python3-pip"], pkg_manager, is_root, "Python3 i pip3")
-            
+            system_packages_to_install = []
+            if "git" in missing_deps: system_packages_to_install.append("git")
+            if "Go" in missing_deps: system_packages_to_install.append("golang-go" if "apt-get" in pkg_manager else "go")
+            if "Python3" in missing_deps or "pip3" in missing_deps: system_packages_to_install.extend(["python3", "python3-pip"])
+            if "tor" in missing_deps: system_packages_to_install.append("tor")
+            if "proxychains4" in missing_deps: system_packages_to_install.append("proxychains-ng")
+            if "SecLists" in missing_deps: system_packages_to_install.append("seclists")
+
+            if system_packages_to_install and pkg_manager:
+                install_with_pkg_manager(system_packages_to_install, pkg_manager, is_root, "pakiety systemowe")
+
             missing_python_pkgs = [p.split(": ")[1] for p in system_and_python_deps_list if p in missing_deps and p.startswith("Python-pkg:")]
             if missing_python_pkgs: install_python_deps(missing_python_pkgs)
             if "wafw00f" in missing_deps: run_command(["pip3", "install", "wafw00f"], "Instalacja wafw00f", live_output=True)
@@ -191,16 +198,14 @@ def main():
             if "dirsearch" in missing_deps:
                 install_from_git("https://github.com/maurosoria/dirsearch.git", "/opt/dirsearch", is_root)
                 run_command(["ln", "-sf", "/opt/dirsearch/dirsearch.py", f"{BIN_DIR}/dirsearch"], "Tworzenie symlinka dla dirsearch", sudo=not is_root)
-            
+
             missing_go_tools = [tool for tool in GO_TOOLS_TO_INSTALL if tool in missing_deps]
             if missing_go_tools: install_go_tools(missing_go_tools)
-            
-            if "SecLists" in missing_deps and pkg_manager: install_with_pkg_manager(["seclists"], pkg_manager, is_root, "SecLists")
 
     console.print(f"\n[blue]Kopiowanie plików ShadowMap do {BIN_DIR} i {SHARE_DIR}...[/blue]")
     run_command(["mkdir", "-p", BIN_DIR], f"Tworzenie {BIN_DIR}", sudo=not is_root)
     run_command(["mkdir", "-p", SHARE_DIR], f"Tworzenie {SHARE_DIR}", sudo=not is_root)
-    
+
     base_dir = os.path.dirname(os.path.abspath(__file__))
     files_to_copy = ["shadowmap", "phase2_dirsearch.py", "Phase3_webcrawling.py", "report_template.html", "resolvers.txt", "user_agents.txt", "subdomen_wordlist.txt", "dir_wordlist.txt"]
     for f in files_to_copy:
