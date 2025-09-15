@@ -24,12 +24,12 @@ from pyfiglet import Figlet
 from typing import Optional, List, Dict, Tuple
 from pathlib import Path
 
-# --- Dodaj katalogi modułów do ścieżki systemowej Pythona ---
+# --- Add module directories to Python's system path ---
 SHARE_DIR = "/usr/local/share/shadowmap/"
 if SHARE_DIR not in sys.path:
     sys.path.insert(0, SHARE_DIR)
 
-# --- Importowanie logiki Fazy 2 i Fazy 3 ---
+# --- Import logic for Phase 2 and Phase 3 ---
 try:
     from phase2_dirsearch import (
         start_dir_search as phase2_start_dir_search,
@@ -98,8 +98,13 @@ TOOL_TIMEOUT_SECONDS = DEFAULT_TOOL_TIMEOUT_SECONDS
 DEFAULT_RECURSION_DEPTH = 1
 RECURSION_DEPTH = DEFAULT_RECURSION_DEPTH
 
+DEFAULT_CRAWL_DEPTH = 2
+CRAWL_DEPTH = DEFAULT_CRAWL_DEPTH
+
 DEFAULT_RESOLVERS_FILE = "/usr/local/share/shadowmap/resolvers.txt"
 RESOLVERS_FILE = DEFAULT_RESOLVERS_FILE
+
+AUTO_FORM_FILL = False
 
 # Flagi ręcznych zmian
 USER_CUSTOMIZED_WORDLIST_PHASE1 = False
@@ -108,9 +113,11 @@ USER_CUSTOMIZED_USER_AGENT = False
 USER_CUSTOMIZED_THREADS = False
 USER_CUSTOMIZED_TIMEOUT = False
 USER_CUSTOMIZED_RECURSION_DEPTH = False
+USER_CUSTOMIZED_CRAWL_DEPTH = False
 USER_CUSTOMIZED_RESOLVERS = False
 USER_CUSTOMIZED_SCAN_CRITICAL = False
 USER_CUSTOMIZED_PROXY = False
+USER_CUSTOMIZED_AUTO_FORM_FILL = False
 
 HTML_TEMPLATE_PATH = "/usr/local/share/shadowmap/report_template.html"
 USER_AGENTS_FILE = "/usr/local/share/shadowmap/user_agents.txt"
@@ -145,7 +152,7 @@ def get_single_char_input_with_prompt(prompt_text: Text, choices: Optional[List[
     return choice
 
 def ask_user_decision(question: str, choices: List[str], default: str) -> str:
-    """Wyświetla pytanie w panelu i prosi o odpowiedź użytkownika."""
+    """Displays a question in a panel and asks for user input."""
     panel = Panel(Text.from_markup(question, justify="center"), border_style="yellow", title="[yellow]Pytanie[/yellow]", expand=False)
     console.print(Align.center(panel))
 
@@ -176,7 +183,7 @@ def display_phase1_tool_selection_menu():
                 table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
 
         table.add_section()
-        table.add_row("[5]", "[bold magenta]Zmień ustawienia Fazy 1[/bold magenta]")
+        table.add_row("[s]", "[bold magenta]Zmień ustawienia Fazy 1[/bold magenta]")
         table.add_row("[\fb]", "Powrót do menu głównego")
         table.add_row("[\fq]", "Wyjdź")
         console.print(Align.center(table))
@@ -189,7 +196,7 @@ def display_phase1_tool_selection_menu():
                 console.print(Align.center("[bold yellow]Nie można włączyć narzędzi pasywnych dla celu IP.[/bold yellow]"))
             else:
                 selected_phase1_tools[idx] = 1 - selected_phase1_tools[idx]
-        elif choice == '5':
+        elif choice.lower() == 's':
             display_phase1_settings_menu()
         elif choice.lower() == 'q':
             sys.exit(0)
@@ -296,13 +303,13 @@ def display_phase2_tool_selection_menu():
             status_char = "[bold green]✓[/bold green]" if selected_phase2_tools[i] == 1 else "[bold red]✗[/bold red]"
             table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
         table.add_section()
-        table.add_row("[5]", "[bold magenta]Zmień ustawienia Fazy 2[/bold magenta]")
+        table.add_row("[s]", "[bold magenta]Zmień ustawienia Fazy 2[/bold magenta]")
         table.add_row("[\fb]", "Powrót do menu głównego")
         table.add_row("[\fq]", "Wyjdź")
         console.print(Align.center(table))
         choice = get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
         if choice.isdigit() and 1 <= int(choice) <= 4: selected_phase2_tools[int(choice) - 1] = 1 - selected_phase2_tools[int(choice) - 1]
-        elif choice == '5': display_phase2_settings_menu()
+        elif choice.lower() == 's': display_phase2_settings_menu()
         elif choice.lower() == 'q': sys.exit(0)
         elif choice.lower() == 'b': return False
         elif choice == '\r':
@@ -409,6 +416,7 @@ def display_phase3_tool_selection_menu():
             table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
 
         table.add_section()
+        table.add_row("[s]", "[bold magenta]Zmień ustawienia Fazy 3[/bold magenta]")
         table.add_row("[\fb]", "Powrót do menu głównego")
         table.add_row("[\fq]", "Wyjdź")
         console.print(Align.center(table))
@@ -416,6 +424,8 @@ def display_phase3_tool_selection_menu():
         choice = get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
         if choice.isdigit() and 1 <= int(choice) <= len(tool_names):
             selected_phase3_tools[int(choice) - 1] = 1 - selected_phase3_tools[int(choice) - 1]
+        elif choice.lower() == 's':
+            display_phase3_settings_menu()
         elif choice.lower() == 'q':
             sys.exit(0)
         elif choice.lower() == 'b':
@@ -429,6 +439,65 @@ def display_phase3_tool_selection_menu():
             console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
 
         time.sleep(0.1)
+
+def display_phase3_settings_menu():
+    global SAFE_MODE, CUSTOM_HEADER, PROXY, USER_CUSTOMIZED_PROXY, CRAWL_DEPTH, USER_CUSTOMIZED_CRAWL_DEPTH, AUTO_FORM_FILL, USER_CUSTOMIZED_AUTO_FORM_FILL, USER_CUSTOMIZED_USER_AGENT
+    while True:
+        console.clear()
+        display_banner()
+        console.print(Align.center(Panel.fit("[bold cyan]Ustawienia Fazy 3[/bold cyan]")))
+        table = Table(show_header=False, show_edge=False, padding=(0, 2))
+        table.add_column("Key", style="bold blue", justify="center", min_width=5)
+        table.add_column("Description", style="white", justify="left")
+
+        user_agent_display = f"[dim white]'{CUSTOM_HEADER}'[/dim white]"
+        if USER_CUSTOMIZED_USER_AGENT and CUSTOM_HEADER: user_agent_display = f"[bold green]'{CUSTOM_HEADER}' (Użytkownika)[/bold green]"
+        elif SAFE_MODE and not USER_CUSTOMIZED_USER_AGENT: user_agent_display = f"[bold yellow]Losowy + Dodatkowe (Safe Mode)[/bold yellow]"
+        elif not CUSTOM_HEADER: user_agent_display = f"[dim white]Domyślny[/dim white]"
+
+        proxy_display = "[dim]Brak[/dim]"
+        if PROXY:
+            if PROXY == "socks5://127.0.0.1:9050" and not USER_CUSTOMIZED_PROXY:
+                proxy_display = f"[bold yellow]{PROXY} (Safe Mode/Tor)[/bold yellow]"
+            else:
+                proxy_display = f"[bold green]{PROXY} (Użytkownika)[/bold green]"
+
+        crawl_depth_display = f"[bold yellow]{CRAWL_DEPTH}[/bold yellow]"
+        if USER_CUSTOMIZED_CRAWL_DEPTH:
+            crawl_depth_display = f"[bold green]{CRAWL_DEPTH} (Użytkownika)[/bold green]"
+
+        table.add_row("[1]", f"User-Agent: {user_agent_display}")
+        table.add_row("[2]", f"Proxy: {proxy_display}")
+        table.add_row("[3]", f"Głębokość crawlera (Katana): {crawl_depth_display}")
+        table.add_row("[4]", f"Automatyczne wypełnianie formularzy (Katana): {'[bold green]WŁĄCZONE[/bold green]' if AUTO_FORM_FILL else '[bold red]WYŁĄCZONE'}")
+
+        table.add_section()
+        table.add_row("[\fb]", "Powrót do menu Fazy 3")
+        table.add_row("[\fq]", "Wyjdź")
+        console.print(Align.center(table))
+        choice = get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
+
+        if choice == '1':
+            new_ua = Prompt.ask("[bold cyan]Wpisz nowy User-Agent[/bold cyan]", default=CUSTOM_HEADER)
+            CUSTOM_HEADER, USER_CUSTOMIZED_USER_AGENT = new_ua, bool(new_ua)
+        elif choice == '2':
+            new_proxy = Prompt.ask("[bold cyan]Wpisz adres proxy (puste=wyłącz)[/bold cyan]", default=PROXY)
+            PROXY = new_proxy.strip()
+            USER_CUSTOMIZED_PROXY = bool(PROXY)
+        elif choice == '3':
+            new_depth_str = Prompt.ask("[bold cyan]Wpisz nową głębokość crawlera[/bold cyan]", default=str(CRAWL_DEPTH))
+            if new_depth_str.isdigit() and int(new_depth_str) >= 0:
+                CRAWL_DEPTH, USER_CUSTOMIZED_CRAWL_DEPTH = int(new_depth_str), True
+            else:
+                console.print(Align.center("[bold red]Nieprawidłowa głębokość.[/bold red]"))
+        elif choice == '4':
+            AUTO_FORM_FILL, USER_CUSTOMIZED_AUTO_FORM_FILL = not AUTO_FORM_FILL, True
+        elif choice.lower() == 'b':
+            break
+        elif choice.lower() == 'q':
+            sys.exit(0)
+        else:
+            console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
 
 def display_main_menu():
     console.clear()
@@ -518,7 +587,7 @@ def detect_waf_and_propose_safe_mode():
 
     try:
         wafw00f_command = ["wafw00f", "-T", "150", ORIGINAL_TARGET]
-        # Proxy jest celowo usunięte z tej funkcji
+        # Proxy is intentionally removed from this function
             
         process = subprocess.run(wafw00f_command, capture_output=True, text=True, timeout=300, check=False, encoding='utf-8', errors='ignore')
 
@@ -598,7 +667,7 @@ def start_phase1_scan():
                 TEMP_FILES_TO_CLEAN.append(output_path)
         if not tasks_to_run:
             console.print(Align.center("Nie wybrano narzędzi do odkrywania subdomen. Pomijam.", style="bold yellow"))
-            return {}, []
+            return {}, [], []
         output_files_collected = {}
         with ThreadPoolExecutor(max_workers=THREADS) as executor:
             futures = {executor.submit(_execute_tool_command, name, cmd, out, TOOL_TIMEOUT_SECONDS): name for name, cmd, out in tasks_to_run}
@@ -646,7 +715,7 @@ def start_phase1_scan():
                             if url: active_urls.append(url)
                         except (json.JSONDecodeError, TypeError): continue
 
-    return output_files_collected, sorted(list(set(active_urls)))
+    return output_files_collected, sorted(list(set(active_urls))), unique_lines
 
 def start_phase2_scan(httpx_results_urls: List[str]):
     if not httpx_results_urls:
@@ -698,7 +767,9 @@ def start_phase3_scan(urls_to_scan: List[str], global_progress: Progress, global
         proxy=PROXY,
         console_obj=console,
         progress_obj=global_progress,
-        main_task_id=global_task
+        main_task_id=global_task,
+        crawl_depth=CRAWL_DEPTH,
+        auto_form_fill=AUTO_FORM_FILL
     )
 
 def run_httpx_on_phase3_results(p3_raw_results: Dict[str, List[str]], progress: Progress, task: TaskID) -> Tuple[str, int]:
@@ -812,7 +883,7 @@ def generate_html_report(
     replacements['{{HTTPX_OUTPUT_RAW_FOR_JS}}'] = escape_for_js(httpx_p1_content_raw)
     replacements['{{COUNT_HTTPX}}'] = str(httpx_p1_count)
 
-    # Faza 2
+    # Phase 2
     p2_all_results_list = p2_results.get('all_dirsearch_results', [])
     dirsearch_all_for_js = "\n".join(p2_all_results_list)
     replacements['{{DIR_SEARCH_ALL_OUTPUT}}'] = escape_for_js(dirsearch_all_for_js)
@@ -824,7 +895,7 @@ def generate_html_report(
     replacements['{{GOBUSTER_SPECIFIC_OUTPUT}}'], _ = get_content_and_count(p2_results.get('gobuster'), is_file=False)
     replacements['{{HTTPX_PHASE2_VERIFIED_OUTPUT}}'] = escape_for_js(p2_verified_httpx)
 
-    # Faza 3
+    # Phase 3
     replacements['{{PHASE3_ALL_URLS_OUTPUT}}'], replacements['{{COUNT_ALL_URLS}}'] = get_content_and_count(p3_raw_results.get('all_urls'), is_file=False)
     replacements['{{PARAMETERS_OUTPUT}}'], replacements['{{COUNT_PARAMETERS}}'] = get_content_and_count(p3_raw_results.get('parameters'), is_file=False)
     replacements['{{JS_FILES_OUTPUT}}'], replacements['{{COUNT_JS_FILES}}'] = get_content_and_count(p3_raw_results.get('js_files'), is_file=False)
@@ -877,9 +948,10 @@ def main(
     global QUIET_MODE, LOG_FILE, OUTPUT_BASE_DIR, REPORT_DIR, selected_phase1_tools, selected_phase2_tools, selected_phase3_tools, \
            WORDLIST_PHASE1, WORDLIST_PHASE2, SAFE_MODE, CUSTOM_HEADER, SCAN_ONLY_CRITICAL, \
            USER_CUSTOMIZED_WORDLIST_PHASE1, USER_CUSTOMIZED_WORDLIST_PHASE2, USER_CUSTOMIZED_USER_AGENT, \
-           DEFAULT_WORDLIST_PHASE1, DEFAULT_WORDLIST_PHASE2, DEFAULT_THREADS, DEFAULT_TOOL_TIMEOUT_SECONDS, PROXY
+           DEFAULT_WORDLIST_PHASE1, DEFAULT_WORDLIST_PHASE2, DEFAULT_THREADS, DEFAULT_TOOL_TIMEOUT_SECONDS, PROXY, USER_CUSTOMIZED_PROXY
 
     scan_initiated = False
+    executor = ThreadPoolExecutor(max_workers=DEFAULT_THREADS)
 
     try:
         QUIET_MODE = quiet
@@ -891,7 +963,7 @@ def main(
         parse_target_input(target)
         check_dependencies()
         
-        # Obsługa proxy z CLI - ma najwyższy priorytet
+        # Handle proxy from CLI - highest priority
         if use_tor:
             PROXY = "socks5://127.0.0.1:9050"
             USER_CUSTOMIZED_PROXY = True
@@ -900,6 +972,7 @@ def main(
             USER_CUSTOMIZED_PROXY = True
 
         phase1_output_files, httpx_active_urls, phase2_all_results, phase3_raw_results, phase3_httpx_file = {}, [], {}, {}, ""
+        all_unique_subdomains = []
         phase2_verified_results_httpx = ""
         urls_for_phase2 = []
         selected_paths_from_p2 = []
@@ -931,26 +1004,39 @@ def main(
                 detect_waf_and_propose_safe_mode()
 
             if phase1_run:
-                phase1_output_files, httpx_active_urls = start_phase1_scan()
+                phase1_output_files, httpx_active_urls, all_unique_subdomains = start_phase1_scan()
 
-            # --- POCZĄTEK NOWEJ LOGIKI AKTYWACJI PROXY ---
+            # --- START NEW PROXY ACTIVATION LOGIC ---
             if SAFE_MODE and not USER_CUSTOMIZED_PROXY:
                 console.print(Align.center(Panel(Text.from_markup("Aktywacja Tora dla Fazy 2 i 3..."), title="[yellow]Info[/yellow]", border_style="yellow")))
                 PROXY = "socks5://127.0.0.1:9050"
-            # --- KONIEC NOWEJ LOGIKI AKTYWACJI PROXY ---
+            # --- END NEW PROXY ACTIVATION LOGIC ---
             
             if phase1_run and not phase2_run and not QUIET_MODE and not phase2_only:
                 transition_to_phase2 = False
                 if httpx_active_urls:
+                    total_subdomains_count = len(all_unique_subdomains)
+                    active_subdomains_count = len(httpx_active_urls)
+                    critical_urls = filter_critical_urls(httpx_active_urls)
+                    critical_subdomains_count = len(critical_urls)
+
+                    summary_text = Text.from_markup(
+                        f"Znaleziono łącznie [bold green]{total_subdomains_count}[/bold green] unikalnych subdomen.\n"
+                        f"Z tego [bold cyan]{active_subdomains_count}[/bold cyan] jest aktywnych (HTTP/S).\n"
+                        f"Potencjalnie krytycznych aktywnych subdomen: [bold yellow]{critical_subdomains_count}[/bold yellow].",
+                        justify="center"
+                    )
+                    console.print(Align.center(Panel(summary_text, title="[bold magenta]Podsumowanie Fazy 1[/bold magenta]", expand=False, border_style="magenta")))
+
                     if ask_user_decision("Czy chcesz kontynuować do Fazy 2 (Wyszukiwanie katalogów)?", ["y", "n"], "y") == 'y':
                         transition_to_phase2 = True
-                        critical_urls = filter_critical_urls(httpx_active_urls)
-                        if critical_urls:
-                            summary_q = (f"Faza 1 znalazła [bold green]{len(httpx_active_urls)}[/bold green] aktywnych hostów, w tym [bold yellow]{len(critical_urls)}[/bold yellow] krytycznych.\n"
-                                       "Skanować wszystkie [bold](a)[/bold] czy tylko krytyczne [bold](c)[/bold]?")
+                        if critical_subdomains_count > 0:
+                            summary_q = (f"Skanować wszystkie [bold](a)[/bold] [cyan]({active_subdomains_count})[/cyan] aktywne hosty czy tylko krytyczne [bold](c)[/bold] [yellow]({critical_subdomains_count})[/yellow]?")
                             scan_choice = ask_user_decision(summary_q, choices=["a", "c"], default="a")
-                            if scan_choice == 'c': urls_for_phase2 = critical_urls
-                            else: urls_for_phase2 = httpx_active_urls
+                            if scan_choice == 'c':
+                                urls_for_phase2 = critical_urls
+                            else:
+                                urls_for_phase2 = httpx_active_urls
                         else:
                             urls_for_phase2 = httpx_active_urls
                 else: 
@@ -972,14 +1058,25 @@ def main(
             if (phase2_run or phase2_only) and not phase3_run and not QUIET_MODE and not phase3_only:
                 phase2_found_paths = phase2_all_results.get("all_dirsearch_results", [])
                 if phase2_found_paths:
+                    total_paths_count = len(phase2_found_paths)
+                    critical_paths = filter_critical_urls(phase2_found_paths)
+                    critical_paths_count = len(critical_paths)
+
+                    summary_text_p2 = Text.from_markup(
+                        f"Znaleziono łącznie [bold green]{total_paths_count}[/bold green] unikalnych ścieżek.\n"
+                        f"Potencjalnie krytycznych ścieżek: [bold yellow]{critical_paths_count}[/bold yellow].",
+                        justify="center"
+                    )
+                    console.print(Align.center(Panel(summary_text_p2, title="[bold magenta]Podsumowanie Fazy 2[/bold magenta]", expand=False, border_style="magenta")))
+
                     if ask_user_decision("Czy chcesz kontynuować do Fazy 3 (Web Crawling)?", ["y", "n"], "y") == 'y':
-                        critical_paths = filter_critical_urls(phase2_found_paths)
-                        if critical_paths:
-                            summary_q = (f"Faza 2 znalazła [bold green]{len(phase2_found_paths)}[/bold green] ścieżek, w tym [bold yellow]{len(critical_paths)}[/bold yellow] krytycznych.\n"
-                                       "Skanować wszystkie [bold](a)[/bold] czy tylko krytyczne [bold](c)[/bold]?")
+                        if critical_paths_count > 0:
+                            summary_q = (f"Skanować wszystkie [bold](a)[/bold] [green]({total_paths_count})[/green] ścieżki czy tylko krytyczne [bold](c)[/bold] [yellow]({critical_paths_count})[/yellow]?")
                             scan_choice = ask_user_decision(summary_q, choices=["a", "c"], default="a")
-                            if scan_choice == 'c': selected_paths_from_p2 = critical_paths
-                            else: selected_paths_from_p2 = phase2_found_paths
+                            if scan_choice == 'c':
+                                selected_paths_from_p2 = critical_paths
+                            else:
+                                selected_paths_from_p2 = phase2_found_paths
                         else:
                             selected_paths_from_p2 = phase2_found_paths
                         
@@ -992,10 +1089,11 @@ def main(
             if phase3_run or phase3_only:
                 with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=console, transient=True) as progress:
                     tool_names = ["Katana", "Hakrawler", "ParamSpider", "LinkFinder", "gauplus"]
-                    task3_total = (len(urls_for_phase3) * sum(1 for t_name in ["Katana", "Hakrawler", "ParamSpider", "gauplus"] if selected_phase3_tools[tool_names.index(t_name)]))
+                    task3_total = (len(urls_for_phase3) * sum(1 for t_name in ["Katana", "Hakrawler"] if selected_phase3_tools[tool_names.index(t_name)]))
+                    task3_total += (len(set(re.sub(r'https?://', '', u).split('/')[0] for u in urls_for_phase3)) * sum(1 for t_name in ["ParamSpider", "gauplus"] if selected_phase3_tools[tool_names.index(t_name)]))
                     if selected_phase3_tools[tool_names.index("LinkFinder")]:
-                        task3_total += 1
-
+                        task3_total += 1 # Add a placeholder for LinkFinder, as it's harder to predict the number of JS files.
+                    
                     task3 = progress.add_task("[green]Faza 3 (Crawling)[/green]", total=task3_total if task3_total > 0 else 1)
                     phase3_raw_results = start_phase3_scan(urls_for_phase3, progress, task3)
 
@@ -1013,8 +1111,11 @@ def main(
 
     except KeyboardInterrupt:
         console.print("\n\n[bold yellow]Przerwano przez użytkownika. Zamykanie...[/bold yellow]")
+        executor.shutdown(wait=False, cancel_futures=True)
 
     finally:
+        if not executor._shutdown:
+             executor.shutdown(wait=True)
         if scan_initiated:
             cleanup_temp_files()
 

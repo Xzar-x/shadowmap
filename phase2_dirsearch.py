@@ -13,7 +13,7 @@ import shutil
 import argparse
 import tempfile
 
-# --- Surowe logowanie do stderr przed inicjalizacją rich ---
+# --- Raw logging to stderr before rich is initialized ---
 def raw_log_error(message: str):
     print(f"RAW_ERROR (phase2_dirsearch.py): {message}", file=sys.stderr)
 
@@ -53,11 +53,11 @@ except ImportError:
         else:
             print(f"INFO (phase2_dirsearch.py): {message}", file=sys.stderr)
 
-# --- Globalne zmienne ---
+# --- Global variables ---
 LOG_FILE: Optional[str] = None
 USER_AGENTS_FILE: Optional[str] = None
 
-# --- Wyrażenia regularne ---
+# --- Regular expressions ---
 ansi_escape_pattern = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 DIRSEARCH_RESULT_PATTERN = re.compile(
     r'^\[\d{2}:\d{2}:\d{2}\]\s+'
@@ -70,7 +70,7 @@ DIRSEARCH_RESULT_PATTERN = re.compile(
 GENERIC_URL_PATTERN = re.compile(r'(https?://[^\s/$.?#].[^\s]*)')
 
 
-# --- Nagłówki do rotacji w Safe Mode ---
+# --- Headers for rotation in Safe Mode ---
 ACCEPT_HEADERS = [
     "text/html",
     "application/json",
@@ -85,7 +85,7 @@ REFERER_HEADERS = [
 ]
 
 def get_random_browser_headers() -> List[str]:
-    """Generuje listę losowych nagłówków przypominających przeglądarkę w celu ominięcia WAF."""
+    """Generates a list of random browser-like headers to bypass WAF."""
     headers = []
     headers.append(f"Accept: {random.choice(ACCEPT_HEADERS)}")
     headers.append(f"Accept-Language: {random.choice(ACCEPT_LANGUAGE_HEADERS)}")
@@ -98,7 +98,7 @@ def get_random_browser_headers() -> List[str]:
     return headers
 
 def shuffle_wordlist(input_path: str, report_dir: str) -> Optional[str]:
-    """Tasuje listę słów i zapisuje ją do pliku tymczasowego w katalogu raportu."""
+    """Shuffles a wordlist and saves it to a temporary file in the report directory."""
     try:
         with open(input_path, 'r', encoding='utf-8') as f:
             lines = [line for line in f if line.strip()]
@@ -115,7 +115,7 @@ def shuffle_wordlist(input_path: str, report_dir: str) -> Optional[str]:
         return None
 
 def get_random_user_agent_header(user_agents_file: Optional[str] = None, console_obj: Optional[Console] = None) -> str:
-    """Odczytuje losowy User-Agent z pliku."""
+    """Reads a random User-Agent from a file."""
     if user_agents_file is None:
         user_agents_file = USER_AGENTS_FILE
 
@@ -137,7 +137,7 @@ def get_random_user_agent_header(user_agents_file: Optional[str] = None, console
     return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 
 def _parse_tool_output_line(line: str, tool_name: str, base_url: Optional[str] = None) -> Optional[str]:
-    """Parsuje pojedynczą linię z outputu narzędzia w celu znalezienia URL."""
+    """Parses a single line of a tool's output to find a URL."""
     cleaned_line = ansi_escape_pattern.sub('', line).strip()
     if not cleaned_line or ":: Progress:" in cleaned_line or "Target: " in cleaned_line:
         return None
@@ -176,10 +176,10 @@ def _parse_tool_output_line(line: str, tool_name: str, base_url: Optional[str] =
     return None
 
 def _run_and_stream_tool(tool_name: str, command: List[str], base_url: Optional[str], all_urls_set: Set[str], per_tool_list: List[str], console_obj: Console, timeout: int):
-    """Uruchamia narzędzie i przetwarza jego output w czasie rzeczywistym."""
+    """Runs a tool and processes its output in real-time."""
     cmd_str = ' '.join(f'"{p}"' if ' ' in p else p for p in command)
     console_obj.print(f"[bold cyan]Uruchamiam: {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
-
+    process = None
     try:
         process = subprocess.Popen(
             command,
@@ -218,7 +218,8 @@ def _run_and_stream_tool(tool_name: str, command: List[str], base_url: Optional[
                 log_and_echo(f"Narzędzie {tool_name} zakończyło pracę z błędem (kod: {process.returncode}) {desc}. STDERR: {stderr[:250].strip()}...", "WARN", console_obj=console_obj)
 
     except subprocess.TimeoutExpired:
-        process.kill()
+        if process and process.poll() is None:
+            process.kill()
         msg = f"Komenda '{tool_name}' przekroczyła limit czasu ({timeout}s) {desc}."
         log_and_echo(msg, "WARN", console_obj=console_obj)
     except Exception as e:
@@ -227,7 +228,7 @@ def _run_and_stream_tool(tool_name: str, command: List[str], base_url: Optional[
 
 
 def safe_sort_unique(input_lines: List[str]) -> List[str]:
-    """Sortuje i usuwa duplikaty z listy linii."""
+    """Sorts and removes duplicates from a list of lines."""
     return sorted(list(set(line.strip() for line in input_lines if line.strip())))
 
 
@@ -281,17 +282,14 @@ def start_dir_search(
     status_codes_to_match = "200,204,301,302,307,401,403,405"
     extensions = "php,html,js,aspx,jsp,json"
 
-    gobuster_base_cmd = ["gobuster", "dir", "-f", "-w", wordlist_to_use, "-k", "-t", str(threads), "-s", status_codes_to_match, "-b", "", "-x", extensions, "--timeout", f"{tool_timeout}s", "--retry", "--retry-attempts", "5", "--no-error"]
-    dirsearch_base_cmd = ["dirsearch", "--stdin", "-i", status_codes_to_match, "-w", wordlist_to_use, "-e", extensions, "--full-url", "--force-extensions", "--no-color"]
-
     tool_configs = [
         {"name": "Ffuf", "enabled": selected_tools_config[0], "base_cmd": ["ffuf", "-mc", status_codes_to_match, "-fc", "404", "-t", str(threads), "-w", wordlist_to_use]},
         {"name": "Feroxbuster", "enabled": selected_tools_config[1], "base_cmd": ["feroxbuster", "--wordlist", wordlist_to_use, "-s", status_codes_to_match, "--threads", str(threads), "--no-recursion"]},
-        {"name": "Dirsearch", "enabled": selected_tools_config[2], "base_cmd": dirsearch_base_cmd},
-        {"name": "Gobuster", "enabled": selected_tools_config[3], "base_cmd": gobuster_base_cmd}
+        {"name": "Dirsearch", "enabled": selected_tools_config[2], "base_cmd": ["dirsearch", "-i", status_codes_to_match, "-w", wordlist_to_use, "-e", extensions, "--full-url", "--force-extensions", "--no-color"]},
+        {"name": "Gobuster", "enabled": selected_tools_config[3], "base_cmd": ["gobuster", "dir", "-f", "-w", wordlist_to_use, "-k", "-t", str(threads), "-s", status_codes_to_match, "-b", "", "-x", extensions, "--timeout", f"{tool_timeout}s", "--retry", "--retry-attempts", "5", "--no-error"]}
     ]
     
-    # Dodawanie proxy do poleceń
+    # Add proxy to commands
     if proxy:
         for config in tool_configs:
             tool_name = config["name"]
@@ -310,18 +308,18 @@ def start_dir_search(
 
     final_user_agent = custom_header or (get_random_user_agent_header(user_agents_file, console_obj) if safe_mode else "")
 
-    dirsearch_enabled = tool_configs[2]["enabled"]
-
-    with ThreadPoolExecutor(max_workers=len(urls) * 3 + (1 if dirsearch_enabled else 0)) as executor:
+    with ThreadPoolExecutor(max_workers=threads) as executor:
         futures = []
         for url in urls:
             for config in tool_configs:
-                if config["enabled"] and config["name"] != "Dirsearch":
+                if config["enabled"]:
                     tool_name = config["name"]
                     cmd = list(config["base_cmd"])
 
-                    if tool_name == "Ffuf": cmd.extend(["-u", f"{url}/FUZZ"])
-                    else: cmd.extend(["-u", url])
+                    if tool_name == "Ffuf":
+                        cmd.extend(["-u", f"{url}/FUZZ"])
+                    else:
+                        cmd.extend(["-u", url])
 
                     headers_to_add = []
                     if final_user_agent:
@@ -331,35 +329,30 @@ def start_dir_search(
 
                     for header in headers_to_add:
                         is_user_agent = header.lower().startswith("user-agent:")
-
                         if tool_name == "Gobuster" and is_user_agent:
                             ua_value = header.split(":", 1)[1].strip()
                             cmd.extend(["-a", ua_value])
+                        elif tool_name == "Dirsearch" and is_user_agent:
+                             ua_value = header.split(":", 1)[1].strip()
+                             cmd.extend(["--user-agent", ua_value])
                         else:
                             cmd.extend(["-H", header])
+                    
+                    # Apply safe mode delays/rate limits
+                    if safe_mode:
+                        if tool_name == "Ffuf" and "ffuf_rate" in safe_mode_params:
+                            cmd.extend(["-rate", safe_mode_params["ffuf_rate"]])
+                        elif tool_name == "Gobuster" and "gobuster_delay" in safe_mode_params:
+                            cmd.extend(["-d", safe_mode_params["gobuster_delay"]])
+                        elif tool_name == "Dirsearch" and "dirsearch_delay" in safe_mode_params:
+                             cmd.extend(["--delay", safe_mode_params["dirsearch_delay"]])
+                        elif tool_name == "Feroxbuster" and "ferox_rate_limit" in safe_mode_params:
+                             cmd.extend(["--rate-limit", safe_mode_params["ferox_rate_limit"]])
 
                     futures.append(executor.submit(
                         _run_and_stream_tool, tool_name, cmd, url, all_unique_urls,
                         per_tool_results[tool_name.lower()], console_obj, tool_timeout
                     ))
-
-        if dirsearch_enabled:
-            dirsearch_cmd = list(tool_configs[2]["base_cmd"])
-            urls_file_path = os.path.join(report_dir, "dirsearch_targets.txt")
-            with open(urls_file_path, "w") as f:
-                f.write("\n".join(urls))
-            dirsearch_cmd.extend(["-l", urls_file_path])
-
-            headers_to_add = []
-            if final_user_agent: headers_to_add.append(f"User-Agent: {final_user_agent}")
-            if safe_mode and "extra_headers" in safe_mode_params: headers_to_add.extend(safe_mode_params["extra_headers"])
-            for header in headers_to_add:
-                dirsearch_cmd.extend(["-H", header])
-
-            futures.append(executor.submit(
-                _run_and_stream_tool, "Dirsearch", dirsearch_cmd, None, all_unique_urls,
-                per_tool_results["dirsearch"], console_obj, tool_timeout * len(urls)
-            ))
 
         for future in as_completed(futures):
             try: future.result()
@@ -369,9 +362,6 @@ def start_dir_search(
 
     if shuffled_wordlist_path and os.path.exists(shuffled_wordlist_path):
         try: os.remove(shuffled_wordlist_path)
-        except OSError: pass
-    if 'urls_file_path' in locals() and os.path.exists(urls_file_path):
-        try: os.remove(urls_file_path)
         except OSError: pass
 
     final_results = {}
@@ -414,3 +404,4 @@ def start_dir_search(
         log_and_echo(f"Weryfikacja HTTPX zakończona.", "INFO", console_obj=console_obj)
 
     return final_results, verified_httpx_output
+
