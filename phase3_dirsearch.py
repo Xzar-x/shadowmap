@@ -15,7 +15,7 @@ import tempfile
 
 # --- Raw logging to stderr before rich is initialized ---
 def raw_log_error(message: str):
-    print(f"RAW_ERROR (phase2_dirsearch.py): {message}", file=sys.stderr)
+    print(f"RAW_ERROR (phase3_dirsearch.py): {message}", file=sys.stderr)
 
 try:
     from rich.console import Console
@@ -33,9 +33,9 @@ try:
         console_target = progress_obj.console if progress_obj and progress_obj.live.is_started else console_obj
 
         if level == "ERROR":
-            console_target.print(f"[bold red]BŁĄD W FAZIE 2: {message}[/bold red]")
+            console_target.print(f"[bold red]BŁĄD W FAZIE 3: {message}[/bold red]")
         elif level == "WARN":
-            console_target.print(f"[bold yellow]OSTRZEŻENIE W FAZIE 2: {message}[/bold yellow]")
+            console_target.print(f"[bold yellow]OSTRZEŻENIE W FAZIE 3: {message}[/bold yellow]")
         elif level == "INFO" or level == "DEBUG":
             console_target.print(f"[bold blue]{message}[/bold blue]")
 
@@ -47,11 +47,11 @@ except ImportError:
             with open(LOG_FILE, 'a', encoding='utf-8') as f:
                 f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {level.upper()} - {message}\n")
         if level == "ERROR":
-            print(f"BŁĄD W FAZIE 2: {message}", file=sys.stderr)
+            print(f"BŁĄD W FAZIE 3: {message}", file=sys.stderr)
         elif level == "WARN":
-            print(f"OSTRZEŻENIE W FAZIE 2: {message}", file=sys.stderr)
+            print(f"OSTRZEŻENIE W FAZIE 3: {message}", file=sys.stderr)
         else:
-            print(f"INFO (phase2_dirsearch.py): {message}", file=sys.stderr)
+            print(f"INFO (phase3_dirsearch.py): {message}", file=sys.stderr)
 
 # --- Global variables ---
 LOG_FILE: Optional[str] = None
@@ -369,7 +369,7 @@ def start_dir_search(
         final_results[tool_name] = safe_sort_unique(results_list)
     final_results["all_dirsearch_results"] = sorted(list(all_unique_urls))
 
-    log_and_echo("Ukończono fazę 2 - wyszukiwanie katalogów (zbieranie surowych danych).", "INFO", console_obj=console_obj)
+    log_and_echo("Ukończono fazę 3 - wyszukiwanie katalogów (zbieranie surowych danych).", "INFO", console_obj=console_obj)
 
     verified_httpx_output = ""
     if all_unique_urls:
@@ -391,11 +391,11 @@ def start_dir_search(
                 encoding='utf-8', errors='ignore'
             )
             verified_httpx_output = process.stdout
-            with open(os.path.join(report_dir, "httpx_results_phase2_verified.txt"), 'w') as f:
+            with open(os.path.join(report_dir, "httpx_results_phase3_verified.txt"), 'w') as f:
                 f.write(verified_httpx_output)
 
         except Exception as e:
-            log_and_echo(f"Błąd podczas weryfikacji HTTPX w Fazie 2: {e}", "ERROR", console_obj=console_obj)
+            log_and_echo(f"Błąd podczas weryfikacji HTTPX w Fazie 3: {e}", "ERROR", console_obj=console_obj)
         finally:
             if urls_file and os.path.exists(urls_file): os.remove(urls_file)
             if progress_obj and verification_task is not None:
@@ -404,4 +404,3 @@ def start_dir_search(
         log_and_echo(f"Weryfikacja HTTPX zakończona.", "INFO", console_obj=console_obj)
 
     return final_results, verified_httpx_output
-

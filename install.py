@@ -39,6 +39,7 @@ GO_TOOLS_TO_INSTALL = {
     "assetfinder": "github.com/tomnomnom/assetfinder@latest",
     "puredns": "github.com/d3mondev/puredns/v2/cmd/puredns@latest",
     "httpx": "github.com/projectdiscovery/httpx/cmd/httpx@latest",
+    "naabu": "github.com/projectdiscovery/naabu/v2/cmd/naabu@latest",
     "ffuf": "github.com/ffuf/ffuf@latest",
     "feroxbuster": "github.com/epi052/feroxbuster/cmd/feroxbuster@latest",
     "gobuster": "github.com/OJ/gobuster/v3@latest",
@@ -130,7 +131,7 @@ def main():
     elif shutil.which("yum"): pkg_manager = ["yum", "install", "-y"]
     elif shutil.which("pacman"): pkg_manager = ["pacman", "-S", "--noconfirm"]
 
-    system_and_python_deps_list = ["Go", "Python3", "git", "pip3", "pipx", "tor", "proxychains4", "SecLists"] + [f"Python-pkg: {p}" for p in PYTHON_PKGS]
+    system_and_python_deps_list = ["Go", "Python3", "git", "pip3", "pipx", "tor", "proxychains4", "SecLists", "nmap"] + [f"Python-pkg: {p}" for p in PYTHON_PKGS]
     recon_tools_list = list(GO_TOOLS_TO_INSTALL.keys()) + ["dirsearch", "ParamSpider", "wafw00f", "LinkFinder"]
 
     dependencies = {}
@@ -139,7 +140,7 @@ def main():
     python_ok = check_python_installation()
     dependencies["Go"], dependencies["Python3"] = go_ok, python_ok
 
-    all_tools_to_check = recon_tools_list + ["git", "pip3", "pipx", "tor", "proxychains4", "SecLists"] + [f"Python-pkg: {p}" for p in PYTHON_PKGS]
+    all_tools_to_check = recon_tools_list + ["git", "pip3", "pipx", "tor", "proxychains4", "SecLists", "nmap"] + [f"Python-pkg: {p}" for p in PYTHON_PKGS]
 
     for tool in all_tools_to_check:
         if tool.startswith("Python-pkg:"):
@@ -191,6 +192,7 @@ def main():
             if "tor" in missing_deps: system_packages_to_install.append("tor")
             if "proxychains4" in missing_deps: system_packages_to_install.append("proxychains-ng")
             if "SecLists" in missing_deps: system_packages_to_install.append("seclists")
+            if "nmap" in missing_deps: system_packages_to_install.append("nmap")
 
             if system_packages_to_install and pkg_manager:
                 install_with_pkg_manager(system_packages_to_install, pkg_manager, is_root, "pakiety systemowe")
@@ -218,7 +220,17 @@ def main():
     run_command(["mkdir", "-p", SHARE_DIR], f"Tworzenie {SHARE_DIR}", sudo=not is_root)
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    files_to_copy = ["shadowmap", "phase2_dirsearch.py", "Phase3_webcrawling.py", "report_template.html", "resolvers.txt", "user_agents.txt", "subdomen_wordlist.txt", "dir_wordlist.txt"]
+    files_to_copy = [
+        "shadowmap", 
+        "phase2_port_scanning.py", 
+        "phase3_dirsearch.py", 
+        "phase4_webcrawling.py", 
+        "report_template.html", 
+        "resolvers.txt", 
+        "user_agents.txt", 
+        "subdomen_wordlist.txt", 
+        "dir_wordlist.txt"
+    ]
     for f in files_to_copy:
         src = os.path.join(base_dir, f)
         dest_dir = BIN_DIR if f == "shadowmap" else SHARE_DIR

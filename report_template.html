@@ -411,27 +411,27 @@
 
         <div class="main-tabs">
             <div class="main-tab-button active" onclick="openMainTab(event, 'summary')">Podsumowanie</div>
-            <div class="main-tab-button" onclick="openMainTab(event, 'phase1')">Faza 1: Enumeracja Subdomen</div>
-            <div class="main-tab-button" onclick="openMainTab(event, 'phase2')">Faza 2: Wyszukiwanie Katalogów</div>
-            <div class="main-tab-button" onclick="openMainTab(event, 'phase3')">Faza 3: Web Crawling</div>
+            <div class="main-tab-button" onclick="openMainTab(event, 'phase1')">Faza 1: Subdomeny</div>
+            <div class="main-tab-button" onclick="openMainTab(event, 'phase2')">Faza 2: Skanowanie Portów</div>
+            <div class="main-tab-button" onclick="openMainTab(event, 'phase3')">Faza 3: Katalogi</div>
+            <div class="main-tab-button" onclick="openMainTab(event, 'phase4')">Faza 4: Web Crawling</div>
             <div class="main-tab-button" onclick="openMainTab(event, 'all_results')">Wszystkie wyniki</div>
         </div>
 
-        <!-- Podsumowanie -->
         <div id="summary" class="tab-content active">
             <h2>Podsumowanie skanowania</h2>
             <div class="summary-item"><strong>Domena:</strong> {{DOMAIN}}</div>
-            <div class="summary-item"><strong>Całkowita liczba znalezionych subdomen:</strong> {{COUNT_ALL_SUBDOMAINS}}</div>
-            <div class="summary-item"><strong>Liczba aktywnych subdomen (HTTP/S):</strong> {{COUNT_HTTPX}}</div>
-            <div class="summary-item"><strong>Liczba znalezionych katalogów/plików (Faza 2):</strong> {{COUNT_DIR_SEARCH}}</div>
-            <div class="summary-item"><strong>Liczba unikalnych URL-i z crawlera (Faza 3):</strong> {{COUNT_ALL_URLS}}</div>
+            <div class="summary-item"><strong>Całkowita liczba znalezionych subdomen (Faza 1):</strong> {{COUNT_ALL_SUBDOMAINS}}</div>
+            <div class="summary-item"><strong>Liczba aktywnych subdomen HTTP/S (Faza 1):</strong> {{COUNT_HTTPX}}</div>
+            <div class="summary-item"><strong>Liczba otwartych portów (Faza 2):</strong> {{COUNT_OPEN_PORTS}}</div>
+            <div class="summary-item"><strong>Liczba znalezionych katalogów/plików (Faza 3):</strong> {{COUNT_DIR_SEARCH}}</div>
+            <div class="summary-item"><strong>Liczba unikalnych URL-i z crawlera (Faza 4):</strong> {{COUNT_ALL_URLS_P4}}</div>
             <div class="summary-item"><strong>Liczba znalezionych parametrów:</strong> {{COUNT_PARAMETERS}}</div>
             <div class="summary-item"><strong>Liczba plików JavaScript:</strong> {{COUNT_JS_FILES}}</div>
             <div class="summary-item"><strong>Liczba endpointów API:</strong> {{COUNT_API_ENDPOINTS}}</div>
             <div class="summary-item"><strong>Liczba interesujących ścieżek:</strong> {{COUNT_INTERESTING_PATHS}}</div>
         </div>
 
-        <!-- Faza 1: Enumeracja Subdomen -->
         <div id="phase1" class="tab-content">
             <h2>Faza 1: Enumeracja Subdomen</h2>
             <div class="sub-tabs">
@@ -468,20 +468,38 @@
             </div>
         </div>
 
-        <!-- Faza 2: Wyszukiwanie Katalogów -->
         <div id="phase2" class="tab-content">
-            <h2>Faza 2: Wyszukiwanie Katalogów</h2>
+            <h2>Faza 2: Skanowanie Portów</h2>
             <div class="sub-tabs">
-                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase2', 'verified_httpx')">✅ Zweryfikowane (HTTPX)</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'all_dirsearch')">Wszystkie wyniki (surowe)</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'dirsearch')">Dirsearch</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'ffuf')">Ffuf</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'feroxbuster')">Feroxbuster</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'gobuster')">Gobuster</div>
+                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase2', 'naabu')">Naabu (Otwarte Porty)</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'nmap')">Nmap (Wersje Usług)</div>
             </div>
 
-            <div id="phase2-verified_httpx" class="sub-tab-content active">
-                <h3>Wyniki z Fazy 2 zweryfikowane przez HTTPX</h3>
+            <div id="phase2-naabu" class="sub-tab-content active">
+                <h3>Naabu Output ({{COUNT_OPEN_PORTS}} otwartych portów)</h3>
+                <div id="naabu-results" class="results-grid"></div>
+            </div>
+            <div id="phase2-nmap" class="sub-tab-content">
+                <h3>Nmap Output</h3>
+                <div id="nmap-results-panel">
+                    {{NMAP_RESULTS_PANEL}}
+                </div>
+            </div>
+        </div>
+
+        <div id="phase3" class="tab-content">
+            <h2>Faza 3: Wyszukiwanie Katalogów</h2>
+            <div class="sub-tabs">
+                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase3', 'verified_httpx')">✅ Zweryfikowane (HTTPX)</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'all_dirsearch')">Wszystkie wyniki (surowe)</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'dirsearch')">Dirsearch</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'ffuf')">Ffuf</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'feroxbuster')">Feroxbuster</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'gobuster')">Gobuster</div>
+            </div>
+
+            <div id="phase3-verified_httpx" class="sub-tab-content active">
+                <h3>Wyniki z Fazy 3 zweryfikowane przez HTTPX</h3>
                 <div class="filter-section">
                     <input type="checkbox" id="showOnlyRedVerifiedHttpx" onchange="applyVerifiedHttpxFilter()">
                     <label for="showOnlyRedVerifiedHttpx">Pokaż tylko krytyczne 🔥</label>
@@ -489,7 +507,7 @@
                 <div id="verified-httpx-results" class="results-grid"></div>
             </div>
 
-            <div id="phase2-all_dirsearch" class="sub-tab-content">
+            <div id="phase3-all_dirsearch" class="sub-tab-content">
                 <h3>Wszystkie znalezione katalogi i pliki ({{COUNT_DIR_SEARCH}} znalezionych)</h3>
                 <div class="filter-section">
                     <input type="checkbox" id="showOnlyRedDirsearch" onchange="applyDirsearchFilter()">
@@ -497,67 +515,65 @@
                 </div>
                 <div id="dirsearch-all-results" class="results-grid"></div>
             </div>
-            <div id="phase2-dirsearch" class="sub-tab-content">
+            <div id="phase3-dirsearch" class="sub-tab-content">
                 <h3>Wyniki z Dirsearch</h3>
                 <div id="dirsearch-results-specific" class="results-grid"></div>
             </div>
-            <div id="phase2-ffuf" class="sub-tab-content">
+            <div id="phase3-ffuf" class="sub-tab-content">
                 <h3>Wyniki z Ffuf</h3>
                 <div id="ffuf-results-specific" class="results-grid"></div>
             </div>
-            <div id="phase2-feroxbuster" class="sub-tab-content">
+            <div id="phase3-feroxbuster" class="sub-tab-content">
                 <h3>Wyniki z Feroxbuster</h3>
                 <div id="feroxbuster-results-specific" class="results-grid"></div>
             </div>
-            <div id="phase2-gobuster" class="sub-tab-content">
+            <div id="phase3-gobuster" class="sub-tab-content">
                 <h3>Wyniki z Gobuster</h3>
                 <div id="gobuster-results-specific" class="results-grid"></div>
             </div>
         </div>
 
-        <!-- Faza 3: Web Crawling -->
-        <div id="phase3" class="tab-content">
-            <h2>Faza 3: Web Crawling i Link Discovery</h2>
+        <div id="phase4" class="tab-content">
+            <h2>Faza 4: Web Crawling i Link Discovery</h2>
             <div class="sub-tabs">
-                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase3', 'all_crawled')">Wszystkie URL-e</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'parameters')">Parametry</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'js_files')">Pliki JS</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'api_endpoints')">Endpointy API</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'interesting_paths')">Interesujące ścieżki</div>
+                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase4', 'all_crawled')">Wszystkie URL-e</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase4', 'parameters')">Parametry</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase4', 'js_files')">Pliki JS</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase4', 'api_endpoints')">Endpointy API</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase4', 'interesting_paths')">Interesujące ścieżki</div>
             </div>
 
-            <div id="phase3-all_crawled" class="sub-tab-content active">
-                <h3>Wszystkie znalezione URL-e ({{COUNT_ALL_URLS}} znalezionych)</h3>
+            <div id="phase4-all_crawled" class="sub-tab-content active">
+                <h3>Wszystkie znalezione URL-e ({{COUNT_ALL_URLS_P4}} znalezionych)</h3>
                 <div class="filter-section">
                     <input type="checkbox" id="showOnlyRedCrawling" onchange="applyCrawlingFilter()">
                     <label for="showOnlyRedCrawling">Pokaż tylko krytyczne 🔥</label>
                 </div>
                 <div id="crawling-all-results" class="results-grid"></div>
             </div>
-            <div id="phase3-parameters" class="sub-tab-content">
+            <div id="phase4-parameters" class="sub-tab-content">
                 <h3>Znalezione parametry ({{COUNT_PARAMETERS}} znalezionych)</h3>
                 <div id="parameters-results" class="results-grid"></div>
             </div>
-            <div id="phase3-js_files" class="sub-tab-content">
+            <div id="phase4-js_files" class="sub-tab-content">
                 <h3>Pliki JavaScript ({{COUNT_JS_FILES}} znalezionych)</h3>
                 <div id="js-files-results" class="results-grid"></div>
             </div>
-            <div id="phase3-api_endpoints" class="sub-tab-content">
+            <div id="phase4-api_endpoints" class="sub-tab-content">
                 <h3>Endpointy API ({{COUNT_API_ENDPOINTS}} znalezionych)</h3>
                 <div id="api-endpoints-results" class="results-grid"></div>
             </div>
-            <div id="phase3-interesting_paths" class="sub-tab-content">
+            <div id="phase4-interesting_paths" class="sub-tab-content">
                 <h3>Interesujące ścieżki ({{COUNT_INTERESTING_PATHS}} znalezionych)</h3>
                 <div id="interesting-paths-results" class="results-grid"></div>
             </div>
         </div>
 
-        <!-- Wszystkie wyniki (scalony output) -->
         <div id="all_results" class="tab-content">
             <h2>Wszystkie znalezione subdomeny i URL-e</h2>
             <h3>Wszystkie subdomeny ({{COUNT_ALL_SUBDOMAINS}} znalezionych)</h3>
             <div id="all-subdomains-results" class="results-grid"></div>
-            <h3>Wszystkie URL-e z Fazy 2 i 3 ({{COUNT_ALL_URLS_COMBINED}} znalezionych)</h3>
+            <h3>Wszystkie URL-e z Fazy 3 i 4 ({{COUNT_ALL_URLS_COMBINED}} znalezionych)</h3>
             <div id="all-urls-combined-results" class="results-grid"></div>
         </div>
 
@@ -613,8 +629,8 @@
 
         // --- Globalne dane ---
         let rawHttpxOutput = stripAnsiCodes(`{{HTTPX_OUTPUT_RAW_FOR_JS}}`);
-        
-        let rawHttpxPhase2Verified = stripAnsiCodes(`{{HTTPX_PHASE2_VERIFIED_OUTPUT}}`);
+        let rawNaabuResults = `{{NAABU_RESULTS}}`;
+        let rawHttpxPhase3Verified = stripAnsiCodes(`{{HTTPX_PHASE3_VERIFIED_OUTPUT}}`);
         let rawDirSearchAll = stripAnsiCodes(`{{DIR_SEARCH_ALL_OUTPUT}}`).replace(/\\n/g, '\n');;
         let rawDirsearchSpecific = stripAnsiCodes(`{{DIRSEARCH_SPECIFIC_OUTPUT}}`);
         let rawFfufSpecific = stripAnsiCodes(`{{FFUF_SPECIFIC_OUTPUT}}`);
@@ -627,7 +643,7 @@
         let rawPuredns = `{{PUREDNS_OUTPUT}}`;
         let rawAllSubdomains = `{{ALL_SUBDOMAINS_OUTPUT}}`;
         
-        let rawPhase3AllUrls = `{{PHASE3_ALL_URLS_OUTPUT}}`;
+        let rawPhase4AllUrls = `{{PHASE4_ALL_URLS_OUTPUT}}`;
         let rawParameters = `{{PARAMETERS_OUTPUT}}`;
         let rawJSFiles = `{{JS_FILES_OUTPUT}}`;
         let rawAPIEndpoints = `{{API_ENDPOINTS_OUTPUT}}`;
@@ -770,7 +786,7 @@
 
         function applyVerifiedHttpxFilter() {
             const showOnlyRed = document.getElementById('showOnlyRedVerifiedHttpx').checked;
-            renderComplexList(rawHttpxPhase2Verified, 'verified-httpx-results', (line) => {
+            renderComplexList(rawHttpxPhase3Verified, 'verified-httpx-results', (line) => {
                 const result = httpxFilter(line);
                 if (showOnlyRed && !result.isRed) result.display = false;
                 return result;
@@ -788,7 +804,7 @@
         
         function applyCrawlingFilter() {
             const showOnlyRed = document.getElementById('showOnlyRedCrawling').checked;
-            renderComplexList(rawPhase3AllUrls, 'crawling-all-results', (line) => {
+            renderComplexList(rawPhase4AllUrls, 'crawling-all-results', (line) => {
                  const result = crawlingFilter(line);
                  if (showOnlyRed && !result.isRed) result.display = false;
                  return result;
@@ -838,6 +854,9 @@
             renderSimpleList(rawPuredns, 'puredns-results', '🔎', 'gray');
             
             // Faza 2
+            renderSimpleList(rawNaabuResults, 'naabu-results', '🔌', 'cyan');
+
+            // Faza 3
             applyVerifiedHttpxFilter();
             applyDirsearchFilter();
             renderSimpleList(rawDirsearchSpecific, 'dirsearch-results-specific', '🔍', 'green');
@@ -845,7 +864,7 @@
             renderSimpleList(rawFeroxbusterSpecific, 'feroxbuster-results-specific', '👹', 'red');
             renderSimpleList(rawGobusterSpecific, 'gobuster-results-specific', '🏃‍♂️', 'yellow');
 
-            // Faza 3
+            // Faza 4
             applyCrawlingFilter();
             renderSimpleList(rawParameters, 'parameters-results', '🔧', 'yellow');
             renderSimpleList(rawJSFiles, 'js-files-results', '📄', 'green');

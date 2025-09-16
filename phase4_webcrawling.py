@@ -17,7 +17,8 @@ try:
     from rich.progress import Progress, TaskID
     from rich.align import Align
 
-    from phase2_dirsearch import (
+    # Zaktualizowano import do nowej nazwy modułu fazy 3
+    from phase3_dirsearch import (
         log_and_echo as shared_log_and_echo,
         get_random_user_agent_header,
         safe_sort_unique,
@@ -46,7 +47,8 @@ def _execute_crawl_command(tool_name: str, command_parts: List[str], target_desc
     cmd_str = ' '.join(command_parts)
     
     if progress_obj:
-        progress_obj.console.print(f"[bold cyan]Faza 3 - Uruchamiam {tool_name} dla {target_desc}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
+        # Zaktualizowano etykietę fazy
+        progress_obj.console.print(f"[bold cyan]Faza 4 - Uruchamiam {tool_name} dla {target_desc}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
 
     try:
         process = subprocess.run(
@@ -75,7 +77,8 @@ def _execute_crawl_command(tool_name: str, command_parts: List[str], target_desc
         return None
     except Exception as e:
         msg = f"Krytyczny błąd wykonania '{tool_name}' dla {target_desc}: {e}"
-        shared_log_and_echo(msg.replace("BŁĄD W FAZIE 2", "BŁĄD W FAZIE 3"), "ERROR", progress_obj=progress_obj)
+        # Poprawiono logowanie błędu, aby poprawnie korzystało z prefiksu dodawanego przez funkcję współdzieloną
+        shared_log_and_echo(msg, "ERROR", progress_obj=progress_obj)
         return None
 
 def categorize_url(url: str) -> Optional[str]:
@@ -244,6 +247,6 @@ def start_web_crawl(
             all_unique_urls.update(u for u in urls_list if u.startswith('http'))
     all_tool_results['all_urls'] = sorted(list(all_unique_urls))
 
-    shared_log_and_echo("Ukończono fazę 3 - Web Crawling.", "INFO", console_obj=console_obj)
+    # Zaktualizowano etykietę fazy
+    shared_log_and_echo("Ukończono fazę 4 - Web Crawling.", "INFO", console_obj=console_obj)
     return all_tool_results
-
