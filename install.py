@@ -23,20 +23,23 @@ except ImportError:
 
 console = Console(highlight=False)
 
+# --- Definicje ---
 BIN_DIR = "/usr/local/bin"
 SHARE_DIR = "/usr/local/share/shadowmap"
 ASSUME_YES = "-y" in sys.argv or "--yes" in sys.argv
 DRY_RUN = "-d" in sys.argv or "--dry-run" in sys.argv
 NONINTERACTIVE = "-n" in sys.argv or "--non-interactive" in sys.argv
+IS_ROOT = os.geteuid() == 0
 
-GO_TOOLS_TO_INSTALL = {
+SYSTEM_DEPS = ["go", "python3", "pip3", "nmap"]
+GO_TOOLS = {
     "subfinder": "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
     "assetfinder": "github.com/tomnomnom/assetfinder@latest",
     "puredns": "github.com/d3mondev/puredns/v2/cmd/puredns@latest",
     "httpx": "github.com/projectdiscovery/httpx/cmd/httpx@latest",
     "naabu": "github.com/projectdiscovery/naabu/v2/cmd/naabu@latest",
     "ffuf": "github.com/ffuf/ffuf@latest",
-    "feroxbuster": "github.com/epi052/feroxbuster/cmd/feroxbuster@latest",
+    "feroxbuster": "github.com/epi052/feroxbuster@latest",
     "gobuster": "github.com/OJ/gobuster/v3@latest",
     "katana": "github.com/projectdiscovery/katana/cmd/katana@latest",
     "hakrawler": "github.com/hakluke/hakrawler@latest",
@@ -44,67 +47,136 @@ GO_TOOLS_TO_INSTALL = {
 }
 PYTHON_PKGS = ["rich", "questionary", "pyfiglet", "typer"]
 
-def run_command(command, description, sudo=False, live_output=False):
-    sudo_prefix = ["sudo"] if sudo and os.geteuid() != 0 else []
-    full_command = sudo_prefix + command
+def display_banner():
+    f = Figlet(font='slant')
+    banner_text = f.renderText('ShadowMap\nInstaller')
+    console.print(Align.center(Text(banner_text, style="bold cyan")))
 
-    if DRY_RUN:
-        console.print(f"[blue]DRY RUN[/blue] Wykonuję: {' '.join(full_command)}")
-        return True
+def run_command(command, description, sudo=False, live_output=False):
+    sudo_prefix = ["sudo"] if sudo and not IS_ROOT else []
+    full_command = sudo_prefix + command
+    cmd_str = ' '.join(full_command)
     
+    if DRY_RUN:
+        console.print(Align.center(f"[blue]DRY RUN[/blue] Wykonuję: {cmd_str}"))
+        return True
+
+    console.print(Align.center(f"-> [yellow]Uruchamiam:[/yellow] {description} ([dim]{cmd_str}[/dim])"))
     try:
         if live_output:
             process = subprocess.Popen(full_command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True)
             for line in process.stdout:
-                sys.stdout.write(line)
+                console.print(Align.center(f"[dim]  {line.strip()}[/dim]"))
             process.wait()
             if process.returncode != 0:
-                console.print(f"[red]Błąd[/red] podczas '{description}': Kod {process.returncode}")
+                console.print(Align.center(f"[red]Błąd[/red] podczas '{description}': Zwrócono kod {process.returncode}"))
                 return False
         else:
-            subprocess.run(full_command, check=True, capture_output=True, text=True)
+            result = subprocess.run(full_command, check=True, capture_output=True, text=True)
         return True
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        console.print(f"[red]Błąd[/red] podczas '{description}': {e}")
+    except FileNotFoundError:
+        console.print(Align.center(f"[red]Błąd[/red] podczas '{description}': Polecenie '{full_command[0]}' nie zostało znalezione."))
+        return False
+    except subprocess.CalledProcessError as e:
+        console.print(Align.center(f"[red]Błąd[/red] podczas '{description}': Polecenie zwróciło błąd (kod {e.returncode})."))
+        console.print(Align.center(Panel(e.stderr, title="[red]STDERR[/red]", border_style="red", expand=False)))
+        return False
+    except Exception as e:
+        console.print(Align.center(f"[red]Nieoczekiwany błąd[/red] podczas '{description}': {e}"))
         return False
 
-# ... (reszta funkcji pomocniczych bez zmian)
+def check_dependencies():
+    missing_system, missing_go = [], []
+    
+    # Tabela 1: Zależności systemowe i Python
+    system_table = Table(title="Zależności Systemowe i Python", box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    system_table.add_column("Narzędzie", style="cyan")
+    system_table.add_column("Status", justify="center")
+
+    for dep in SYSTEM_DEPS:
+        if shutil.which(dep):
+            system_table.add_row(dep, "[bold green]✓ ZNALEZIONO[/bold green]")
+        else:
+            system_table.add_row(dep, "[bold red]✗ BRAK[/bold red]")
+            missing_system.append(dep)
+
+    # Tabela 2: Narzędzia Go
+    go_table = Table(title="Narzędzia Rekonesansu (Go)", box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    go_table.add_column("Narzędzie", style="cyan")
+    go_table.add_column("Status", justify="center")
+
+    for tool in GO_TOOLS:
+        if shutil.which(tool):
+            go_table.add_row(tool, "[bold green]✓ ZNALEZIONO[/bold green]")
+        else:
+            go_table.add_row(tool, "[bold red]✗ BRAK[/bold red]")
+            missing_go.append(tool)
+    
+    console.print(Align.center(Columns([system_table, go_table], align="center", expand=True)))
+    return missing_system, missing_go
 
 def main():
-    # ... (logika sprawdzania zależności bez zmian)
+    display_banner()
+    console.print(Align.center(Panel.fit("[bold]Instalator ShadowMap sprawdzi i zainstaluje wszystkie wymagane zależności.[/bold]", border_style="green")))
+
+    missing_system_deps, missing_go_tools = check_dependencies()
     
-    # Podmień sekcję kopiowania plików na poniższą
-    console.print(f"\n[blue]Kopiowanie plików ShadowMap do {BIN_DIR} i {SHARE_DIR}...[/blue]")
-    run_command(["mkdir", "-p", BIN_DIR], f"Tworzenie {BIN_DIR}", sudo=not os.geteuid() == 0)
-    run_command(["mkdir", "-p", SHARE_DIR], f"Tworzenie {SHARE_DIR}", sudo=not os.geteuid() == 0)
+    if not missing_system_deps and not missing_go_tools:
+        console.print(Align.center("\n[bold green]Wszystkie zależności są już zainstalowane![/bold green]"))
+    else:
+        console.print(Align.center("\n[bold yellow]Wykryto brakujące zależności.[/bold yellow]"))
+        install_confirmed = False
+        if ASSUME_YES or NONINTERACTIVE:
+            install_confirmed = True
+        else:
+            install_confirmed = questionary.confirm("Czy chcesz spróbować zainstalować brakujące pakiety?").ask()
+
+        if install_confirmed:
+            if missing_system_deps:
+                console.print(Align.center(f"\n[blue]Instalowanie zależności systemowych: {', '.join(missing_system_deps)}...[/blue]"))
+                run_command(["apt-get", "update"], "Aktualizacja listy pakietów", sudo=True)
+                run_command(["apt-get", "install", "-y"] + missing_system_deps, "Instalacja pakietów systemowych", sudo=True, live_output=True)
+            
+            if missing_go_tools:
+                console.print(Align.center(f"\n[blue]Instalowanie narzędzi Go: {', '.join(missing_go_tools)}...[/blue]"))
+                for tool in missing_go_tools:
+                    run_command(["go", "install", "-v", GO_TOOLS[tool]], f"Instalacja {tool}", live_output=True)
+
+    console.print(Align.center(f"\n[blue]Instalowanie/aktualizowanie pakietów Python ({', '.join(PYTHON_PKGS)})...[/blue]"))
+    run_command(["pip3", "install", "--upgrade"] + PYTHON_PKGS, "Instalacja pakietów pip", live_output=True)
+
+    console.print(Align.center(f"\n[blue]Kopiowanie plików ShadowMap do {BIN_DIR} i {SHARE_DIR}...[/blue]"))
+    run_command(["mkdir", "-p", SHARE_DIR], f"Tworzenie katalogu {SHARE_DIR}", sudo=True)
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # Plik wykonywalny
-    run_command(["cp", os.path.join(base_dir, "shadowmap"), BIN_DIR], "Kopiowanie shadowmap", sudo=not os.geteuid() == 0)
-    run_command(["chmod", "+x", os.path.join(BIN_DIR, "shadowmap")], "Nadawanie uprawnień shadowmap", sudo=not os.geteuid() == 0)
+    run_command(["cp", os.path.join(base_dir, "shadowmap"), BIN_DIR], "Kopiowanie głównego skryptu", sudo=True)
+    run_command(["chmod", "+x", os.path.join(BIN_DIR, "shadowmap")], "Nadawanie uprawnień wykonywalnych", sudo=True)
 
-    # Pliki modułów i zasobów
     files_to_copy_to_share = [
-        "config.py",
-        "utils.py",
-        "phase1_subdomain.py",
-        "phase2_port_scanning.py", 
-        "phase3_dirsearch.py", 
-        "phase4_webcrawling.py", 
-        "report_template.html", 
-        "resolvers.txt", 
-        "user_agents.txt", 
-        "subdomen_wordlist.txt", 
-        "dir_wordlist.txt"
+        "config.py", "utils.py", "phase1_subdomain.py", "phase2_port_scanning.py",
+        "phase3_dirsearch.py", "phase4_webcrawling.py", "report_template.html",
+        "resolvers.txt", "user_agents.txt", "subdomen_wordlist.txt", "dir_wordlist.txt"
     ]
-    for f in files_to_copy_to_share:
-        src = os.path.join(base_dir, f)
+    for f_name in files_to_copy_to_share:
+        src = os.path.join(base_dir, f_name)
         if os.path.exists(src):
-            run_command(["cp", src, os.path.join(SHARE_DIR, f)], f"Kopiowanie {f}", sudo=not os.geteuid() == 0)
+            run_command(["cp", src, SHARE_DIR], f"Kopiowanie zasobu: {f_name}", sudo=True)
 
-    console.print("[green]Instalacja ShadowMap zakończona pomyślnie![/green]")
-    console.print("[yellow]Może być konieczne ponowne uruchomienie terminala, aby zmiany weszły w życie.[/yellow]")
+    final_message = Panel(
+        Text.from_markup("[bold green]Instalacja ShadowMap zakończona pomyślnie![/bold green]\n\n"
+                         "Możesz teraz uruchomić narzędzie wpisując w terminalu: [bold cyan]shadowmap <cel>[/bold cyan]\n\n"
+                         "[yellow]Uwaga:[/yellow] Może być konieczne ponowne uruchomienie terminala, aby zmiany w ścieżce PATH weszły w życie.", justify="center"),
+        title="[bold]Gotowe![/bold]",
+        border_style="green"
+    )
+    console.print(Align.center(final_message))
+
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        console.print("\n[bold red]Instalacja przerwana przez użytkownika.[/bold red]")
+        sys.exit(1)
+

@@ -186,9 +186,9 @@ def display_phase2_tool_selection_menu(display_banner_func):
             status_char = "[bold green]✓[/bold green]" if config.selected_phase2_tools[i] == 1 else "[bold red]✗[/bold red]"
             table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
         table.add_section()
-        table.add_row("[s]", "[bold magenta]Zmień ustawienia Fazy 2[/bold magenta]")
-        table.add_row("[b]", "Powrót do menu głównego")
-        table.add_row("[q]", "Wyjdź")
+        table.add_row("[\fs]", "[bold magenta]Zmień ustawienia Fazy 2[/bold magenta]")
+        table.add_row("[\fb]", "Powrót do menu głównego")
+        table.add_row("[\fq]", "Wyjdź")
         utils.console.print(Align.center(table))
         choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję i naciśnij Enter, aby rozpocząć[/bold cyan]", justify="center"))
         
@@ -225,8 +225,8 @@ def display_phase2_settings_menu(display_banner_func):
         table.add_row("[2]", f"Liczba wątków: {threads_display}")
         table.add_row("[3]", f"Limit czasu narzędzia: {timeout_display}")
         table.add_section()
-        table.add_row("[b]", "Powrót do menu Fazy 2")
-        table.add_row("[q]", "Wyjdź")
+        table.add_row("[\fb]", "Powrót do menu Fazy 2")
+        table.add_row("[\fq]", "Wyjdź")
         utils.console.print(Align.center(table))
     
         choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
