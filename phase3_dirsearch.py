@@ -9,55 +9,21 @@ import time
 import re
 from typing import List, Dict, Optional, Tuple, Set
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import shutil
-import argparse
 import tempfile
 
-# --- Raw logging to stderr before rich is initialized ---
-def raw_log_error(message: str):
-    print(f"RAW_ERROR (phase3_dirsearch.py): {message}", file=sys.stderr)
+from rich.console import Console
+from rich.progress import Progress, TaskID
+from rich.panel import Panel
+from rich.align import Align
+from rich.text import Text
+from rich.table import Table
+from rich.prompt import Prompt
 
-try:
-    from rich.console import Console
-    from rich.progress import Progress, BarColumn, TextColumn, SpinnerColumn, TimeElapsedColumn, TaskProgressColumn, TaskID
-    from rich.align import Align
-    from rich.spinner import Spinner
-    console = Console(stderr=True)
-    RICH_AVAILABLE = True
+# Importy z naszego projektu
+import config
+import utils
 
-    def log_and_echo(message: str, level: str = "INFO", console_obj: Console = console, progress_obj: Optional[Progress] = None):
-        if LOG_FILE:
-            with open(LOG_FILE, 'a', encoding='utf-8') as f:
-                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {level.upper()} - {message}\n")
-
-        console_target = progress_obj.console if progress_obj and progress_obj.live.is_started else console_obj
-
-        if level == "ERROR":
-            console_target.print(f"[bold red]BŁĄD W FAZIE 3: {message}[/bold red]")
-        elif level == "WARN":
-            console_target.print(f"[bold yellow]OSTRZEŻENIE W FAZIE 3: {message}[/bold yellow]")
-        elif level == "INFO" or level == "DEBUG":
-            console_target.print(f"[bold blue]{message}[/bold blue]")
-
-except ImportError:
-    RICH_AVAILABLE = False
-    console = None
-    def log_and_echo(message: str, level: str = "INFO", console_obj: Console = None, progress_obj: Optional[Progress] = None):
-        if LOG_FILE:
-            with open(LOG_FILE, 'a', encoding='utf-8') as f:
-                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {level.upper()} - {message}\n")
-        if level == "ERROR":
-            print(f"BŁĄD W FAZIE 3: {message}", file=sys.stderr)
-        elif level == "WARN":
-            print(f"OSTRZEŻENIE W FAZIE 3: {message}", file=sys.stderr)
-        else:
-            print(f"INFO (phase3_dirsearch.py): {message}", file=sys.stderr)
-
-# --- Global variables ---
-LOG_FILE: Optional[str] = None
-USER_AGENTS_FILE: Optional[str] = None
-
-# --- Regular expressions ---
+# --- Wzorce regularne ---
 ansi_escape_pattern = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 DIRSEARCH_RESULT_PATTERN = re.compile(
     r'^\[\d{2}:\d{2}:\d{2}\]\s+'
@@ -69,75 +35,7 @@ DIRSEARCH_RESULT_PATTERN = re.compile(
 )
 GENERIC_URL_PATTERN = re.compile(r'(https?://[^\s/$.?#].[^\s]*)')
 
-
-# --- Headers for rotation in Safe Mode ---
-ACCEPT_HEADERS = [
-    "text/html",
-    "application/json",
-    "text/plain",
-    "*/*"
-]
-ACCEPT_LANGUAGE_HEADERS = [
-    "en-US", "en-GB", "de", "pl",
-]
-REFERER_HEADERS = [
-    "https://www.google.com/", "https://www.bing.com/", "https://duckduckgo.com/", ""
-]
-
-def get_random_browser_headers() -> List[str]:
-    """Generates a list of random browser-like headers to bypass WAF."""
-    headers = []
-    headers.append(f"Accept: {random.choice(ACCEPT_HEADERS)}")
-    headers.append(f"Accept-Language: {random.choice(ACCEPT_LANGUAGE_HEADERS)}")
-    headers.append(f"Referer: {random.choice(REFERER_HEADERS)}")
-    headers.append("Upgrade-Insecure-Requests: 1")
-    headers.append("DNT: 1")
-    headers.append("Cache-Control: max-age=0")
-    dummy_session_id = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=32))
-    headers.append(f"Cookie: sessionid={dummy_session_id}")
-    return headers
-
-def shuffle_wordlist(input_path: str, report_dir: str) -> Optional[str]:
-    """Shuffles a wordlist and saves it to a temporary file in the report directory."""
-    try:
-        with open(input_path, 'r', encoding='utf-8') as f:
-            lines = [line for line in f if line.strip()]
-
-        random.shuffle(lines)
-
-        temp_file = tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False, dir=report_dir, prefix='shuffled_wordlist_', suffix='.txt')
-        temp_file.writelines(lines)
-        temp_file.close()
-
-        return temp_file.name
-    except Exception as e:
-        raw_log_error(f"Nie udało się potasować listy słów '{input_path}': {e}")
-        return None
-
-def get_random_user_agent_header(user_agents_file: Optional[str] = None, console_obj: Optional[Console] = None) -> str:
-    """Reads a random User-Agent from a file."""
-    if user_agents_file is None:
-        user_agents_file = USER_AGENTS_FILE
-
-    if user_agents_file and os.path.exists(user_agents_file):
-        try:
-            with open(user_agents_file, 'r', encoding='utf-8') as f:
-                user_agents = [line.strip() for line in f if line.strip()]
-            if user_agents:
-                return random.choice(user_agents)
-        except Exception as e:
-            msg = f"Błąd odczytu pliku User-Agenta '{user_agents_file}': {e}. Używam domyślnego."
-            if console_obj: console_obj.print(Align.center(f"[bold yellow]OSTRZEŻENIE: {msg}[/bold yellow]"))
-            else: raw_log_error(msg)
-    else:
-        msg = f"Plik User-Agenta '{user_agents_file}' nie znaleziony. Używam domyślnego."
-        if console_obj: console_obj.print(Align.center(f"[bold yellow]OSTRZEŻENIE: {msg}[/bold yellow]"))
-        else: raw_log_error(msg)
-
-    return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-
 def _parse_tool_output_line(line: str, tool_name: str, base_url: Optional[str] = None) -> Optional[str]:
-    """Parses a single line of a tool's output to find a URL."""
     cleaned_line = ansi_escape_pattern.sub('', line).strip()
     if not cleaned_line or ":: Progress:" in cleaned_line or "Target: " in cleaned_line:
         return None
@@ -146,8 +44,7 @@ def _parse_tool_output_line(line: str, tool_name: str, base_url: Optional[str] =
 
     if tool_name == "Feroxbuster":
         match = re.match(r'^\s*(\d{3})\s+\S+\s+\S+l\s+\S+w\s+\S+c\s+(https?:\/\/\S+)', cleaned_line)
-        if match:
-            full_url = match.group(2)
+        if match: full_url = match.group(2)
     elif tool_name == "Dirsearch":
         match = DIRSEARCH_RESULT_PATTERN.match(cleaned_line)
         if match: full_url = match.group(3) or match.group(2)
@@ -160,25 +57,18 @@ def _parse_tool_output_line(line: str, tool_name: str, base_url: Optional[str] =
 
     if not full_url:
         generic_match = GENERIC_URL_PATTERN.search(cleaned_line)
-        if generic_match:
-            full_url = generic_match.group(1)
+        if generic_match: full_url = generic_match.group(1)
 
     if full_url:
         full_url = full_url.rstrip('/')
-        if base_url and full_url != base_url:
-            protocol, rest = full_url.split("://", 1)
-            return f"{protocol}://{rest.replace('//', '/')}"
-        elif not base_url:
-             protocol, rest = full_url.split("://", 1)
-             return f"{protocol}://{rest.replace('//', '/')}"
-
+        protocol, rest = full_url.split("://", 1)
+        return f"{protocol}://{rest.replace('//', '/')}"
 
     return None
 
-def _run_and_stream_tool(tool_name: str, command: List[str], base_url: Optional[str], all_urls_set: Set[str], per_tool_list: List[str], console_obj: Console, timeout: int):
-    """Runs a tool and processes its output in real-time."""
+def _run_and_stream_tool(tool_name: str, command: List[str], base_url: Optional[str], all_urls_set: Set[str], per_tool_list: List[str], timeout: int):
     cmd_str = ' '.join(f'"{p}"' if ' ' in p else p for p in command)
-    console_obj.print(f"[bold cyan]Uruchamiam: {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
+    utils.console.print(f"[bold cyan]Uruchamiam: {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
     process = None
     try:
         process = subprocess.Popen(
@@ -206,201 +96,226 @@ def _run_and_stream_tool(tool_name: str, command: List[str], base_url: Optional[
                     per_tool_list.append(parsed_url)
 
         desc = f"dla {base_url}" if base_url else ""
-        if process.returncode == 0:
-            console_obj.print(f"[bold green]✅ {tool_name} zakończył skanowanie {desc}.[/bold green]")
+        if process.returncode == 0 or (tool_name == "Dirsearch" and "DeprecationWarning" in stderr) or (tool_name == "Gobuster" and "the server returns a status code that matches" in stderr):
+            utils.console.print(f"[bold green]✅ {tool_name} zakończył skanowanie {desc}.[/bold green]")
         else:
-            is_dirsearch_deprecation = tool_name == "Dirsearch" and "DeprecationWarning" in stderr
-            is_gobuster_wildcard = tool_name == "Gobuster" and "the server returns a status code that matches" in stderr
-
-            if is_dirsearch_deprecation or is_gobuster_wildcard:
-                 console_obj.print(f"[bold green]✅ {tool_name} zakończył skanowanie (z ostrzeżeniem) {desc}.[/bold green]")
-            else:
-                log_and_echo(f"Narzędzie {tool_name} zakończyło pracę z błędem (kod: {process.returncode}) {desc}. STDERR: {stderr[:250].strip()}...", "WARN", console_obj=console_obj)
+            utils.log_and_echo(f"Narzędzie {tool_name} zakończyło pracę z błędem (kod: {process.returncode}) {desc}. STDERR: {stderr[:250].strip()}...", "WARN")
 
     except subprocess.TimeoutExpired:
         if process and process.poll() is None:
             process.kill()
-        msg = f"Komenda '{tool_name}' przekroczyła limit czasu ({timeout}s) {desc}."
-        log_and_echo(msg, "WARN", console_obj=console_obj)
+        utils.log_and_echo(f"Komenda '{tool_name}' przekroczyła limit czasu ({timeout}s) {desc}.", "WARN")
     except Exception as e:
-        msg = f"Ogólny błąd wykonania komendy '{tool_name}' {desc}: {e}"
-        log_and_echo(msg, "ERROR", console_obj=console_obj)
-
-
-def safe_sort_unique(input_lines: List[str]) -> List[str]:
-    """Sorts and removes duplicates from a list of lines."""
-    return sorted(list(set(line.strip() for line in input_lines if line.strip())))
-
+        utils.log_and_echo(f"Ogólny błąd wykonania komendy '{tool_name}' {desc}: {e}", "ERROR")
 
 def start_dir_search(
     urls: List[str],
-    report_dir: str,
-    safe_mode: bool,
-    custom_header: str,
-    wordlist_path: str,
-    small_wordlist_path: str,
-    threads: int,
-    tool_timeout: int,
-    log_file: Optional[str],
-    user_agents_file: Optional[str],
-    selected_tools_config: List[int],
-    recursion_depth: int,
-    proxy: Optional[str],
-    console_obj: Console,
     progress_obj: Optional[Progress],
     main_task_id: Optional[TaskID]
 ) -> Tuple[Dict[str, List[str]], str]:
-    global LOG_FILE, USER_AGENTS_FILE
-    LOG_FILE, USER_AGENTS_FILE = log_file, user_agents_file
-
-    wordlist_to_use = small_wordlist_path if safe_mode and os.path.exists(small_wordlist_path) else wordlist_path
+    
+    wordlist_to_use = config.WORDLIST_PHASE3
+    if config.SAFE_MODE and not config.USER_CUSTOMIZED_WORDLIST_PHASE3:
+        wordlist_to_use = config.SMALL_WORDLIST_PHASE3
 
     shuffled_wordlist_path = None
-    if safe_mode:
-        log_and_echo("Tryb Bezpieczny: tasuję listę słów...", "INFO", console_obj=console_obj)
-        shuffled_wordlist_path = shuffle_wordlist(wordlist_to_use, report_dir)
+    if config.SAFE_MODE:
+        utils.log_and_echo("Tryb Bezpieczny: tasuję listę słów...", "INFO")
+        shuffled_wordlist_path = utils.shuffle_wordlist(wordlist_to_use, config.REPORT_DIR)
         if shuffled_wordlist_path:
             wordlist_to_use = shuffled_wordlist_path
+            config.TEMP_FILES_TO_CLEAN.append(shuffled_wordlist_path)
 
-    log_and_echo(f"Używam listy słów: {wordlist_to_use}", "INFO", console_obj=console_obj)
-    if proxy:
-        log_and_echo(f"Używam proxy: {proxy}", "INFO", console_obj=console_obj)
+    utils.log_and_echo(f"Używam listy słów: {wordlist_to_use}", "INFO")
+    if config.PROXY:
+        utils.log_and_echo(f"Używam proxy: {config.PROXY}", "INFO")
 
     all_unique_urls: Set[str] = set()
     per_tool_results: Dict[str, List[str]] = {"ffuf": [], "feroxbuster": [], "dirsearch": [], "gobuster": []}
 
-    safe_mode_params = {}
-    if safe_mode:
-        log_and_echo("Tryb Bezpieczny: aktywuję techniki omijania WAF.", "INFO", console_obj=console_obj)
-        safe_mode_params = {
-            "ffuf_rate": "50", "gobuster_delay": "500ms", "dirsearch_delay": "0.1",
-            "ferox_rate_limit": "10", "http_method": random.choice(["GET", "HEAD"]),
-            "extra_headers": get_random_browser_headers()
-        }
-        threads = 10
-
+    threads_to_use = 10 if config.SAFE_MODE else config.THREADS
     status_codes_to_match = "200,204,301,302,307,401,403,405"
     extensions = "php,html,js,aspx,jsp,json"
 
     tool_configs = [
-        {"name": "Ffuf", "enabled": selected_tools_config[0], "base_cmd": ["ffuf", "-mc", status_codes_to_match, "-fc", "404", "-t", str(threads), "-w", wordlist_to_use]},
-        {"name": "Feroxbuster", "enabled": selected_tools_config[1], "base_cmd": ["feroxbuster", "--wordlist", wordlist_to_use, "-s", status_codes_to_match, "--threads", str(threads), "--no-recursion"]},
-        {"name": "Dirsearch", "enabled": selected_tools_config[2], "base_cmd": ["dirsearch", "-i", status_codes_to_match, "-w", wordlist_to_use, "-e", extensions, "--full-url", "--force-extensions", "--no-color"]},
-        {"name": "Gobuster", "enabled": selected_tools_config[3], "base_cmd": ["gobuster", "dir", "-f", "-w", wordlist_to_use, "-k", "-t", str(threads), "-s", status_codes_to_match, "-b", "", "-x", extensions, "--timeout", f"{tool_timeout}s", "--retry", "--retry-attempts", "5", "--no-error"]}
+        {"name": "Ffuf", "enabled": config.selected_phase3_tools[0], "base_cmd": ["ffuf", "-mc", status_codes_to_match, "-fc", "404", "-t", str(threads_to_use), "-w", wordlist_to_use]},
+        {"name": "Feroxbuster", "enabled": config.selected_phase3_tools[1], "base_cmd": ["feroxbuster", "--wordlist", wordlist_to_use, "-s", status_codes_to_match, "--threads", str(threads_to_use), "--no-recursion"]},
+        {"name": "Dirsearch", "enabled": config.selected_phase3_tools[2], "base_cmd": ["dirsearch", "-i", status_codes_to_match, "-w", wordlist_to_use, "-e", extensions, "--full-url", "--force-extensions", "--no-color"]},
+        {"name": "Gobuster", "enabled": config.selected_phase3_tools[3], "base_cmd": ["gobuster", "dir", "-f", "-w", wordlist_to_use, "-k", "-t", str(threads_to_use), "-s", status_codes_to_match, "-b", "", "-x", extensions, "--timeout", f"{config.TOOL_TIMEOUT_SECONDS}s", "--retry", "--retry-attempts", "5", "--no-error"]}
     ]
     
-    # Add proxy to commands
-    if proxy:
-        for config in tool_configs:
-            tool_name = config["name"]
-            if tool_name == "Ffuf": config["base_cmd"].extend(["-x", proxy])
-            elif tool_name == "Feroxbuster": config["base_cmd"].extend(["-p", proxy])
-            elif tool_name == "Dirsearch": config["base_cmd"].extend([f"--proxy={proxy}"])
-            elif tool_name == "Gobuster": config["base_cmd"].extend(["--proxy", proxy])
+    # ... (logika dodawania proxy i rekurencji bez zmian, ale używając `config.`)
+    if config.PROXY:
+        for cfg in tool_configs:
+            tool_name = cfg["name"]
+            if tool_name == "Ffuf": cfg["base_cmd"].extend(["-x", config.PROXY])
+            elif tool_name == "Feroxbuster": cfg["base_cmd"].extend(["-p", config.PROXY])
+            elif tool_name == "Dirsearch": cfg["base_cmd"].extend([f"--proxy={config.PROXY}"])
+            elif tool_name == "Gobuster": cfg["base_cmd"].extend(["--proxy", config.PROXY])
 
-    if recursion_depth > 0:
-        for config in tool_configs:
-            if config["name"] == "Ffuf": config["base_cmd"].extend(["-recursion", "-recursion-depth", str(recursion_depth)])
-            elif config["name"] == "Feroxbuster":
-                if "--no-recursion" in config["base_cmd"]: config["base_cmd"].remove("--no-recursion")
-                config["base_cmd"].extend(["--depth", str(recursion_depth)])
-            elif config["name"] == "Dirsearch": config["base_cmd"].extend(["--recursive", f"--max-recursion-depth={recursion_depth}"])
+    if config.RECURSION_DEPTH_P3 > 0:
+        for cfg in tool_configs:
+            if cfg["name"] == "Ffuf": cfg["base_cmd"].extend(["-recursion", "-recursion-depth", str(config.RECURSION_DEPTH_P3)])
+            elif cfg["name"] == "Feroxbuster":
+                if "--no-recursion" in cfg["base_cmd"]: cfg["base_cmd"].remove("--no-recursion")
+                cfg["base_cmd"].extend(["--depth", str(config.RECURSION_DEPTH_P3)])
+            elif cfg["name"] == "Dirsearch": cfg["base_cmd"].extend(["--recursive", f"--max-recursion-depth={config.RECURSION_DEPTH_P3}"])
 
-    final_user_agent = custom_header or (get_random_user_agent_header(user_agents_file, console_obj) if safe_mode else "")
+    final_user_agent = config.CUSTOM_HEADER or (utils.get_random_user_agent_header() if config.SAFE_MODE else "")
 
-    with ThreadPoolExecutor(max_workers=threads) as executor:
+    with ThreadPoolExecutor(max_workers=threads_to_use) as executor:
         futures = []
         for url in urls:
-            for config in tool_configs:
-                if config["enabled"]:
-                    tool_name = config["name"]
-                    cmd = list(config["base_cmd"])
-
-                    if tool_name == "Ffuf":
-                        cmd.extend(["-u", f"{url}/FUZZ"])
-                    else:
-                        cmd.extend(["-u", url])
-
+            for cfg in tool_configs:
+                if cfg["enabled"]:
+                    cmd = list(cfg["base_cmd"])
+                    if cfg["name"] == "Ffuf": cmd.extend(["-u", f"{url}/FUZZ"])
+                    else: cmd.extend(["-u", url])
+                    
                     headers_to_add = []
-                    if final_user_agent:
-                        headers_to_add.append(f"User-Agent: {final_user_agent}")
-                    if safe_mode and "extra_headers" in safe_mode_params:
-                        headers_to_add.extend(safe_mode_params["extra_headers"])
+                    if final_user_agent: headers_to_add.append(f"User-Agent: {final_user_agent}")
+                    if config.SAFE_MODE: headers_to_add.extend(utils.get_random_browser_headers())
 
                     for header in headers_to_add:
-                        is_user_agent = header.lower().startswith("user-agent:")
-                        if tool_name == "Gobuster" and is_user_agent:
-                            ua_value = header.split(":", 1)[1].strip()
-                            cmd.extend(["-a", ua_value])
-                        elif tool_name == "Dirsearch" and is_user_agent:
-                             ua_value = header.split(":", 1)[1].strip()
-                             cmd.extend(["--user-agent", ua_value])
-                        else:
-                            cmd.extend(["-H", header])
+                        is_ua = header.lower().startswith("user-agent:")
+                        ua_val = header.split(":", 1)[1].strip()
+                        if cfg["name"] == "Gobuster" and is_ua: cmd.extend(["-a", ua_val])
+                        elif cfg["name"] == "Dirsearch" and is_ua: cmd.extend(["--user-agent", ua_val])
+                        else: cmd.extend(["-H", header])
                     
-                    # Apply safe mode delays/rate limits
-                    if safe_mode:
-                        if tool_name == "Ffuf" and "ffuf_rate" in safe_mode_params:
-                            cmd.extend(["-rate", safe_mode_params["ffuf_rate"]])
-                        elif tool_name == "Gobuster" and "gobuster_delay" in safe_mode_params:
-                            cmd.extend(["-d", safe_mode_params["gobuster_delay"]])
-                        elif tool_name == "Dirsearch" and "dirsearch_delay" in safe_mode_params:
-                             cmd.extend(["--delay", safe_mode_params["dirsearch_delay"]])
-                        elif tool_name == "Feroxbuster" and "ferox_rate_limit" in safe_mode_params:
-                             cmd.extend(["--rate-limit", safe_mode_params["ferox_rate_limit"]])
+                    if config.SAFE_MODE:
+                        if cfg["name"] == "Ffuf": cmd.extend(["-rate", "50"])
+                        elif cfg["name"] == "Gobuster": cmd.extend(["-d", "500ms"])
+                        elif cfg["name"] == "Dirsearch": cmd.extend(["--delay", "0.1"])
+                        elif cfg["name"] == "Feroxbuster": cmd.extend(["--rate-limit", "10"])
 
-                    futures.append(executor.submit(
-                        _run_and_stream_tool, tool_name, cmd, url, all_unique_urls,
-                        per_tool_results[tool_name.lower()], console_obj, tool_timeout
-                    ))
+                    futures.append(executor.submit(_run_and_stream_tool, cfg["name"], cmd, url, all_unique_urls, per_tool_results[cfg["name"].lower()], config.TOOL_TIMEOUT_SECONDS))
 
         for future in as_completed(futures):
             try: future.result()
-            except Exception as e: log_and_echo(f"Błąd w wątku wykonawczym: {e}", "ERROR")
+            except Exception as e: utils.log_and_echo(f"Błąd w wątku wykonawczym: {e}", "ERROR")
             if progress_obj and main_task_id is not None:
                 progress_obj.update(main_task_id, advance=1)
 
-    if shuffled_wordlist_path and os.path.exists(shuffled_wordlist_path):
-        try: os.remove(shuffled_wordlist_path)
-        except OSError: pass
-
     final_results = {}
     for tool_name, results_list in per_tool_results.items():
-        final_results[tool_name] = safe_sort_unique(results_list)
+        final_results[tool_name] = sorted(list(set(r for r in results_list if r)))
     final_results["all_dirsearch_results"] = sorted(list(all_unique_urls))
 
-    log_and_echo("Ukończono fazę 3 - wyszukiwanie katalogów (zbieranie surowych danych).", "INFO", console_obj=console_obj)
+    utils.log_and_echo("Ukończono fazę 3 - wyszukiwanie katalogów.", "INFO")
 
     verified_httpx_output = ""
     if all_unique_urls:
         task_desc = f"[bold green]Weryfikuję {len(all_unique_urls)} unikalnych ścieżek (HTTPX)...[/bold green]"
         verification_task = progress_obj.add_task(task_desc, total=1) if progress_obj else None
 
-        urls_file = None
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=config.REPORT_DIR, suffix='.txt') as tmp:
+            tmp.write('\n'.join(sorted(list(all_unique_urls))))
+            urls_file = tmp.name
+        config.TEMP_FILES_TO_CLEAN.append(urls_file)
+        
         try:
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=report_dir, suffix='.txt') as tmp:
-                tmp.write('\n'.join(sorted(list(all_unique_urls))))
-                urls_file = tmp.name
-
             httpx_cmd = ["httpx", "-l", urls_file, "-silent", "-json"]
-            if proxy:
-                httpx_cmd.extend(["-proxy", proxy])
+            if config.PROXY: httpx_cmd.extend(["-proxy", config.PROXY])
                 
-            process = subprocess.run(
-                httpx_cmd, capture_output=True, text=True, timeout=tool_timeout * 2,
-                encoding='utf-8', errors='ignore'
-            )
+            process = subprocess.run(httpx_cmd, capture_output=True, text=True, timeout=config.TOOL_TIMEOUT_SECONDS * 2, encoding='utf-8', errors='ignore')
             verified_httpx_output = process.stdout
-            with open(os.path.join(report_dir, "httpx_results_phase3_verified.txt"), 'w') as f:
+            with open(os.path.join(config.REPORT_DIR, "httpx_results_phase3_verified.txt"), 'w') as f:
                 f.write(verified_httpx_output)
 
         except Exception as e:
-            log_and_echo(f"Błąd podczas weryfikacji HTTPX w Fazie 3: {e}", "ERROR", console_obj=console_obj)
+            utils.log_and_echo(f"Błąd podczas weryfikacji HTTPX w Fazie 3: {e}", "ERROR")
         finally:
-            if urls_file and os.path.exists(urls_file): os.remove(urls_file)
             if progress_obj and verification_task is not None:
                 progress_obj.update(verification_task, completed=1)
 
-        log_and_echo(f"Weryfikacja HTTPX zakończona.", "INFO", console_obj=console_obj)
-
     return final_results, verified_httpx_output
+
+def display_phase3_tool_selection_menu(display_banner_func):
+    while True:
+        utils.console.clear()
+        display_banner_func()
+        utils.console.print(Align.center(Panel.fit("[bold magenta]Faza 3: Wyszukiwanie Katalogów[/bold magenta]")))
+        utils.console.print(Align.center(f"Obecny cel: [bold green]{config.ORIGINAL_TARGET}[/bold green]"))
+        utils.console.print(Align.center(f"Tryb bezpieczny: {'[bold green]WŁĄCZONY[/bold green]' if config.SAFE_MODE else '[bold red]WYŁĄCZONY'}"))
+        table = Table(show_header=False, show_edge=False, padding=(0, 2))
+        table.add_column("Key", style="bold blue", justify="center", min_width=5)
+        table.add_column("Description", style="white", justify="left")
+        tool_names = ["FFuf", "Feroxbuster", "Dirsearch", "Gobuster"]
+        for i, tool_name in enumerate(tool_names):
+            status_char = "[bold green]✓[/bold green]" if config.selected_phase3_tools[i] == 1 else "[bold red]✗[/bold red]"
+            table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
+        table.add_section()
+        table.add_row("[s]", "[bold magenta]Zmień ustawienia Fazy 3[/bold magenta]")
+        table.add_row("[b]", "Powrót do menu głównego")
+        table.add_row("[q]", "Wyjdź")
+        utils.console.print(Align.center(table))
+        choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję i naciśnij Enter, aby rozpocząć[/bold cyan]", justify="center"))
+        
+        if choice.isdigit() and 1 <= int(choice) <= 4: config.selected_phase3_tools[int(choice) - 1] = 1 - config.selected_phase3_tools[int(choice) - 1]
+        elif choice.lower() == 's': display_phase3_settings_menu(display_banner_func)
+        elif choice.lower() == 'q': sys.exit(0)
+        elif choice.lower() == 'b': return False
+        elif choice == '\r':
+            if any(config.selected_phase3_tools): return True
+            else: utils.console.print(Align.center("[bold yellow]Proszę wybrać co najmniej jedno narzędzie.[/bold yellow]"))
+        else: utils.console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
+        time.sleep(0.1)
+
+def display_phase3_settings_menu(display_banner_func):
+    while True:
+        utils.console.clear()
+        display_banner_func()
+        utils.console.print(Align.center(Panel.fit("[bold cyan]Ustawienia Fazy 3[/bold cyan]")))
+        table = Table(show_header=False, show_edge=False, padding=(0, 2))
+        table.add_column("Key", style="bold blue", justify="center", min_width=5)
+        table.add_column("Description", style="white", justify="left")
+        
+        wordlist_display = f"[dim]{config.WORDLIST_PHASE3}[/dim]"
+        if config.USER_CUSTOMIZED_WORDLIST_PHASE3: wordlist_display = f"[bold green]{config.WORDLIST_PHASE3} (Użytkownika)[/bold green]"
+        elif config.SAFE_MODE: wordlist_display = f"[bold yellow]{config.SMALL_WORDLIST_PHASE3} (Safe Mode)[/bold yellow]"
+        
+        user_agent_display = f"[dim white]'{config.CUSTOM_HEADER}'[/dim white]"
+        if config.USER_CUSTOMIZED_USER_AGENT and config.CUSTOM_HEADER: user_agent_display = f"[bold green]'{config.CUSTOM_HEADER}' (Użytkownika)[/bold green]"
+        elif config.SAFE_MODE and not config.USER_CUSTOMIZED_USER_AGENT: user_agent_display = f"[bold yellow]Losowy + Dodatkowe (Safe Mode)[/bold yellow]"
+        elif not config.CUSTOM_HEADER: user_agent_display = f"[dim white]Domyślny[/dim white]"
+        
+        proxy_display = "[dim]Brak[/dim]"
+        if config.PROXY: proxy_display = f"[bold green]{config.PROXY}[/bold green]"
+
+        table.add_row("[1]", f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny")
+        table.add_row("[2]", f"Lista słów (Faza 3): {wordlist_display}")
+        table.add_row("[3]", f"User-Agent: {user_agent_display}")
+        table.add_row("[4]", f"Proxy: {proxy_display}")
+        table.add_row("[5]", f"Liczba wątków: {config.THREADS}")
+        table.add_row("[6]", f"Limit czasu narzędzia: {config.TOOL_TIMEOUT_SECONDS}s")
+        table.add_row("[7]", f"Głębokość rekurencji: {config.RECURSION_DEPTH_P3}")
+        table.add_section()
+        table.add_row("[b]", "Powrót do menu Fazy 3")
+        table.add_row("[q]", "Wyjdź")
+        utils.console.print(Align.center(table))
+        choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
+
+        if choice == '1':
+            config.SAFE_MODE = not config.SAFE_MODE
+        elif choice == '2':
+            new_path = Prompt.ask("[bold cyan]Podaj ścieżkę do listy słów[/bold cyan]", default=config.WORDLIST_PHASE3)
+            if os.path.isfile(new_path): config.WORDLIST_PHASE3, config.USER_CUSTOMIZED_WORDLIST_PHASE3 = new_path, True
+            else: utils.console.print("[red]Nieprawidłowa ścieżka[/red]")
+        elif choice == '3':
+            new_ua = Prompt.ask("[bold cyan]Podaj User-Agent[/bold cyan]", default=config.CUSTOM_HEADER)
+            config.CUSTOM_HEADER, config.USER_CUSTOMIZED_USER_AGENT = new_ua, bool(new_ua)
+        elif choice == '4':
+            new_proxy = Prompt.ask("[bold cyan]Podaj adres proxy[/bold cyan]", default=config.PROXY or "")
+            config.PROXY, config.USER_CUSTOMIZED_PROXY = new_proxy, bool(new_proxy)
+        elif choice == '5':
+            new_threads = Prompt.ask("[bold cyan]Podaj liczbę wątków[/bold cyan]", default=str(config.THREADS))
+            if new_threads.isdigit(): config.THREADS, config.USER_CUSTOMIZED_THREADS = int(new_threads), True
+        elif choice == '6':
+            new_timeout = Prompt.ask("[bold cyan]Podaj limit czasu (s)[/bold cyan]", default=str(config.TOOL_TIMEOUT_SECONDS))
+            if new_timeout.isdigit(): config.TOOL_TIMEOUT_SECONDS, config.USER_CUSTOMIZED_TIMEOUT = int(new_timeout), True
+        elif choice == '7':
+            new_depth = Prompt.ask("[bold cyan]Podaj głębokość rekurencji[/bold cyan]", default=str(config.RECURSION_DEPTH_P3))
+            if new_depth.isdigit(): config.RECURSION_DEPTH_P3, config.USER_CUSTOMIZED_RECURSION_DEPTH_P3 = int(new_depth), True
+        elif choice.lower() == 'b': break
+        elif choice.lower() == 'q': sys.exit(0)
