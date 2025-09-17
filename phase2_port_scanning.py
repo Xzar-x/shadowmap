@@ -30,12 +30,18 @@ def _run_scan_tool(
     """
     Uruchamia narzędzie do skanowania portów i zapisuje jego wynik do pliku.
     """
-    cmd_str = ' '.join(f'"{p}"' if ' ' in p else p for p in command)
+    # FIX: Add sudo for naabu
+    sudo_prefix = []
+    if tool_name == "Naabu" and os.geteuid() != 0:
+        sudo_prefix = ["sudo"]
+
+    full_command = sudo_prefix + command
+    cmd_str = ' '.join(f'"{p}"' if ' ' in p else p for p in full_command)
     utils.console.print(f"[bold cyan]Uruchamiam: {tool_name} dla {target}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
 
     try:
         process = subprocess.run(
-            command,
+            full_command,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -72,21 +78,40 @@ def _parse_naabu_output(file_path: str) -> Dict[str, List[int]]:
         return ports_by_host
         
     with open(file_path, 'r', encoding='utf-8') as f:
+        # FIX: Handle potential empty lines or malformed output
         for line in f:
             line = line.strip()
             if ':' in line:
                 parts = line.split(':')
-                host, port_str = parts[0], parts[1]
-                if port_str.isdigit():
-                    port = int(port_str)
-                    if host not in ports_by_host:
-                        ports_by_host[host] = []
-                    ports_by_host[host].append(port)
+                if len(parts) == 2:
+                    host, port_str = parts[0], parts[1]
+                    if port_str.isdigit():
+                        port = int(port_str)
+                        if host not in ports_by_host:
+                            ports_by_host[host] = []
+                        ports_by_host[host].append(port)
     
     for host in ports_by_host:
         ports_by_host[host] = sorted(list(set(ports_by_host[host])))
         
     return ports_by_host
+
+def _parse_nmap_output_fallback(nmap_files: Dict[str, str]) -> Dict[str, List[int]]:
+    """Zlicza porty z plików Nmap jako fallback, jeśli Naabu zawiedzie."""
+    ports_by_host: Dict[str, List[int]] = {}
+    port_pattern = re.compile(r'^(\d+)\/tcp\s+open')
+    for host, file_path in nmap_files.items():
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                host_ports = []
+                for line in f:
+                    match = port_pattern.match(line)
+                    if match:
+                        host_ports.append(int(match.group(1)))
+                if host_ports:
+                    ports_by_host[host] = sorted(list(set(host_ports)))
+    return ports_by_host
+
 
 def start_port_scan(
     targets: List[str],
@@ -98,11 +123,23 @@ def start_port_scan(
     """
     if config.SAFE_MODE:
         utils.log_and_echo("Tryb Bezpieczny: aktywuję wolniejsze skanowanie portów.", "INFO")
+        if not config.USER_CUSTOMIZED_NAABU_SOURCE_PORT:
+            config.NAABU_SOURCE_PORT = "53"
 
     tool_configs = [
         {"name": "Nmap", "enabled": config.selected_phase2_tools[0], "base_cmd": ["nmap", "-sV", "-Pn"]},
         {"name": "Naabu", "enabled": config.selected_phase2_tools[1], "base_cmd": ["naabu", "-silent", "-p", "-"]}
     ]
+
+    # Ustawienia Nmap
+    if config.NMAP_AGGRESSIVE_SCAN:
+        tool_configs[0]["base_cmd"].append("-A")
+    elif config.NMAP_USE_SCRIPTS:
+        tool_configs[0]["base_cmd"].append("-sC")
+
+    # Ustawienia Naabu
+    if config.NAABU_SOURCE_PORT:
+        tool_configs[1]["base_cmd"].extend(["-source-ip", f"0.0.0.0:{config.NAABU_SOURCE_PORT}"])
 
     if config.SAFE_MODE:
         tool_configs[0]["base_cmd"].extend(["-T2"]) 
@@ -132,13 +169,11 @@ def start_port_scan(
 
                 if tool_name == "Nmap":
                     cmd.extend(["-oN", output_file, target])
-                    cmd_to_run = cmd
                 elif tool_name == "Naabu":
                     cmd.extend(["-host", target])
-                    cmd_to_run = cmd
 
                 futures.append(executor.submit(
-                    _run_scan_tool, tool_name, cmd_to_run, target, output_file, config.TOOL_TIMEOUT_SECONDS
+                    _run_scan_tool, tool_name, cmd, target, output_file, config.TOOL_TIMEOUT_SECONDS
                 ))
 
         for future in as_completed(futures):
@@ -151,24 +186,34 @@ def start_port_scan(
 
     naabu_raw_file = os.path.join(config.REPORT_DIR, "naabu_aggregated_results.txt")
     
+    # Aggregating Naabu results
+    naabu_output_found = False
     with open(naabu_raw_file, 'w', encoding='utf-8') as agg_f:
         for target in targets:
             naabu_file = os.path.join(config.REPORT_DIR, f"naabu_{target.replace('.', '_')}.txt")
-            if os.path.exists(naabu_file):
+            if os.path.exists(naabu_file) and os.path.getsize(naabu_file) > 0:
                 with open(naabu_file, 'r', encoding='utf-8') as f:
-                    agg_f.write(f.read())
+                    content = f.read()
+                    if content.strip():
+                        naabu_output_found = True
+                        agg_f.write(content)
     
-    if os.path.exists(naabu_raw_file):
-        final_results["naabu_file"] = naabu_raw_file
-        final_results["open_ports_by_host"] = _parse_naabu_output(naabu_raw_file)
-
+    # Parsing Nmap results
     for target in targets:
         nmap_file = os.path.join(config.REPORT_DIR, f"nmap_{target.replace('.', '_')}.txt")
         if os.path.exists(nmap_file):
             final_results["nmap_files"][target] = nmap_file
 
-    utils.log_and_echo("Ukończono fazę 2 - skanowanie portów.", "INFO")
+    if naabu_output_found:
+        final_results["naabu_file"] = naabu_raw_file
+        final_results["open_ports_by_host"] = _parse_naabu_output(naabu_raw_file)
+    else:
+        # Fallback to Nmap if Naabu has no results
+        utils.log_and_echo("Nie znaleziono wyników z Naabu, próba parsowania wyników z Nmap...", "WARN")
+        final_results["open_ports_by_host"] = _parse_nmap_output_fallback(final_results["nmap_files"])
 
+
+    utils.log_and_echo("Ukończono fazę 2 - skanowanie portów.", "INFO")
     return final_results
 
 def display_phase2_tool_selection_menu(display_banner_func):
@@ -221,9 +266,23 @@ def display_phase2_settings_menu(display_banner_func):
         timeout_display = f"[bold yellow]{config.TOOL_TIMEOUT_SECONDS}[/bold yellow]s"
         if config.USER_CUSTOMIZED_TIMEOUT: timeout_display = f"[bold green]{config.TOOL_TIMEOUT_SECONDS}s (Użytkownika)[/bold green]"
 
+        naabu_port_display = "[dim]Domyślny[/dim]"
+        if config.NAABU_SOURCE_PORT:
+            style = "bold green" if config.USER_CUSTOMIZED_NAABU_SOURCE_PORT else "bold yellow"
+            naabu_port_display = f"[{style}]{config.NAABU_SOURCE_PORT}[/{style}]"
+            if config.SAFE_MODE and not config.USER_CUSTOMIZED_NAABU_SOURCE_PORT:
+                 naabu_port_display += " (Safe Mode)"
+
         table.add_row("[1]", f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny (wolniejsze skanowanie)")
         table.add_row("[2]", f"Liczba wątków: {threads_display}")
         table.add_row("[3]", f"Limit czasu narzędzia: {timeout_display}")
+        table.add_section()
+        table.add_row("[bold]Nmap[/bold]", "")
+        table.add_row("[4]", f"[{'[bold green]✓[/bold green]' if config.NMAP_USE_SCRIPTS else '[bold red]✗[/bold red]'}] Skanowanie skryptów (-sC)")
+        table.add_row("[5]", f"[{'[bold green]✓[/bold green]' if config.NMAP_AGGRESSIVE_SCAN else '[bold red]✗[/bold red]'}] Skan agresywny (-A)")
+        table.add_section()
+        table.add_row("[bold]Naabu[/bold]", "")
+        table.add_row("[6]", f"Port źródłowy (--source-ip): {naabu_port_display}")
         table.add_section()
         table.add_row("[\fb]", "Powrót do menu Fazy 2")
         table.add_row("[\fq]", "Wyjdź")
@@ -241,6 +300,22 @@ def display_phase2_settings_menu(display_banner_func):
             new_timeout_str = Prompt.ask("[bold cyan]Wpisz nowy limit czasu w sekundach[/bold cyan]", default=str(config.TOOL_TIMEOUT_SECONDS))
             if new_timeout_str.isdigit() and int(new_timeout_str) > 0: config.TOOL_TIMEOUT_SECONDS, config.USER_CUSTOMIZED_TIMEOUT = int(new_timeout_str), True
             else: utils.console.print(Align.center("[bold red]Nieprawidłowy limit czasu.[/bold red]"))
+        elif choice == '4':
+            config.NMAP_USE_SCRIPTS = not config.NMAP_USE_SCRIPTS
+            if config.NMAP_USE_SCRIPTS: config.NMAP_AGGRESSIVE_SCAN = False
+        elif choice == '5':
+            config.NMAP_AGGRESSIVE_SCAN = not config.NMAP_AGGRESSIVE_SCAN
+            if config.NMAP_AGGRESSIVE_SCAN: config.NMAP_USE_SCRIPTS = False
+        elif choice == '6':
+            new_port_str = Prompt.ask("[bold cyan]Podaj port źródłowy dla Naabu (puste=domyślny)[/bold cyan]", default=config.NAABU_SOURCE_PORT or "")
+            if new_port_str.isdigit() and 1 <= int(new_port_str) <= 65535:
+                config.NAABU_SOURCE_PORT = new_port_str
+                config.USER_CUSTOMIZED_NAABU_SOURCE_PORT = True
+            elif not new_port_str:
+                config.NAABU_SOURCE_PORT = None
+                config.USER_CUSTOMIZED_NAABU_SOURCE_PORT = False
+            else:
+                utils.console.print(Align.center("[bold red]Nieprawidłowy numer portu.[/bold red]"))
         elif choice.lower() == 'b':
             break
         elif choice.lower() == 'q':
@@ -248,3 +323,4 @@ def display_phase2_settings_menu(display_banner_func):
         else:
             utils.console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
         time.sleep(0.1)
+

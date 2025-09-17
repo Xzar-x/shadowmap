@@ -189,18 +189,19 @@ def generate_html_report(
         assetfinder_raw.splitlines() +
         findomain_raw.splitlines() + 
         puredns_raw.splitlines()
-    )))
+    ))) if p1_files else [] # FIX: Initialize as empty if P1 was skipped
     all_subdomains_raw = "\n".join(filter(None, all_subdomains_list))
 
     # Przetwarzanie danych Fazy 2
     naabu_raw = read_file_content(p2_results.get("naabu_file"))
-    count_open_ports = len(naabu_raw.splitlines()) if naabu_raw and "Brak danych" not in naabu_raw else 0
     
-    nmap_panels = []
+    # FIX: Correctly count open ports from the structured data
+    total_open_ports = sum(len(ports) for ports in p2_results.get("open_ports_by_host", {}).values())
+    
+    nmap_raw_outputs = {}
     for target, nmap_file in p2_results.get("nmap_files", {}).items():
-        nmap_content = read_file_content(nmap_file)
-        nmap_panels.append(f'<pre class="output"><strong>{target}</strong><br>{nmap_content}</pre>')
-    
+        nmap_raw_outputs[target] = read_file_content(nmap_file)
+
     # Przetwarzanie danych Fazy 3
     dirsearch_all_raw = "\n".join(p3_results.get("all_dirsearch_results", []))
     
@@ -215,9 +216,9 @@ def generate_html_report(
 
     replacements = {
         "{{DOMAIN}}": config.HOSTNAME_TARGET,
-        "{{COUNT_ALL_SUBDOMAINS}}": str(len(all_subdomains_raw.splitlines())),
+        "{{COUNT_ALL_SUBDOMAINS}}": str(len(all_subdomains_list)),
         "{{COUNT_HTTPX}}": str(len(active_urls_data)),
-        "{{COUNT_OPEN_PORTS}}": str(count_open_ports),
+        "{{COUNT_OPEN_PORTS}}": str(total_open_ports),
         "{{COUNT_DIR_SEARCH}}": str(len(dirsearch_all_raw.splitlines())),
         "{{COUNT_ALL_URLS_P4}}": str(len(p4_all_urls.splitlines())),
         "{{COUNT_PARAMETERS}}": str(len(p4_params.splitlines())),
@@ -225,15 +226,15 @@ def generate_html_report(
         "{{COUNT_API_ENDPOINTS}}": str(len(p4_api.splitlines())),
         "{{COUNT_INTERESTING_PATHS}}": str(len(p4_interesting.splitlines())),
         
-        "{{HTTPX_OUTPUT_JSON_P1}}": json.dumps(active_urls_data, indent=None),
-        "{{HTTPX_OUTPUT_JSON_P3}}": json.dumps(p3_verified_data, indent=None),
+        "{{HTTPX_OUTPUT_JSON_P1}}": json.dumps(active_urls_data),
+        "{{HTTPX_OUTPUT_JSON_P3}}": json.dumps(p3_verified_data),
+        "{{NAABU_RESULTS_JSON}}": json.dumps(p2_results.get("open_ports_by_host", {})),
+        "{{NMAP_RESULTS_RAW_JSON}}": json.dumps(nmap_raw_outputs),
 
         "{{SUBFINDER_OUTPUT}}": subfinder_raw,
         "{{ASSETFINDER_OUTPUT}}": assetfinder_raw,
         "{{FINDOMAIN_OUTPUT}}": findomain_raw,
         "{{PUREDNS_OUTPUT}}": puredns_raw,
-        "{{NAABU_RESULTS}}": naabu_raw,
-        "{{NMAP_RESULTS_PANEL}}": "\n".join(nmap_panels),
         "{{DIR_SEARCH_ALL_OUTPUT}}": dirsearch_all_raw,
         "{{PHASE4_ALL_URLS_OUTPUT}}": p4_all_urls,
         "{{PARAMETERS_OUTPUT}}": p4_params,
@@ -246,20 +247,11 @@ def generate_html_report(
     }
 
     for placeholder, value in replacements.items():
-        # Handle string replacement
         if isinstance(value, str):
-            # Ensure placeholder exists before replacing
-            if placeholder in template:
-                template = template.replace(placeholder, value if value and value.strip() and "Brak danych" not in value else "Brak danych")
-        # Handle JSON data replacement (which might be inside <script> tags)
-        else:
-            # For JSON, we expect placeholders to be without quotes, so we add them for replacement
-            json_placeholder = f'"{placeholder}"'
-            if json_placeholder in template:
-                template = template.replace(json_placeholder, json.dumps(value))
-            # Fallback for placeholders that might not have quotes in the template
-            elif placeholder in template:
-                 template = template.replace(placeholder, json.dumps(value))
+            template = template.replace(placeholder, value if value and value.strip() and "Brak danych" not in value else "Brak danych")
+        else: # For JSON data
+            template = template.replace(f'"{placeholder}"', json.dumps(value)) # Handles script tags
+            template = template.replace(placeholder, json.dumps(value)) # Fallback for other cases
 
 
     report_path = os.path.join(config.REPORT_DIR, "report.html")
@@ -267,6 +259,7 @@ def generate_html_report(
         f.write(template)
     
     utils.console.print(f"[bold green]✓ Raport HTML wygenerowany: {report_path}[/bold green]")
+
 
 def cleanup_temp_files():
     utils.console.print(Align.center("Czyszczę pliki tymczasowe...", style="bold green"))
@@ -292,6 +285,10 @@ def main(
     active_urls_data: List[Dict[str, Any]] = []
     p2_results, p3_results, p4_results = {}, {}, {}
     p3_verified_data: List[Dict[str, Any]] = []
+    
+    phase1_completed = False
+    phase2_completed = False
+    phase3_completed = False
     
     try:
         config.QUIET_MODE = quiet or assume_yes
@@ -327,18 +324,20 @@ def main(
         if start_phase <= 1:
             if config.QUIET_MODE or phase1_subdomain.display_phase1_tool_selection_menu(display_banner):
                 p1_files, active_urls_data, all_subdomains = phase1_subdomain.start_phase1_scan()
+                phase1_completed = True
             else:
                 return
 
-        # --- PRZEJŚCIE DO FAZY 2 ---
+        # --- FAZA 2 ---
         if start_phase <= 2:
+            if not config.QUIET_MODE and phase1_completed:
+                if utils.ask_user_decision("Czy chcesz kontynuować do Fazy 2 (Skanowanie Portów)?", ["y", "n"], "y") == 'n':
+                    return
+            
             targets_for_p2 = all_subdomains if all_subdomains else [config.CLEAN_DOMAIN_TARGET]
             if not targets_for_p2: targets_for_p2 = [config.HOSTNAME_TARGET]
 
             if not config.QUIET_MODE:
-                if utils.ask_user_decision("Czy chcesz kontynuować do Fazy 2 (Skanowanie Portów)?", ["y", "n"], "y") == 'n':
-                    return
-
                 critical_subdomains = utils.filter_critical_urls(targets_for_p2)
                 if critical_subdomains and len(critical_subdomains) < len(targets_for_p2):
                     urls_to_scan_p2 = ask_scan_scope(targets_for_p2, critical_subdomains, "Fazie 2")
@@ -350,16 +349,18 @@ def main(
 
             if config.QUIET_MODE or phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
                 p2_results = phase2_port_scanning.start_port_scan(urls_to_scan_p2, None, None)
+                phase2_completed = True
             else:
                 return
         
-        # --- PRZEJŚCIE DO FAZY 3 ---
+        # --- FAZA 3 ---
         if start_phase <= 3:
-            targets_for_p3 = [item['url'] for item in active_urls_data] if active_urls_data else [config.ORIGINAL_TARGET]
-            if not config.QUIET_MODE:
+            if not config.QUIET_MODE and phase2_completed:
                 if utils.ask_user_decision("Czy chcesz kontynuować do Fazy 3 (Wyszukiwanie Katalogów)?", ["y", "n"], "y") == 'n':
                     return
 
+            targets_for_p3 = [item['url'] for item in active_urls_data] if active_urls_data else [config.ORIGINAL_TARGET]
+            if not config.QUIET_MODE:
                 critical_urls = utils.filter_critical_urls(targets_for_p3)
                 if critical_urls and len(critical_urls) < len(targets_for_p3):
                     urls_to_scan_p3 = ask_scan_scope(targets_for_p3, critical_urls, "Fazie 3")
@@ -371,19 +372,22 @@ def main(
             
             if config.QUIET_MODE or phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
                 p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(urls_to_scan_p3, None, None)
+                phase3_completed = True
             else:
                 return
 
-        # --- PRZEJŚCIE DO FAZY 4 ---
+        # --- FAZA 4 ---
         if start_phase <= 4:
-            urls_from_p1 = [item['url'] for item in active_urls_data]
-            urls_from_p3 = [item['url'] for item in p3_verified_data]
-            targets_for_p4 = sorted(list(set(urls_from_p1 + urls_from_p3)))
-
-            if not config.QUIET_MODE:
+            if not config.QUIET_MODE and phase3_completed:
                 if utils.ask_user_decision("Czy chcesz kontynuować do Fazy 4 (Web Crawling)?", ["y", "n"], "y") == 'n':
                     return
 
+            urls_from_p1 = [item['url'] for item in active_urls_data]
+            urls_from_p3 = [item['url'] for item in p3_verified_data]
+            targets_for_p4 = sorted(list(set(urls_from_p1 + urls_from_p3)))
+            if not targets_for_p4: targets_for_p4 = [config.ORIGINAL_TARGET]
+
+            if not config.QUIET_MODE:
                 critical_urls_p4 = utils.filter_critical_urls(targets_for_p4)
                 if critical_urls_p4 and len(critical_urls_p4) < len(targets_for_p4):
                     urls_to_scan_p4 = ask_scan_scope(targets_for_p4, critical_urls_p4, "Fazie 4")

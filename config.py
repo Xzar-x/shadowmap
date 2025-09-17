@@ -42,6 +42,11 @@ WORDLIST_PHASE1: str = DEFAULT_WORDLIST_PHASE1
 WORDLIST_PHASE3: str = DEFAULT_WORDLIST_PHASE3
 RESOLVERS_FILE: str = DEFAULT_RESOLVERS_FILE
 
+# --- Ustawienia Fazy 2 ---
+NMAP_USE_SCRIPTS: bool = False
+NMAP_AGGRESSIVE_SCAN: bool = False
+NAABU_SOURCE_PORT: Optional[str] = None
+
 # --- Wybrane narzędzia ---
 selected_phase1_tools: List[int] = [0, 0, 0, 0] # Subfinder, Assetfinder, Findomain, Puredns
 selected_phase2_tools: List[int] = [0, 0] # Nmap, Naabu
@@ -59,3 +64,4 @@ USER_CUSTOMIZED_CRAWL_DEPTH_P4: bool = False
 USER_CUSTOMIZED_RESOLVERS: bool = False
 USER_CUSTOMIZED_PROXY: bool = False
 USER_CUSTOMIZED_AUTO_FORM_FILL: bool = False
+USER_CUSTOMIZED_NAABU_SOURCE_PORT: bool = False
