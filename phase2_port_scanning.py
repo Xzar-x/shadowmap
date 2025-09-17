@@ -135,7 +135,7 @@ def start_port_scan(
             if not config.USER_CUSTOMIZED_NAABU_SOURCE_PORT:
                 config.NAABU_SOURCE_PORT = "53"
 
-        naabu_base_cmd = ["naabu", "-silent", "-p", "-"]
+        naabu_base_cmd = ["naabu", "-silent", "-p", "-","-verify"]
         if config.NAABU_SOURCE_PORT:
             naabu_base_cmd.extend(["-source-ip", f"0.0.0.0:{config.NAABU_SOURCE_PORT}"])
         if config.SAFE_MODE:
