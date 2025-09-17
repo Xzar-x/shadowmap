@@ -30,7 +30,6 @@ def _run_scan_tool(
     """
     Uruchamia narzędzie do skanowania portów i zapisuje jego wynik do pliku.
     """
-    # FIX: Add sudo for naabu
     sudo_prefix = []
     if tool_name == "Naabu" and os.geteuid() != 0:
         sudo_prefix = ["sudo"]
@@ -78,7 +77,6 @@ def _parse_naabu_output(file_path: str) -> Dict[str, List[int]]:
         return ports_by_host
         
     with open(file_path, 'r', encoding='utf-8') as f:
-        # FIX: Handle potential empty lines or malformed output
         for line in f:
             line = line.strip()
             if ':' in line:
@@ -112,7 +110,6 @@ def _parse_nmap_output_fallback(nmap_files: Dict[str, str]) -> Dict[str, List[in
                     ports_by_host[host] = sorted(list(set(host_ports)))
     return ports_by_host
 
-
 def start_port_scan(
     targets: List[str],
     progress_obj: Optional[Progress],
@@ -121,97 +118,96 @@ def start_port_scan(
     """
     Rozpoczyna Fazę 2: Skanowanie portów na podanych celach.
     """
-    if config.SAFE_MODE:
-        utils.log_and_echo("Tryb Bezpieczny: aktywuję wolniejsze skanowanie portów.", "INFO")
-        if not config.USER_CUSTOMIZED_NAABU_SOURCE_PORT:
-            config.NAABU_SOURCE_PORT = "53"
-
-    tool_configs = [
-        {"name": "Nmap", "enabled": config.selected_phase2_tools[0], "base_cmd": ["nmap", "-sV", "-Pn"]},
-        {"name": "Naabu", "enabled": config.selected_phase2_tools[1], "base_cmd": ["naabu", "-silent", "-p", "-"]}
-    ]
-
-    # Ustawienia Nmap
-    if config.NMAP_AGGRESSIVE_SCAN:
-        tool_configs[0]["base_cmd"].append("-A")
-    elif config.NMAP_USE_SCRIPTS:
-        tool_configs[0]["base_cmd"].append("-sC")
-
-    # Ustawienia Naabu
-    if config.NAABU_SOURCE_PORT:
-        tool_configs[1]["base_cmd"].extend(["-source-ip", f"0.0.0.0:{config.NAABU_SOURCE_PORT}"])
-
-    if config.SAFE_MODE:
-        tool_configs[0]["base_cmd"].extend(["-T2"]) 
-        tool_configs[1]["base_cmd"].extend(["-rate", "100"])
-    else:
-        tool_configs[0]["base_cmd"].extend(["-T4"])
-        tool_configs[1]["base_cmd"].extend(["-rate", "1000"])
-
     final_results = {
         "nmap_files": {},
         "naabu_file": None,
         "open_ports_by_host": {}
     }
+    open_ports_by_host: Dict[str, List[int]] = {}
 
-    with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
-        futures = []
-        for target in targets:
-            for tool_config in tool_configs:
-                if not tool_config["enabled"]:
-                    continue
+    naabu_enabled = config.selected_phase2_tools[1] == 1
+    nmap_enabled = config.selected_phase2_tools[0] == 1
+
+    # --- Krok 1: Uruchom Naabu, jeśli jest włączone ---
+    if naabu_enabled:
+        if config.SAFE_MODE:
+            utils.log_and_echo("Tryb Bezpieczny: aktywuję wolniejsze skanowanie portów.", "INFO")
+            if not config.USER_CUSTOMIZED_NAABU_SOURCE_PORT:
+                config.NAABU_SOURCE_PORT = "53"
+
+        naabu_base_cmd = ["naabu", "-silent", "-p", "-"]
+        if config.NAABU_SOURCE_PORT:
+            naabu_base_cmd.extend(["-source-ip", f"0.0.0.0:{config.NAABU_SOURCE_PORT}"])
+        if config.SAFE_MODE:
+            naabu_base_cmd.extend(["-rate", "100"])
+        else:
+            naabu_base_cmd.extend(["-rate", "1000"])
+
+        with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
+            futures = []
+            for target in targets:
+                output_file = os.path.join(config.REPORT_DIR, f"naabu_{target.replace('.', '_')}.txt")
+                cmd = naabu_base_cmd + ["-host", target]
+                futures.append(executor.submit(_run_scan_tool, "Naabu", cmd, target, output_file, config.TOOL_TIMEOUT_SECONDS))
+            
+            for future in as_completed(futures):
+                future.result()
+
+        naabu_raw_file = os.path.join(config.REPORT_DIR, "naabu_aggregated_results.txt")
+        with open(naabu_raw_file, 'w', encoding='utf-8') as agg_f:
+            for target in targets:
+                naabu_file = os.path.join(config.REPORT_DIR, f"naabu_{target.replace('.', '_')}.txt")
+                if os.path.exists(naabu_file):
+                    with open(naabu_file, 'r', encoding='utf-8') as f:
+                        agg_f.write(f.read())
+        
+        if os.path.exists(naabu_raw_file) and os.path.getsize(naabu_raw_file) > 0:
+            final_results["naabu_file"] = naabu_raw_file
+            open_ports_by_host = _parse_naabu_output(naabu_raw_file)
+
+    # --- Krok 2: Uruchom Nmap, jeśli jest włączony ---
+    if nmap_enabled:
+        nmap_base_cmd = ["nmap", "-sV", "-Pn"]
+        if config.NMAP_AGGRESSIVE_SCAN: nmap_base_cmd.append("-A")
+        elif config.NMAP_USE_SCRIPTS: nmap_base_cmd.append("-sC")
+        
+        if config.SAFE_MODE: nmap_base_cmd.extend(["-T2"])
+        else: nmap_base_cmd.extend(["-T4"])
+
+        with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
+            futures = []
+            for target in targets:
+                cmd = list(nmap_base_cmd)
+                ports_to_scan = open_ports_by_host.get(target)
                 
-                tool_name = tool_config["name"]
-                cmd = list(tool_config["base_cmd"])
+                # Jeśli Naabu znalazło porty, skanuj tylko je
+                if ports_to_scan:
+                    cmd.append("-p")
+                    cmd.append(",".join(map(str, ports_to_scan)))
+                # Jeśli Naabu nie było uruchomione lub nic nie znalazło, Nmap skanuje domyślnie
                 
-                output_filename = f"{tool_name.lower()}_{target.replace('.', '_')}.txt"
-                output_file = os.path.join(config.REPORT_DIR, output_filename)
+                output_file = os.path.join(config.REPORT_DIR, f"nmap_{target.replace('.', '_')}.txt")
+                cmd.extend(["-oN", output_file, target])
+                futures.append(executor.submit(_run_scan_tool, "Nmap", cmd, target, output_file, config.TOOL_TIMEOUT_SECONDS))
+            
+            for future in as_completed(futures):
+                nmap_output_file = future.result()
+                if nmap_output_file:
+                    # Wyciągnij target z nazwy pliku, aby poprawnie go zmapować
+                    filename = os.path.basename(nmap_output_file)
+                    target_name_part = filename.replace("nmap_", "").replace(".txt", "").replace("_", ".")
+                    # Proste dopasowanie, może wymagać ulepszenia
+                    for t in targets:
+                        if t in target_name_part:
+                            final_results["nmap_files"][t] = nmap_output_file
+                            break
 
-                if tool_name == "Nmap":
-                    cmd.extend(["-oN", output_file, target])
-                elif tool_name == "Naabu":
-                    cmd.extend(["-host", target])
-
-                futures.append(executor.submit(
-                    _run_scan_tool, tool_name, cmd, target, output_file, config.TOOL_TIMEOUT_SECONDS
-                ))
-
-        for future in as_completed(futures):
-            try:
-                result_file = future.result()
-            except Exception as e:
-                utils.log_and_echo(f"Błąd w wątku wykonawczym Fazy 2: {e}", "ERROR")
-            if progress_obj and main_task_id is not None:
-                progress_obj.update(main_task_id, advance=1)
-
-    naabu_raw_file = os.path.join(config.REPORT_DIR, "naabu_aggregated_results.txt")
-    
-    # Aggregating Naabu results
-    naabu_output_found = False
-    with open(naabu_raw_file, 'w', encoding='utf-8') as agg_f:
-        for target in targets:
-            naabu_file = os.path.join(config.REPORT_DIR, f"naabu_{target.replace('.', '_')}.txt")
-            if os.path.exists(naabu_file) and os.path.getsize(naabu_file) > 0:
-                with open(naabu_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    if content.strip():
-                        naabu_output_found = True
-                        agg_f.write(content)
-    
-    # Parsing Nmap results
-    for target in targets:
-        nmap_file = os.path.join(config.REPORT_DIR, f"nmap_{target.replace('.', '_')}.txt")
-        if os.path.exists(nmap_file):
-            final_results["nmap_files"][target] = nmap_file
-
-    if naabu_output_found:
-        final_results["naabu_file"] = naabu_raw_file
-        final_results["open_ports_by_host"] = _parse_naabu_output(naabu_raw_file)
+    # --- Krok 3: Finalizacja wyników ---
+    if open_ports_by_host:
+        final_results["open_ports_by_host"] = open_ports_by_host
     else:
-        # Fallback to Nmap if Naabu has no results
-        utils.log_and_echo("Nie znaleziono wyników z Naabu, próba parsowania wyników z Nmap...", "WARN")
+        # Fallback, jeśli Naabu nie dało wyników, a Nmap tak
         final_results["open_ports_by_host"] = _parse_nmap_output_fallback(final_results["nmap_files"])
-
 
     utils.log_and_echo("Ukończono fazę 2 - skanowanie portów.", "INFO")
     return final_results
@@ -226,7 +222,7 @@ def display_phase2_tool_selection_menu(display_banner_func):
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
         table.add_column("Key", style="bold blue", justify="center", min_width=5)
         table.add_column("Description", style="white", justify="left")
-        tool_names = ["Nmap", "Naabu"]
+        tool_names = ["Nmap (szczegóły)", "Naabu (szybkie odkrywanie)"]
         for i, tool_name in enumerate(tool_names):
             status_char = "[bold green]✓[/bold green]" if config.selected_phase2_tools[i] == 1 else "[bold red]✗[/bold red]"
             table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
@@ -235,6 +231,7 @@ def display_phase2_tool_selection_menu(display_banner_func):
         table.add_row("[\fb]", "Powrót do menu głównego")
         table.add_row("[\fq]", "Wyjdź")
         utils.console.print(Align.center(table))
+        utils.console.print(Align.center("[bold cyan]Rekomendacja: Włącz oba narzędzia dla najlepszej wydajności.[/bold cyan]"))
         choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję i naciśnij Enter, aby rozpocząć[/bold cyan]", justify="center"))
         
         if choice.isdigit() and 1 <= int(choice) <= 2:
