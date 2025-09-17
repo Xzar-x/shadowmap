@@ -7,7 +7,7 @@ import json
 import random
 import time
 import re
-from typing import List, Dict, Optional, Tuple, Set
+from typing import List, Dict, Optional, Tuple, Set, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import tempfile
 
@@ -112,8 +112,10 @@ def start_dir_search(
     urls: List[str],
     progress_obj: Optional[Progress],
     main_task_id: Optional[TaskID]
-) -> Tuple[Dict[str, List[str]], str]:
-    
+) -> Tuple[Dict[str, List[str]], List[Dict[str, Any]]]:
+    """
+    Uruchamia Faze 3: wyszukiwanie katalogów i weryfikuje wyniki za pomocą httpx.
+    """
     wordlist_to_use = config.WORDLIST_PHASE3
     if config.SAFE_MODE and not config.USER_CUSTOMIZED_WORDLIST_PHASE3:
         wordlist_to_use = config.SMALL_WORDLIST_PHASE3
@@ -144,7 +146,6 @@ def start_dir_search(
         {"name": "Gobuster", "enabled": config.selected_phase3_tools[3], "base_cmd": ["gobuster", "dir", "-f", "-w", wordlist_to_use, "-k", "-t", str(threads_to_use), "-s", status_codes_to_match, "-b", "", "-x", extensions, "--timeout", f"{config.TOOL_TIMEOUT_SECONDS}s", "--retry", "--retry-attempts", "5", "--no-error"]}
     ]
     
-    # ... (logika dodawania proxy i rekurencji bez zmian, ale używając `config.`)
     if config.PROXY:
         for cfg in tool_configs:
             tool_name = cfg["name"]
@@ -204,9 +205,9 @@ def start_dir_search(
 
     utils.log_and_echo("Ukończono fazę 3 - wyszukiwanie katalogów.", "INFO")
 
-    verified_httpx_output = ""
+    verified_urls_with_metadata = []
     if all_unique_urls:
-        task_desc = f"[bold green]Weryfikuję {len(all_unique_urls)} unikalnych ścieżek (HTTPX)...[/bold green]"
+        task_desc = f"[bold green]Weryfikuję {len(all_unique_urls)} unikalnych ścieżek i pobieram nagłówki (HTTPX)...[/bold green]"
         verification_task = progress_obj.add_task(task_desc, total=1) if progress_obj else None
 
         with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=config.REPORT_DIR, suffix='.txt') as tmp:
@@ -215,13 +216,32 @@ def start_dir_search(
         config.TEMP_FILES_TO_CLEAN.append(urls_file)
         
         try:
-            httpx_cmd = ["httpx", "-l", urls_file, "-silent", "-json"]
+            # FIX: Dodano flagę -irh do httpx w celu pobrania nagłówków
+            httpx_cmd = ["httpx", "-l", urls_file, "-silent", "-json", "-irh"]
             if config.PROXY: httpx_cmd.extend(["-proxy", config.PROXY])
                 
             process = subprocess.run(httpx_cmd, capture_output=True, text=True, timeout=config.TOOL_TIMEOUT_SECONDS * 2, encoding='utf-8', errors='ignore')
-            verified_httpx_output = process.stdout
-            with open(os.path.join(config.REPORT_DIR, "httpx_results_phase3_verified.txt"), 'w') as f:
-                f.write(verified_httpx_output)
+            
+            if process.stdout:
+                with open(os.path.join(config.REPORT_DIR, "httpx_results_phase3_verified.txt"), 'w') as f:
+                    f.write(process.stdout)
+
+                for line in process.stdout.splitlines():
+                    if not line.strip(): continue
+                    try:
+                        data = json.loads(line)
+                        url = data.get("url")
+                        if url:
+                            headers = data.get("header", {})
+                            normalized_headers = {k.lower(): v for k, v in headers.items()}
+                            last_modified = normalized_headers.get("last-modified")
+
+                            result_obj = {"url": url, "status_code": data.get("status_code")}
+                            if last_modified:
+                                result_obj["last_modified"] = last_modified
+                            verified_urls_with_metadata.append(result_obj)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
 
         except Exception as e:
             utils.log_and_echo(f"Błąd podczas weryfikacji HTTPX w Fazie 3: {e}", "ERROR")
@@ -229,7 +249,7 @@ def start_dir_search(
             if progress_obj and verification_task is not None:
                 progress_obj.update(verification_task, completed=1)
 
-    return final_results, verified_httpx_output
+    return final_results, verified_urls_with_metadata
 
 def display_phase3_tool_selection_menu(display_banner_func):
     while True:

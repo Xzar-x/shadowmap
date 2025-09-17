@@ -38,7 +38,8 @@ if sys.platform != "win32":
         return char
 else:
     def get_single_char_input() -> str:
-        return input("")
+        import msvcrt
+        return msvcrt.getch().decode('utf-8')
 
 def log_and_echo(message: str, level: str = "INFO"):
     log_level = getattr(logging, level.upper(), logging.INFO)
@@ -58,20 +59,32 @@ def filter_critical_urls(urls: List[str]) -> List[str]:
 
 def get_single_char_input_with_prompt(prompt_text: Text, choices: Optional[List[str]] = None, default: Optional[str] = None) -> str:
     console.print(Align.center(prompt_text), end="")
+    sys.stdout.flush()
     choice = get_single_char_input()
-    console.print(choice)
-    if choices and default and choice.strip() == '':
+    console.print(f" [bold cyan]{choice}[/bold cyan]")
+    if choices and default and (choice == '\r' or choice == '\n'):
         return default
     return choice
 
 def ask_user_decision(question: str, choices: List[str], default: str) -> str:
-    """Displays a question in a panel and asks for user input."""
+    """Displays a question and captures a single keystroke without needing Enter."""
     panel = Panel(Text.from_markup(question, justify="center"), border_style="yellow", title="[yellow]Pytanie[/yellow]", expand=False)
     console.print(Align.center(panel))
 
-    choice_str = '/'.join(f"[bold]{c}[/bold]" for c in choices)
-    prompt_str = f"\n[cyan]Wybierz opcję ({choice_str})[/cyan] [dim]({default}=Enter)[/dim]: "
-    return Prompt.ask(prompt_str, choices=choices, default=default)
+    choice_str = '/'.join(f"[bold]{c.upper()}[/bold]" for c in choices)
+    prompt_str = f"\n[cyan]Wybierz opcję ({choice_str})[/cyan] [dim]({default.upper()}=Enter)[/dim]: "
+    console.print(Align.center(prompt_str), end="")
+    sys.stdout.flush()
+
+    while True:
+        choice = get_single_char_input().lower()
+        if choice in ['\r', '\n']:
+            console.print(f"[bold cyan]{default.upper()}[/bold cyan]")
+            return default
+        if choice in choices:
+            console.print(f"[bold cyan]{choice.upper()}[/bold cyan]")
+            return choice
+        # Ignoruj inne klawisze
 
 def get_random_user_agent_header() -> str:
     """Reads a random User-Agent from a file."""

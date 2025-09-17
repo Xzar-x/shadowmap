@@ -125,279 +125,97 @@
             box-shadow: 0 2px 10px rgba(91, 192, 222, 0.4);
         }
 
-        .tab-content {
-            display: none;
-            padding: 15px 0;
-            border-top: 2px solid #007bff;
-            flex-grow: 1;
-            overflow-y: auto;
-        }
+        .tab-content { display: none; padding: 15px 0; border-top: 2px solid #007bff; flex-grow: 1; overflow-y: auto; }
         .tab-content.active { display: block; }
-
-        .sub-tab-content {
-            display: none;
-            padding: 10px 0;
-            border-top: 1px solid #5bc0de;
-            flex-grow: 1;
-            overflow-y: auto;
-        }
+        .sub-tab-content { display: none; padding: 10px 0; border-top: 1px solid #5bc0de; flex-grow: 1; overflow-y: auto; }
         .sub-tab-content.active { display: block; }
 
-        .results-grid {
-            display: grid;
-            grid-template-columns: 1fr; 
-            gap: 16px;
-            padding: 10px;
-            margin: 0 auto;
-            max-width: 90%;
-        }
-
+        .results-grid { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 10px; margin: 0 auto; max-width: 90%; }
         .result-card {
             background: linear-gradient(135deg, rgba(42, 42, 58, 0.9) 0%, rgba(30, 30, 46, 0.9) 100%);
-            border: 1px solid rgba(68, 68, 68, 0.5);
-            border-radius: 12px;
-            padding: 16px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-            backdrop-filter: blur(5px);
-            cursor: pointer;
-            min-height: 16px;
-            display: flex;
-            align-items: center;
+            border: 1px solid rgba(68, 68, 68, 0.5); border-radius: 12px; padding: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden;
+            backdrop-filter: blur(5px); cursor: pointer; min-height: 16px;
+            display: flex; align-items: center;
         }
-
         .result-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
             background: linear-gradient(90deg, transparent, var(--priority-color, #666), transparent);
-            transform: translateX(-100%);
-            transition: transform 0.6s ease;
+            transform: translateX(-100%); transition: transform 0.6s ease;
         }
-
-        .result-card:hover::before {
-            transform: translateX(100%);
-        }
-
+        .result-card:hover::before { transform: translateX(100%); }
         .result-card:hover {
             transform: translateY(-8px) scale(1.02);
             box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 30px var(--priority-glow, rgba(102, 102, 102, 0.3));
             border-color: var(--priority-color, #666);
         }
+        .result-card.red-priority { --priority-color: #ff4d4d; --priority-glow: rgba(255, 77, 77, 0.4); }
+        .result-card.yellow-priority { --priority-color: #FFD700; --priority-glow: rgba(255, 215, 0, 0.4); }
+        .result-card.green-priority { --priority-color: #90EE90; --priority-glow: rgba(144, 238, 144, 0.4); }
+        .result-card.cyan-priority { --priority-color: #00FFFF; --priority-glow: rgba(0, 255, 255, 0.4); }
+        .result-card.orange-priority { --priority-color: #FFA500; --priority-glow: rgba(255, 165, 0, 0.4); }
+        .result-card.gray-priority { --priority-color: #888; --priority-glow: rgba(136, 136, 136, 0.3); }
 
-        .result-card.red-priority {
-            --priority-color: #ff4d4d;
-            --priority-glow: rgba(255, 77, 77, 0.4);
-        }
-        .result-card.yellow-priority {
-            --priority-color: #FFD700;
-            --priority-glow: rgba(255, 215, 0, 0.4);
-        }
-        .result-card.green-priority {
-            --priority-color: #90EE90;
-            --priority-glow: rgba(144, 238, 144, 0.4);
-        }
-        .result-card.cyan-priority {
-            --priority-color: #00FFFF;
-            --priority-glow: rgba(0, 255, 255, 0.4);
-        }
-        .result-card.orange-priority {
-            --priority-color: #FFA500;
-            --priority-glow: rgba(255, 165, 0, 0.4);
-        }
-        .result-card.gray-priority {
-            --priority-color: #888;
-            --priority-glow: rgba(136, 136, 136, 0.3);
-        }
-
-        .result-header {
-            display: flex;
-            align-items: center;
-            width: 100%;
-        }
-
-        .result-icon {
-            font-size: 1.5em;
-            margin-right: 12px;
-            filter: drop-shadow(0 0 8px currentColor);
-        }
-
+        .result-header { display: flex; align-items: center; width: 100%; }
+        .result-icon { font-size: 1.5em; margin-right: 12px; filter: drop-shadow(0 0 8px currentColor); }
         .result-url {
-            color: #e0e0e0;
-            font-weight: 500;
-            font-size: 0.95em;
-            word-break: break-all;
-            flex: 1;
-            white-space: nowrap; 
-            overflow: hidden;
-            text-overflow: ellipsis;
+            color: #e0e0e0; font-weight: 500; font-size: 0.95em; word-break: break-all;
+            flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
+        .result-url a { color: inherit; text-decoration: none; }
+        .result-url a:hover { text-decoration: underline; }
 
-        .result-url a {
-            color: inherit;
-            text-decoration: none;
-        }
-        .result-url a:hover {
-            text-decoration: underline;
-        }
-
-        .result-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-left: auto;
-        }
-
+        .result-meta-info { display: flex; align-items: center; gap: 12px; margin-left: auto; }
         .status-code {
-            background-color: var(--priority-color, #666);
-            color: #1a1a2e;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.85em;
-            font-weight: bold;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            background-color: var(--priority-color, #666); color: #1a1a2e; padding: 4px 12px;
+            border-radius: 20px; font-size: 0.85em; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
-
-        .result-meta {
-            font-size: 0.8em;
-            color: #aaa;
-            display: none;
+        
+        .last-modified-date {
+            background-color: #555; color: #e0e0e0; padding: 4px 10px; border-radius: 20px;
+            font-size: 0.75em; font-weight: normal; display: flex; align-items: center; gap: 5px;
+        }
+        .last-modified-date.old-asset {
+            background-color: #d9534f;
+            color: white;
+            font-weight: bold;
         }
 
         pre.output {
-            background: linear-gradient(135deg, #111 0%, #1a1a1a 100%);
-            color: #e0e0e0;
-            padding: 15px;
-            border-radius: 8px;
-            overflow-x: auto;
-            white-space: pre-wrap;
-            word-break: break-all;
-            font-family: 'Courier New', Courier, monospace;
-            border: 1px solid #333;
-            max-height: calc(100vh - 350px);
-            box-sizing: border-box;
-            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+            background: linear-gradient(135deg, #111 0%, #1a1a1a 100%); color: #e0e0e0; padding: 15px;
+            border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-break: break-all;
+            font-family: 'Courier New', Courier, monospace; border: 1px solid #333;
+            max-height: calc(100vh - 350px); box-sizing: border-box; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
         }
-
         .summary-item { 
-            margin-bottom: 8px; 
-            font-size: 0.95em; 
-            background: rgba(0, 123, 255, 0.1);
-            padding: 8px 12px;
-            border-radius: 6px;
-            border-left: 3px solid #007bff;
+            margin-bottom: 8px; font-size: 0.95em; background: rgba(0, 123, 255, 0.1);
+            padding: 8px 12px; border-radius: 6px; border-left: 3px solid #007bff;
         }
         .summary-item strong { color: #00d4ff; }
-
-        .footer {
-            text-align: center;
-            margin-top: 20px;
-            padding-top: 10px;
-            border-top: 1px solid #333;
-            color: #888;
-            font-size: 0.8em;
-        }
-        .footer-logo {
-            height: 25px;
-            vertical-align: middle;
-            margin-left: 5px;
-        }
-
+        .footer { text-align: center; margin-top: 20px; padding-top: 10px; border-top: 1px solid #333; color: #888; font-size: 0.8em; }
+        .footer-logo { height: 25px; vertical-align: middle; margin-left: 5px; }
         .filter-section {
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            background: rgba(0, 123, 255, 0.1);
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(0, 123, 255, 0.3);
-            margin: 0 auto 15px auto;
-            max-width: 90%;
+            margin-bottom: 15px; display: flex; align-items: center; gap: 15px;
+            background: rgba(0, 123, 255, 0.1); padding: 12px; border-radius: 8px;
+            border: 1px solid rgba(0, 123, 255, 0.3); margin: 0 auto 15px auto; max-width: 90%;
         }
-        .filter-section label {
-            font-size: 0.95em;
-            color: #e0e0e0;
-            cursor: pointer;
-            user-select: none;
-        }
-        .filter-section input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-            accent-color: #00d4ff;
-        }
-
-        @keyframes iconPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-
-        .result-card:hover .result-icon {
-            animation: iconPulse 0.6s ease-in-out;
-        }
-
+        .filter-section label { font-size: 0.95em; color: #e0e0e0; cursor: pointer; user-select: none; }
+        .filter-section input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #00d4ff; }
+        @keyframes iconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+        .result-card:hover .result-icon { animation: iconPulse 0.6s ease-in-out; }
         .copy-notification {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: #00d4ff;
-            color: #1a1a2e;
-            padding: 10px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.3s ease, transform 0.3s ease;
-            pointer-events: none;
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background-color: #00d4ff;
+            color: #1a1a2e; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
+            z-index: 1000; opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
         }
-        .copy-notification.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(-10px);
-        }
-
+        .copy-notification.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
         @media (max-width: 768px) {
-            body { padding: 5px; }
-            .container { padding: 10px; border-radius: 8px; }
-            .main-tab-button, .sub-tab-button {
-                flex: 1 1 auto;
-                margin-right: 0;
-                margin-bottom: 5px;
-                border-radius: 5px;
-            }
+            body { padding: 5px; } .container { padding: 10px; border-radius: 8px; }
+            .main-tab-button, .sub-tab-button { flex: 1 1 auto; margin-right: 0; margin-bottom: 5px; border-radius: 5px; }
             .main-tabs, .sub-tabs { flex-direction: column; }
-            .results-grid {
-                grid-template-columns: 1fr;
-                padding: 5px;
-                max-width: 95%;
-            }
-            .filter-section {
-                padding: 8px;
-                max-width: 95%;
-            }
-            .result-card {
-                padding: 12px;
-                height: auto;
-            }
-            .result-meta {
-                display: block;
-            }
-        }
-
-        @keyframes shimmer {
-            0% { background-position: -200px 0; }
-            100% { background-position: calc(200px + 100%) 0; }
-        }
-
-        .loading-card {
-            background: linear-gradient(90deg, #2a2a3a 0px, #3a3a4a 40px, #2a2a3a 80px);
-            background-size: 200px 100%;
-            animation: shimmer 1.5s infinite linear;
+            .results-grid { grid-template-columns: 1fr; padding: 5px; max-width: 95%; }
+            .filter-section { padding: 8px; max-width: 95%; }
+            .result-card { padding: 12px; height: auto; }
         }
     </style>
 </head>
@@ -408,7 +226,6 @@
 
     <div class="container">
         <h1>ShadowMap Scan Report for {{DOMAIN}}</h1>
-
         <div class="main-tabs">
             <div class="main-tab-button active" onclick="openMainTab(event, 'summary')">Podsumowanie</div>
             <div class="main-tab-button" onclick="openMainTab(event, 'phase1')">Faza 1: Subdomeny</div>
@@ -445,27 +262,15 @@
             <div id="phase1-httpx" class="sub-tab-content active">
                 <h3>HTTPX Output ({{COUNT_HTTPX}} aktywnych)</h3>
                 <div class="filter-section">
-                    <input type="checkbox" id="showOnlyRedHttpx" onchange="applyHttpxFilter()">
-                    <label for="showOnlyRedHttpx">Pokaż tylko krytyczne 🔥</label>
+                    <input type="checkbox" id="showOnlyCriticalP1" onchange="renderResults(httpxDataP1, 'httpx-results', this.checked)">
+                    <label for="showOnlyCriticalP1">Pokaż tylko krytyczne 🔥</label>
                 </div>
                 <div id="httpx-results" class="results-grid"></div>
             </div>
-            <div id="phase1-subfinder" class="sub-tab-content">
-                <h3>Subfinder Output ({{COUNT_SUBFINDER}} znalezionych)</h3>
-                <div id="subfinder-results" class="results-grid"></div>
-            </div>
-            <div id="phase1-assetfinder" class="sub-tab-content">
-                <h3>Assetfinder Output ({{COUNT_ASSETFINDER}} znalezionych)</h3>
-                <div id="assetfinder-results" class="results-grid"></div>
-            </div>
-            <div id="phase1-findomain" class="sub-tab-content">
-                <h3>Findomain Output ({{COUNT_FINDOMAIN}} znalezionych)</h3>
-                <div id="findomain-results" class="results-grid"></div>
-            </div>
-            <div id="phase1-puredns" class="sub-tab-content">
-                <h3>Puredns Output ({{COUNT_PUREDNS}} znalezionych)</h3>
-                <div id="puredns-results" class="results-grid"></div>
-            </div>
+            <div id="phase1-subfinder" class="sub-tab-content"><h3>Subfinder Output</h3><pre class="output">{{SUBFINDER_OUTPUT}}</pre></div>
+            <div id="phase1-assetfinder" class="sub-tab-content"><h3>Assetfinder Output</h3><pre class="output">{{ASSETFINDER_OUTPUT}}</pre></div>
+            <div id="phase1-findomain" class="sub-tab-content"><h3>Findomain Output</h3><pre class="output">{{FINDOMAIN_OUTPUT}}</pre></div>
+            <div id="phase1-puredns" class="sub-tab-content"><h3>Puredns Output</h3><pre class="output">{{PUREDNS_OUTPUT}}</pre></div>
         </div>
 
         <div id="phase2" class="tab-content">
@@ -474,62 +279,27 @@
                 <div class="sub-tab-button active" onclick="openSubTab(event, 'phase2', 'naabu')">Naabu (Otwarte Porty)</div>
                 <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'nmap')">Nmap (Wersje Usług)</div>
             </div>
-
-            <div id="phase2-naabu" class="sub-tab-content active">
-                <h3>Naabu Output ({{COUNT_OPEN_PORTS}} otwartych portów)</h3>
-                <div id="naabu-results" class="results-grid"></div>
-            </div>
-            <div id="phase2-nmap" class="sub-tab-content">
-                <h3>Nmap Output</h3>
-                <div id="nmap-results-panel">
-                    {{NMAP_RESULTS_PANEL}}
-                </div>
-            </div>
+            <div id="phase2-naabu" class="sub-tab-content active"><h3>Naabu Output ({{COUNT_OPEN_PORTS}} otwartych portów)</h3><pre class="output">{{NAABU_RESULTS}}</pre></div>
+            <div id="phase2-nmap" class="sub-tab-content"><h3>Nmap Output</h3><div id="nmap-results-panel">{{NMAP_RESULTS_PANEL}}</div></div>
         </div>
-
+        
         <div id="phase3" class="tab-content">
             <h2>Faza 3: Wyszukiwanie Katalogów</h2>
-            <div class="sub-tabs">
+             <div class="sub-tabs">
                 <div class="sub-tab-button active" onclick="openSubTab(event, 'phase3', 'verified_httpx')">✅ Zweryfikowane (HTTPX)</div>
                 <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'all_dirsearch')">Wszystkie wyniki (surowe)</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'dirsearch')">Dirsearch</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'ffuf')">Ffuf</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'feroxbuster')">Feroxbuster</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'gobuster')">Gobuster</div>
-            </div>
-
-            <div id="phase3-verified_httpx" class="sub-tab-content active">
+             </div>
+             <div id="phase3-verified_httpx" class="sub-tab-content active">
                 <h3>Wyniki z Fazy 3 zweryfikowane przez HTTPX</h3>
                 <div class="filter-section">
-                    <input type="checkbox" id="showOnlyRedVerifiedHttpx" onchange="applyVerifiedHttpxFilter()">
-                    <label for="showOnlyRedVerifiedHttpx">Pokaż tylko krytyczne 🔥</label>
+                    <input type="checkbox" id="showOnlyCriticalP3" onchange="renderResults(httpxDataP3, 'verified-httpx-results', this.checked)">
+                    <label for="showOnlyCriticalP3">Pokaż tylko krytyczne 🔥</label>
                 </div>
                 <div id="verified-httpx-results" class="results-grid"></div>
             </div>
-
             <div id="phase3-all_dirsearch" class="sub-tab-content">
                 <h3>Wszystkie znalezione katalogi i pliki ({{COUNT_DIR_SEARCH}} znalezionych)</h3>
-                <div class="filter-section">
-                    <input type="checkbox" id="showOnlyRedDirsearch" onchange="applyDirsearchFilter()">
-                    <label for="showOnlyRedDirsearch">Pokaż tylko krytyczne 🔥</label>
-                </div>
-                <div id="dirsearch-all-results" class="results-grid"></div>
-            </div>
-            <div id="phase3-dirsearch" class="sub-tab-content">
-                <h3>Wyniki z Dirsearch</h3>
-                <div id="dirsearch-results-specific" class="results-grid"></div>
-            </div>
-            <div id="phase3-ffuf" class="sub-tab-content">
-                <h3>Wyniki z Ffuf</h3>
-                <div id="ffuf-results-specific" class="results-grid"></div>
-            </div>
-            <div id="phase3-feroxbuster" class="sub-tab-content">
-                <h3>Wyniki z Feroxbuster</h3>
-                <div id="feroxbuster-results-specific" class="results-grid"></div>
-            </div>
-            <div id="phase3-gobuster" class="sub-tab-content">
-                <h3>Wyniki z Gobuster</h3>
-                <div id="gobuster-results-specific" class="results-grid"></div>
+                <pre class="output">{{DIR_SEARCH_ALL_OUTPUT}}</pre>
             </div>
         </div>
 
@@ -543,40 +313,20 @@
                 <div class="sub-tab-button" onclick="openSubTab(event, 'phase4', 'interesting_paths')">Interesujące ścieżki</div>
             </div>
 
-            <div id="phase4-all_crawled" class="sub-tab-content active">
-                <h3>Wszystkie znalezione URL-e ({{COUNT_ALL_URLS_P4}} znalezionych)</h3>
-                <div class="filter-section">
-                    <input type="checkbox" id="showOnlyRedCrawling" onchange="applyCrawlingFilter()">
-                    <label for="showOnlyRedCrawling">Pokaż tylko krytyczne 🔥</label>
-                </div>
-                <div id="crawling-all-results" class="results-grid"></div>
-            </div>
-            <div id="phase4-parameters" class="sub-tab-content">
-                <h3>Znalezione parametry ({{COUNT_PARAMETERS}} znalezionych)</h3>
-                <div id="parameters-results" class="results-grid"></div>
-            </div>
-            <div id="phase4-js_files" class="sub-tab-content">
-                <h3>Pliki JavaScript ({{COUNT_JS_FILES}} znalezionych)</h3>
-                <div id="js-files-results" class="results-grid"></div>
-            </div>
-            <div id="phase4-api_endpoints" class="sub-tab-content">
-                <h3>Endpointy API ({{COUNT_API_ENDPOINTS}} znalezionych)</h3>
-                <div id="api-endpoints-results" class="results-grid"></div>
-            </div>
-            <div id="phase4-interesting_paths" class="sub-tab-content">
-                <h3>Interesujące ścieżki ({{COUNT_INTERESTING_PATHS}} znalezionych)</h3>
-                <div id="interesting-paths-results" class="results-grid"></div>
-            </div>
+            <div id="phase4-all_crawled" class="sub-tab-content active"><h3>Wszystkie znalezione URL-e ({{COUNT_ALL_URLS_P4}})</h3><pre class="output">{{PHASE4_ALL_URLS_OUTPUT}}</pre></div>
+            <div id="phase4-parameters" class="sub-tab-content"><h3>Znalezione parametry ({{COUNT_PARAMETERS}})</h3><pre class="output">{{PARAMETERS_OUTPUT}}</pre></div>
+            <div id="phase4-js_files" class="sub-tab-content"><h3>Pliki JavaScript ({{COUNT_JS_FILES}})</h3><pre class="output">{{JS_FILES_OUTPUT}}</pre></div>
+            <div id="phase4-api_endpoints" class="sub-tab-content"><h3>Endpointy API ({{COUNT_API_ENDPOINTS}})</h3><pre class="output">{{API_ENDPOINTS_OUTPUT}}</pre></div>
+            <div id="phase4-interesting_paths" class="sub-tab-content"><h3>Interesujące ścieżki ({{COUNT_INTERESTING_PATHS}})</h3><pre class="output">{{INTERESTING_PATHS_OUTPUT}}</pre></div>
         </div>
-
+        
         <div id="all_results" class="tab-content">
             <h2>Wszystkie znalezione subdomeny i URL-e</h2>
-            <h3>Wszystkie subdomeny ({{COUNT_ALL_SUBDOMAINS}} znalezionych)</h3>
-            <div id="all-subdomains-results" class="results-grid"></div>
-            <h3>Wszystkie URL-e z Fazy 3 i 4 ({{COUNT_ALL_URLS_COMBINED}} znalezionych)</h3>
-            <div id="all-urls-combined-results" class="results-grid"></div>
+            <h3>Wszystkie subdomeny ({{COUNT_ALL_SUBDOMAINS}})</h3>
+            <pre class="output">{{ALL_SUBDOMAINS_OUTPUT}}</pre>
+            <h3>Wszystkie URL-e z Fazy 3 i 4 ({{COUNT_ALL_URLS_COMBINED}})</h3>
+            <pre class="output">{{ALL_URLS_COMBINED_OUTPUT}}</pre>
         </div>
-
     </div>
 
     <div class="footer">
@@ -587,301 +337,132 @@
     <div id="copy-notification" class="copy-notification"></div>
 
     <script>
-        function stripAnsiCodes(str) {
-            return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
-        }
-
+        // --- Globalne dane ---
+        // FIX: Placeholders are now replaced by Python with actual JSON arrays
+        const httpxDataP1 = {{HTTPX_OUTPUT_JSON_P1}};
+        const httpxDataP3 = {{HTTPX_OUTPUT_JSON_P3}};
+        
         function copyToClipboard(text) {
             const notification = document.getElementById('copy-notification');
             if (!text || !notification) return;
-
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = 'fixed'; 
-            textArea.style.top = '0';
-            textArea.style.left = '0';
-            textArea.style.opacity = '0';
-
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-
-            try {
-                document.execCommand('copy');
+            navigator.clipboard.writeText(text).then(() => {
                 notification.textContent = 'Skopiowano: ' + text;
                 notification.style.backgroundColor = '#00d4ff';
                 notification.classList.add('show');
-                setTimeout(() => {
-                    notification.classList.remove('show');
-                }, 2000);
-            } catch (err) {
-                console.error('Błąd podczas kopiowania do schowka', err);
+                setTimeout(() => notification.classList.remove('show'), 2000);
+            }, (err) => {
+                console.error('Błąd podczas kopiowania', err);
                 notification.textContent = 'Błąd kopiowania!';
                 notification.style.backgroundColor = '#ff4d4d';
                 notification.classList.add('show');
-                 setTimeout(() => {
-                    notification.classList.remove('show');
-                }, 2000);
-            }
-
-            document.body.removeChild(textArea);
+                setTimeout(() => notification.classList.remove('show'), 2000);
+            });
         }
 
-        // --- Globalne dane ---
-        let rawHttpxOutput = stripAnsiCodes(`{{HTTPX_OUTPUT_RAW_FOR_JS}}`);
-        let rawNaabuResults = `{{NAABU_RESULTS}}`;
-        let rawHttpxPhase3Verified = stripAnsiCodes(`{{HTTPX_PHASE3_VERIFIED_OUTPUT}}`);
-        let rawDirSearchAll = stripAnsiCodes(`{{DIR_SEARCH_ALL_OUTPUT}}`).replace(/\\n/g, '\n');;
-        let rawDirsearchSpecific = stripAnsiCodes(`{{DIRSEARCH_SPECIFIC_OUTPUT}}`);
-        let rawFfufSpecific = stripAnsiCodes(`{{FFUF_SPECIFIC_OUTPUT}}`);
-        let rawFeroxbusterSpecific = stripAnsiCodes(`{{FEROXBUSTER_SPECIFIC_OUTPUT}}`);
-        let rawGobusterSpecific = stripAnsiCodes(`{{GOBUSTER_SPECIFIC_OUTPUT}}`);
-        
-        let rawSubfinderOutput = `{{SUBFINDER_OUTPUT}}`;
-        let rawAssetfinderOutput = `{{ASSETFINDER_OUTPUT}}`;
-        let rawFindomain = `{{FINDOMAIN_OUTPUT}}`;
-        let rawPuredns = `{{PUREDNS_OUTPUT}}`;
-        let rawAllSubdomains = `{{ALL_SUBDOMAINS_OUTPUT}}`;
-        
-        let rawPhase4AllUrls = `{{PHASE4_ALL_URLS_OUTPUT}}`;
-        let rawParameters = `{{PARAMETERS_OUTPUT}}`;
-        let rawJSFiles = `{{JS_FILES_OUTPUT}}`;
-        let rawAPIEndpoints = `{{API_ENDPOINTS_OUTPUT}}`;
-        let rawInterestingPaths = `{{INTERESTING_PATHS_OUTPUT}}`;
-        let rawAllUrlsCombined = `{{ALL_URLS_COMBINED_OUTPUT}}`;
-
-
-        function createResultCard(url, statusCode = null, icon = '🔗', priority = 'gray') { 
+        function createResultCard(itemData) {
+            const { url, status_code, last_modified, priority, icon } = itemData;
             const card = document.createElement('div');
             card.className = `result-card ${priority}-priority`;
             card.addEventListener('click', () => copyToClipboard(url));
             
-            let statusHtml = '';
-            if (statusCode) {
-                statusHtml = `<div class="result-status"><span class="status-code">[${statusCode}]</span></div>`;
+            let metaInfo = '';
+            let statusCodeHtml = status_code ? `<span class="status-code">[${status_code}]</span>` : '';
+            let lastModifiedHtml = '';
+
+            if (last_modified) {
+                const date = new Date(last_modified);
+                const formattedDate = date.toISOString().split('T')[0];
+                const isOld = date.getFullYear() < (new Date().getFullYear() - 3);
+                lastModifiedHtml = `
+                    <div class="last-modified-date ${isOld ? 'old-asset' : ''}" title="${last_modified}">
+                        <span>📅</span>
+                        <span>${formattedDate}</span>
+                    </div>`;
             }
-            
+            if (statusCodeHtml || lastModifiedHtml) {
+                metaInfo = `<div class="result-meta-info">${lastModifiedHtml}${statusCodeHtml}</div>`;
+            }
+
             card.innerHTML = `
                 <div class="result-header">
                     <div class="result-icon">${icon}</div>
                     <div class="result-url"><a href="${url}" target="_blank" title="${url}" onclick="event.stopPropagation()">${url}</a></div>
-                    ${statusHtml}
+                    ${metaInfo}
                 </div>
             `;
             return card;
         }
         
-        function renderSimpleList(rawOutput, containerId, icon, priority, filterFn = null) {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-            container.innerHTML = '';
-
-            const lines = rawOutput.split('<br>').map(l => l.trim()).filter(l => l);
-            if (lines.length === 0 || rawOutput.includes("Brak danych")) {
-                container.textContent = "Brak wyników do wyświetlenia.";
-                container.style.color = "#888";
-                container.style.padding = "10px";
-                return;
-            }
-
-            lines.forEach(line => {
-                const itemUrl = line.split(/\s+/)[0];
-                let card = null;
-                if (filterFn) {
-                    const result = filterFn(itemUrl);
-                    if (result.display) {
-                        card = createResultCard(itemUrl, null, result.icon, result.priority);
-                    }
-                } else {
-                    card = createResultCard(itemUrl, null, icon, priority);
-                }
-
-                if (card) {
-                    container.appendChild(card);
-                }
-            });
-        }
-
-        function renderComplexList(rawOutput, containerId, filterFn) {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-            container.innerHTML = '';
+        function processAndCategorize(data) {
+            const sensitiveKeywords = ['admin', 'login', 'panel', 'dashboard', 'config', 'backup', 'db', '.git', '.env', 'secret', 'token', 'api', 'graphql'];
+            const url = data.url;
+            const code = data.status_code;
             
-            const lines = rawOutput.split('\n').map(l => l.trim()).filter(l => l);
-             if (lines.length === 0 || rawOutput.includes("Brak danych")) {
-                container.textContent = "Brak wyników do wyświetlenia.";
-                container.style.color = "#888";
-                container.style.padding = "10px";
-                return;
-            }
-            
-            lines.forEach(line => {
-                const result = filterFn(line);
-                if (result.display) {
-                    const card = createResultCard(result.url, result.code, result.icon, result.priority);
-                    container.appendChild(card);
-                }
-            });
-        }
-        
-        // --- Filtry i Parsery ---
-        const sensitiveKeywords = ['admin', 'login', 'panel', 'dashboard', 'config', 'backup', 'db', '.git', '.env', 'secret', 'token', 'jwt', 'credentials', 'password'];
-        
-        function httpxFilter(line) {
-            let parsed = null;
-            try { parsed = JSON.parse(line); } catch (e) {}
+            let priority = 'gray', icon = '🔗', isCritical = false;
 
-            let url = null, code = null;
-            if (parsed) {
-                url = parsed.url || parsed.target || parsed.host;
-                code = parsed.status_code || parsed.status || null;
-            } else {
-                let m = line.match(/(https?:\/\/[^\s\[]+)/i);
-                if (m) {
-                    url = m[1];
-                    const codeMatch = line.match(/\[(\d{3})\]/);
-                    if (codeMatch) code = parseInt(codeMatch[1], 10);
-                }
-            }
-            if (!url) return { display: false };
-            if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-            
-            let priority = 'gray', icon = '🔗', isRed = false;
             if (code) {
-                if ([500, 502, 503, 401, 403].includes(code)) { priority = 'red'; icon = '🔥'; isRed = true; }
+                if ([500, 502, 503, 401, 403].includes(code)) { priority = 'red'; icon = '🔥'; isCritical = true; }
                 else if ([301, 302, 307].includes(code)) { priority = 'orange'; icon = '👉'; }
                 else if (code === 200) { priority = 'green'; icon = '✅'; }
-                else { priority = 'gray'; icon = '🚫'; }
             }
-            if (sensitiveKeywords.some(kw => url.toLowerCase().includes(kw))) { priority = 'red'; icon = '🔥'; isRed = true; }
-
-            return { display: true, url, code, priority, icon, isRed };
+            if (sensitiveKeywords.some(kw => url.toLowerCase().includes(kw))) { 
+                priority = 'red'; icon = '🔥'; isCritical = true; 
+            }
+            return { ...data, priority, icon, isCritical };
         }
 
-        function dirsearchFilter(line) {
-            let url = line.split(/\s+/)[0];
-            let isRed = sensitiveKeywords.some(kw => url.toLowerCase().includes(kw));
-            let priority = isRed ? 'red' : 'gray';
-            let icon = isRed ? '🔥' : '📁';
-            return { display: true, url, code: null, priority, icon, isRed };
-        }
-        
-        function crawlingFilter(line) {
-             let url = line.split(/\s+/)[0];
-             let isRed = sensitiveKeywords.some(kw => url.toLowerCase().includes(kw));
-             let priority = isRed ? 'red' : 'red';
-             let icon = isRed ? '🔥' : '🕸️';
-             return { display: true, url, code: null, priority, icon, isRed };
-        }
+        function renderResults(dataArray, containerId, showOnlyCritical = false) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            
+            if (!Array.isArray(dataArray) || dataArray.length === 0) {
+                container.innerHTML = '<p style="text-align: center;">Brak wyników do wyświetlenia.</p>';
+                return;
+            }
 
-        // --- Funkcje Aplikujące Filtry ---
-        function applyHttpxFilter() {
-            const showOnlyRed = document.getElementById('showOnlyRedHttpx').checked;
-            renderComplexList(rawHttpxOutput, 'httpx-results', (line) => {
-                const result = httpxFilter(line);
-                if (showOnlyRed && !result.isRed) result.display = false;
-                return result;
-            });
-        }
+            let itemsToRender = dataArray.map(processAndCategorize);
+            if (showOnlyCritical) {
+                itemsToRender = itemsToRender.filter(item => item.isCritical);
+            }
+            
+            if (itemsToRender.length === 0) {
+                container.innerHTML = '<p style="text-align: center;">Brak wyników spełniających kryteria.</p>';
+                return;
+            }
 
-        function applyVerifiedHttpxFilter() {
-            const showOnlyRed = document.getElementById('showOnlyRedVerifiedHttpx').checked;
-            renderComplexList(rawHttpxPhase3Verified, 'verified-httpx-results', (line) => {
-                const result = httpxFilter(line);
-                if (showOnlyRed && !result.isRed) result.display = false;
-                return result;
-            });
-        }
-
-        function applyDirsearchFilter() {
-            const showOnlyRed = document.getElementById('showOnlyRedDirsearch').checked;
-            renderComplexList(rawDirSearchAll, 'dirsearch-all-results', (line) => {
-                 const result = dirsearchFilter(line);
-                 if (showOnlyRed && !result.isRed) result.display = false;
-                 return result;
+            itemsToRender.forEach(item => {
+                const card = createResultCard(item);
+                container.appendChild(card);
             });
         }
         
-        function applyCrawlingFilter() {
-            const showOnlyRed = document.getElementById('showOnlyRedCrawling').checked;
-            renderComplexList(rawPhase4AllUrls, 'crawling-all-results', (line) => {
-                 const result = crawlingFilter(line);
-                 if (showOnlyRed && !result.isRed) result.display = false;
-                 return result;
-            });
-        }
-
-        // --- Nawigacja Zakładek ---
         function openMainTab(evt, tabName) {
-            let i, tabcontent, tablinks;
-            tabcontent = document.getElementsByClassName("tab-content");
-            for (i = 0; i < tabcontent.length; i++) {
-                tabcontent[i].style.display = "none";
-            }
-            tablinks = document.getElementsByClassName("main-tab-button");
-            for (i = 0; i < tablinks.length; i++) {
-                tablinks[i].className = tablinks[i].className.replace(" active", "");
-            }
+            Array.from(document.getElementsByClassName("tab-content")).forEach(t => t.style.display = "none");
+            Array.from(document.getElementsByClassName("main-tab-button")).forEach(b => b.classList.remove("active"));
             document.getElementById(tabName).style.display = "block";
-            evt.currentTarget.className += " active";
+            evt.currentTarget.classList.add("active");
         }
 
         function openSubTab(evt, mainTabName, subTabName) {
-            let i, subtabcontent, subtablinks;
             const mainTab = document.getElementById(mainTabName);
-            
-            subtabcontent = mainTab.getElementsByClassName("sub-tab-content");
-            for (i = 0; i < subtabcontent.length; i++) {
-                subtabcontent[i].style.display = "none";
-            }
-            
-            subtablinks = mainTab.getElementsByClassName("sub-tab-button");
-            for (i = 0; i < subtablinks.length; i++) {
-                subtablinks[i].className = subtablinks[i].className.replace(" active", "");
-            }
-            
-            document.getElementById(mainTabName + "-" + subTabName).style.display = "block";
-            evt.currentTarget.className += " active";
+            Array.from(mainTab.getElementsByClassName("sub-tab-content")).forEach(t => t.style.display = "none");
+            Array.from(mainTab.getElementsByClassName("sub-tab-button")).forEach(b => b.classList.remove("active"));
+            document.getElementById(`${mainTabName}-${subTabName}`).style.display = "block";
+            evt.currentTarget.classList.add("active");
         }
 
-        // --- Inicjalizacja ---
-        document.addEventListener('DOMContentLoaded', (event) => {
-            // Faza 1
-            applyHttpxFilter();
-            renderSimpleList(rawSubfinderOutput, 'subfinder-results', '🔍', 'gray');
-            renderSimpleList(rawAssetfinderOutput, 'assetfinder-results', '🎯', 'gray');
-            renderSimpleList(rawFindomain, 'findomain-results', '🌐', 'gray');
-            renderSimpleList(rawPuredns, 'puredns-results', '🔎', 'gray');
+        document.addEventListener('DOMContentLoaded', () => {
+            renderResults(httpxDataP1, 'httpx-results', false);
+            renderResults(httpxDataP3, 'verified-httpx-results', false);
             
-            // Faza 2
-            renderSimpleList(rawNaabuResults, 'naabu-results', '🔌', 'cyan');
-
-            // Faza 3
-            applyVerifiedHttpxFilter();
-            applyDirsearchFilter();
-            renderSimpleList(rawDirsearchSpecific, 'dirsearch-results-specific', '🔍', 'green');
-            renderSimpleList(rawFfufSpecific, 'ffuf-results-specific', '💥', 'orange');
-            renderSimpleList(rawFeroxbusterSpecific, 'feroxbuster-results-specific', '👹', 'red');
-            renderSimpleList(rawGobusterSpecific, 'gobuster-results-specific', '🏃‍♂️', 'yellow');
-
-            // Faza 4
-            applyCrawlingFilter();
-            renderSimpleList(rawParameters, 'parameters-results', '🔧', 'yellow');
-            renderSimpleList(rawJSFiles, 'js-files-results', '📄', 'green');
-            renderSimpleList(rawAPIEndpoints, 'api-endpoints-results', '🔌', 'orange');
-            renderSimpleList(rawInterestingPaths, 'interesting-paths-results', '📁', 'cyan');
-
-            // Zakładka 'Wszystkie Wyniki'
-            renderSimpleList(rawAllSubdomains, 'all-subdomains-results', '🌍', 'gray');
-            renderSimpleList(rawAllUrlsCombined, 'all-urls-combined-results', '🔗', 'gray');
-            
-            // Aktywuj pierwszą główną i podrzędną zakładkę
             document.querySelector('.main-tab-button').click();
-            const firstSubTab = document.querySelector('.sub-tab-button');
-            if(firstSubTab) {
-                firstSubTab.click();
+            const firstActiveSubTab = document.querySelector('.tab-content.active .sub-tab-button');
+             if(firstActiveSubTab) {
+                firstActiveSubTab.click();
             }
         });
     </script>
 </body>
 </html>
+

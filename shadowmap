@@ -12,7 +12,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 import typer
 from pyfiglet import Figlet
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from pathlib import Path
 
 from rich.panel import Panel
@@ -72,6 +72,7 @@ def display_main_menu():
     table.add_row("[2]", "Faza 2: Skanowanie Portów")
     table.add_row("[3]", "Faza 3: Wyszukiwanie Katalogów")
     table.add_row("[4]", "Faza 4: Web Crawling")
+    table.add_section()
     table.add_row("[\fq]", "Wyjdź")
     utils.console.print(Align.center(table))
     return utils.get_single_char_input_with_prompt(Text.from_markup("\n[bold cyan]Wybierz fazę, od której chcesz zacząć[/bold cyan]", justify="center"))
@@ -151,7 +152,14 @@ def open_html_report(report_path: str):
         try: subprocess.run(["xdg-open", report_path], check=False)
         except FileNotFoundError: utils.console.print("[yellow]xdg-open nie znaleziono. Otwórz raport ręcznie.[/yellow]")
 
-def generate_html_report(p1_files: Dict, p2_results: Dict, p3_results: Dict, p3_verified_httpx: str, p4_raw_results: Dict):
+def generate_html_report(
+    p1_files: Dict, 
+    active_urls_data: List[Dict[str, Any]], 
+    p2_results: Dict, 
+    p3_results: Dict, 
+    p3_verified_data: List[Dict[str, Any]], 
+    p4_raw_results: Dict
+):
     utils.console.print(Align.center("[bold blue]Generowanie raportu HTML...[/bold blue]"))
     
     def read_file_content(path: Optional[str]) -> str:
@@ -170,8 +178,7 @@ def generate_html_report(p1_files: Dict, p2_results: Dict, p3_results: Dict, p3_
         utils.console.print(f"[bold red]BŁĄD: Nie znaleziono szablonu raportu: {config.HTML_TEMPLATE_PATH}[/bold red]")
         return
     
-    # Process Phase 1 data
-    httpx_raw = read_file_content(p1_files.get("Httpx"))
+    # Przetwarzanie danych Fazy 1
     subfinder_raw = read_file_content(p1_files.get("Subfinder"))
     assetfinder_raw = read_file_content(p1_files.get("Assetfinder"))
     findomain_raw = read_file_content(p1_files.get("Findomain"))
@@ -185,21 +192,19 @@ def generate_html_report(p1_files: Dict, p2_results: Dict, p3_results: Dict, p3_
     )))
     all_subdomains_raw = "\n".join(filter(None, all_subdomains_list))
 
-    # Process Phase 2 data
+    # Przetwarzanie danych Fazy 2
     naabu_raw = read_file_content(p2_results.get("naabu_file"))
+    count_open_ports = len(naabu_raw.splitlines()) if naabu_raw and "Brak danych" not in naabu_raw else 0
+    
     nmap_panels = []
     for target, nmap_file in p2_results.get("nmap_files", {}).items():
         nmap_content = read_file_content(nmap_file)
         nmap_panels.append(f'<pre class="output"><strong>{target}</strong><br>{nmap_content}</pre>')
     
-    # Process Phase 3 data
+    # Przetwarzanie danych Fazy 3
     dirsearch_all_raw = "\n".join(p3_results.get("all_dirsearch_results", []))
-    dirsearch_specific_raw = "\n".join(p3_results.get("dirsearch", []))
-    ffuf_raw = "\n".join(p3_results.get("ffuf", []))
-    ferox_raw = "\n".join(p3_results.get("feroxbuster", []))
-    gobuster_raw = "\n".join(p3_results.get("gobuster", []))
     
-    # Process Phase 4 data
+    # Przetwarzanie danych Fazy 4
     p4_all_urls = "\n".join(p4_raw_results.get("all_urls", []))
     p4_params = "\n".join(p4_raw_results.get("parameters", []))
     p4_js = "\n".join(p4_raw_results.get("js_files", []))
@@ -211,39 +216,51 @@ def generate_html_report(p1_files: Dict, p2_results: Dict, p3_results: Dict, p3_
     replacements = {
         "{{DOMAIN}}": config.HOSTNAME_TARGET,
         "{{COUNT_ALL_SUBDOMAINS}}": str(len(all_subdomains_raw.splitlines())),
-        "{{COUNT_HTTPX}}": str(len(httpx_raw.splitlines())),
-        "{{COUNT_OPEN_PORTS}}": str(len(naabu_raw.splitlines())),
+        "{{COUNT_HTTPX}}": str(len(active_urls_data)),
+        "{{COUNT_OPEN_PORTS}}": str(count_open_ports),
         "{{COUNT_DIR_SEARCH}}": str(len(dirsearch_all_raw.splitlines())),
         "{{COUNT_ALL_URLS_P4}}": str(len(p4_all_urls.splitlines())),
         "{{COUNT_PARAMETERS}}": str(len(p4_params.splitlines())),
         "{{COUNT_JS_FILES}}": str(len(p4_js.splitlines())),
         "{{COUNT_API_ENDPOINTS}}": str(len(p4_api.splitlines())),
         "{{COUNT_INTERESTING_PATHS}}": str(len(p4_interesting.splitlines())),
-        "{{HTTPX_OUTPUT_RAW_FOR_JS}}": json.dumps(httpx_raw),
-        "{{SUBFINDER_OUTPUT}}": subfinder_raw.replace('\n', '<br>'),
-        "{{ASSETFINDER_OUTPUT}}": assetfinder_raw.replace('\n', '<br>'),
-        "{{FINDOMAIN_OUTPUT}}": findomain_raw.replace('\n', '<br>'),
-        "{{PUREDNS_OUTPUT}}": puredns_raw.replace('\n', '<br>'),
-        "{{NAABU_RESULTS}}": naabu_raw.replace('\n', '<br>'),
+        
+        "{{HTTPX_OUTPUT_JSON_P1}}": json.dumps(active_urls_data, indent=None),
+        "{{HTTPX_OUTPUT_JSON_P3}}": json.dumps(p3_verified_data, indent=None),
+
+        "{{SUBFINDER_OUTPUT}}": subfinder_raw,
+        "{{ASSETFINDER_OUTPUT}}": assetfinder_raw,
+        "{{FINDOMAIN_OUTPUT}}": findomain_raw,
+        "{{PUREDNS_OUTPUT}}": puredns_raw,
+        "{{NAABU_RESULTS}}": naabu_raw,
         "{{NMAP_RESULTS_PANEL}}": "\n".join(nmap_panels),
-        "{{HTTPX_PHASE3_VERIFIED_OUTPUT}}": json.dumps(p3_verified_httpx),
-        "{{DIR_SEARCH_ALL_OUTPUT}}": json.dumps(dirsearch_all_raw),
-        "{{DIRSEARCH_SPECIFIC_OUTPUT}}": dirsearch_specific_raw.replace('\n', '<br>'),
-        "{{FFUF_SPECIFIC_OUTPUT}}": ffuf_raw.replace('\n', '<br>'),
-        "{{FEROXBUSTER_SPECIFIC_OUTPUT}}": ferox_raw.replace('\n', '<br>'),
-        "{{GOBUSTER_SPECIFIC_OUTPUT}}": gobuster_raw.replace('\n', '<br>'),
-        "{{PHASE4_ALL_URLS_OUTPUT}}": p4_all_urls.replace('\n', '<br>'),
-        "{{PARAMETERS_OUTPUT}}": p4_params.replace('\n', '<br>'),
-        "{{JS_FILES_OUTPUT}}": p4_js.replace('\n', '<br>'),
-        "{{API_ENDPOINTS_OUTPUT}}": p4_api.replace('\n', '<br>'),
-        "{{INTERESTING_PATHS_OUTPUT}}": p4_interesting.replace('\n', '<br>'),
-        "{{ALL_SUBDOMAINS_OUTPUT}}": all_subdomains_raw.replace('\n', '<br>'),
-        "{{ALL_URLS_COMBINED_OUTPUT}}": all_urls_combined.replace('\n', '<br>'),
+        "{{DIR_SEARCH_ALL_OUTPUT}}": dirsearch_all_raw,
+        "{{PHASE4_ALL_URLS_OUTPUT}}": p4_all_urls,
+        "{{PARAMETERS_OUTPUT}}": p4_params,
+        "{{JS_FILES_OUTPUT}}": p4_js,
+        "{{API_ENDPOINTS_OUTPUT}}": p4_api,
+        "{{INTERESTING_PATHS_OUTPUT}}": p4_interesting,
+        "{{ALL_SUBDOMAINS_OUTPUT}}": all_subdomains_raw,
+        "{{ALL_URLS_COMBINED_OUTPUT}}": all_urls_combined,
         "{{COUNT_ALL_URLS_COMBINED}}": str(len(all_urls_combined.splitlines()))
     }
 
     for placeholder, value in replacements.items():
-        template = template.replace(placeholder, value if value.strip() and "Brak danych" not in value else "Brak danych")
+        # Handle string replacement
+        if isinstance(value, str):
+            # Ensure placeholder exists before replacing
+            if placeholder in template:
+                template = template.replace(placeholder, value if value and value.strip() and "Brak danych" not in value else "Brak danych")
+        # Handle JSON data replacement (which might be inside <script> tags)
+        else:
+            # For JSON, we expect placeholders to be without quotes, so we add them for replacement
+            json_placeholder = f'"{placeholder}"'
+            if json_placeholder in template:
+                template = template.replace(json_placeholder, json.dumps(value))
+            # Fallback for placeholders that might not have quotes in the template
+            elif placeholder in template:
+                 template = template.replace(placeholder, json.dumps(value))
+
 
     report_path = os.path.join(config.REPORT_DIR, "report.html")
     with open(report_path, 'w', encoding='utf-8') as f:
@@ -271,10 +288,10 @@ def main(
     use_tor: bool = typer.Option(False, "--tor", help="Użyj Tor jako proxy dla Faz 3 i 4.")
 ):
     scan_initiated = False
-    # Initialize results dictionaries
-    p1_files, active_urls, all_subdomains = {}, [], []
+    p1_files, all_subdomains = {}, []
+    active_urls_data: List[Dict[str, Any]] = []
     p2_results, p3_results, p4_results = {}, {}, {}
-    p3_verified_httpx = ""
+    p3_verified_data: List[Dict[str, Any]] = []
     
     try:
         config.QUIET_MODE = quiet or assume_yes
@@ -306,23 +323,22 @@ def main(
         if not config.QUIET_MODE:
             detect_waf_and_propose_safe_mode()
 
-        # --- PHASE 1 ---
+        # --- FAZA 1 ---
         if start_phase <= 1:
             if config.QUIET_MODE or phase1_subdomain.display_phase1_tool_selection_menu(display_banner):
-                p1_files, active_urls, all_subdomains = phase1_subdomain.start_phase1_scan()
+                p1_files, active_urls_data, all_subdomains = phase1_subdomain.start_phase1_scan()
             else:
                 return
 
-        # --- TRANSITION TO PHASE 2 ---
+        # --- PRZEJŚCIE DO FAZY 2 ---
         if start_phase <= 2:
             targets_for_p2 = all_subdomains if all_subdomains else [config.CLEAN_DOMAIN_TARGET]
             if not targets_for_p2: targets_for_p2 = [config.HOSTNAME_TARGET]
 
             if not config.QUIET_MODE:
                 if utils.ask_user_decision("Czy chcesz kontynuować do Fazy 2 (Skanowanie Portów)?", ["y", "n"], "y") == 'n':
-                    return # Exit will be handled by the finally block
+                    return
 
-            if not config.QUIET_MODE:
                 critical_subdomains = utils.filter_critical_urls(targets_for_p2)
                 if critical_subdomains and len(critical_subdomains) < len(targets_for_p2):
                     urls_to_scan_p2 = ask_scan_scope(targets_for_p2, critical_subdomains, "Fazie 2")
@@ -337,14 +353,13 @@ def main(
             else:
                 return
         
-        # --- TRANSITION TO PHASE 3 ---
+        # --- PRZEJŚCIE DO FAZY 3 ---
         if start_phase <= 3:
-            targets_for_p3 = active_urls if active_urls else [config.ORIGINAL_TARGET]
+            targets_for_p3 = [item['url'] for item in active_urls_data] if active_urls_data else [config.ORIGINAL_TARGET]
             if not config.QUIET_MODE:
                 if utils.ask_user_decision("Czy chcesz kontynuować do Fazy 3 (Wyszukiwanie Katalogów)?", ["y", "n"], "y") == 'n':
                     return
 
-            if not config.QUIET_MODE:
                 critical_urls = utils.filter_critical_urls(targets_for_p3)
                 if critical_urls and len(critical_urls) < len(targets_for_p3):
                     urls_to_scan_p3 = ask_scan_scope(targets_for_p3, critical_urls, "Fazie 3")
@@ -355,19 +370,20 @@ def main(
                 urls_to_scan_p3 = targets_for_p3
             
             if config.QUIET_MODE or phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
-                p3_results, p3_verified_httpx = phase3_dirsearch.start_dir_search(urls_to_scan_p3, None, None)
+                p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(urls_to_scan_p3, None, None)
             else:
                 return
 
-        # --- TRANSITION TO PHASE 4 ---
+        # --- PRZEJŚCIE DO FAZY 4 ---
         if start_phase <= 4:
-            urls_from_p3 = p3_results.get("all_dirsearch_results", [])
-            targets_for_p4 = sorted(list(set(active_urls + urls_from_p3)))
+            urls_from_p1 = [item['url'] for item in active_urls_data]
+            urls_from_p3 = [item['url'] for item in p3_verified_data]
+            targets_for_p4 = sorted(list(set(urls_from_p1 + urls_from_p3)))
+
             if not config.QUIET_MODE:
                 if utils.ask_user_decision("Czy chcesz kontynuować do Fazy 4 (Web Crawling)?", ["y", "n"], "y") == 'n':
                     return
 
-            if not config.QUIET_MODE:
                 critical_urls_p4 = utils.filter_critical_urls(targets_for_p4)
                 if critical_urls_p4 and len(critical_urls_p4) < len(targets_for_p4):
                     urls_to_scan_p4 = ask_scan_scope(targets_for_p4, critical_urls_p4, "Fazie 4")
@@ -387,11 +403,12 @@ def main(
     finally:
         if scan_initiated:
             if not no_report:
-                generate_html_report(p1_files, p2_results, p3_results, p3_verified_httpx, p4_results)
-                report_path = os.path.join(config.REPORT_DIR, "report.html")
-                if os.path.exists(report_path) and not config.QUIET_MODE:
-                    if utils.ask_user_decision("Otworzyć raport HTML?", ["y","n"], "y") == 'y':
-                        open_html_report(report_path)
+                generate_html_report(p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
+            
+            report_path = os.path.join(config.REPORT_DIR, "report.html")
+            if os.path.exists(report_path) and not config.QUIET_MODE:
+                if utils.ask_user_decision("Otworzyć raport HTML?", ["y","n"], "y") == 'y':
+                    open_html_report(report_path)
             cleanup_temp_files()
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ import time
 import json
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 
 from rich.panel import Panel
 from rich.align import Align
@@ -52,7 +52,16 @@ def _execute_tool_command(tool_name: str, command_parts: List[str], output_file:
         utils.console.print(Align.center(f"[bold red]❌ BŁĄD: {tool_name}: {e}[/bold red]"))
         return None
 
-def start_phase1_scan() -> Tuple[Dict, List[str], List[str]]:
+def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]]:
+    """
+    Uruchamia skanowanie Fazy 1 w celu odkrycia subdomen i wzbogacenia ich o dodatkowe dane.
+
+    Returns:
+        Tuple[Dict[str, str], List[Dict[str, Any]], List[str]]: Krotka zawierająca:
+        - Słownik z ścieżkami do plików wyjściowych narzędzi.
+        - Listę słowników dla aktywnych URLi z metadanymi.
+        - Listę wszystkich unikalnych (ale niekoniecznie aktywnych) subdomen.
+    """
     utils.console.print(Align.center(f"[bold green]Rozpoczynam Fazę 1 - Odkrywanie Subdomen dla {config.ORIGINAL_TARGET}...[/bold green]"))
 
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
@@ -119,10 +128,11 @@ def start_phase1_scan() -> Tuple[Dict, List[str], List[str]]:
     with open(unique_subdomains_file, 'w', encoding='utf-8') as f:
         f.write('\n'.join(unique_lines))
 
-    active_urls = []
-    with utils.console.status("[bold green]Weryfikuję subdomeny za pomocą HTTPX...[/bold green]"):
+    active_urls_with_metadata = []
+    with utils.console.status("[bold green]Weryfikuję subdomeny i pobieram nagłówki za pomocą HTTPX...[/bold green]"):
         httpx_output_file = os.path.join(config.REPORT_DIR, "httpx_results_phase1.txt")
-        httpx_command = ["httpx", "-l", unique_subdomains_file, "-silent", "-fc", "404", "-json"]
+        # FIX: Dodano flagę -irh (include response header) do httpx
+        httpx_command = ["httpx", "-l", unique_subdomains_file, "-silent", "-fc", "404", "-json", "-irh"]
         
         if config.SAFE_MODE:
             httpx_command.extend(["-p", "80,443,8000,8080,8443", "-rate-limit", "10"])
@@ -139,13 +149,26 @@ def start_phase1_scan() -> Tuple[Dict, List[str], List[str]]:
                 output_files_collected["Httpx"] = httpx_result_file
                 with open(httpx_result_file, 'r', encoding='utf-8') as f:
                     for line in f:
+                        if not line.strip(): continue
                         try:
-                            url = json.loads(line).get("url")
-                            if url: active_urls.append(url)
+                            data = json.loads(line)
+                            url = data.get("url")
+                            if url:
+                                headers = data.get("header", {})
+                                normalized_headers = {k.lower(): v for k, v in headers.items()}
+                                last_modified = normalized_headers.get("last-modified")
+
+                                result_obj = {"url": url, "status_code": data.get("status_code")}
+                                if last_modified:
+                                    result_obj["last_modified"] = last_modified
+                                active_urls_with_metadata.append(result_obj)
+
                         except (json.JSONDecodeError, TypeError):
                             continue
 
-    return output_files_collected, sorted(list(set(active_urls))), unique_lines
+    sorted_active_urls = sorted(active_urls_with_metadata, key=lambda x: x['url'])
+    return output_files_collected, sorted_active_urls, unique_lines
+
 
 def display_phase1_tool_selection_menu(display_banner_func):
     while True:
