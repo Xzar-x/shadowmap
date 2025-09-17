@@ -139,9 +139,9 @@ def start_port_scan(
         if config.NAABU_SOURCE_PORT:
             naabu_base_cmd.extend(["-source-ip", f"0.0.0.0:{config.NAABU_SOURCE_PORT}"])
         if config.SAFE_MODE:
-            naabu_base_cmd.extend(["-rate", "100"])
+            naabu_base_cmd.extend(["-rate", "100","-timeout", "500"])
         else:
-            naabu_base_cmd.extend(["-rate", "1000"])
+            naabu_base_cmd.extend(["-rate", "1000","-timeout", "500"])
 
         with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
             futures = []
