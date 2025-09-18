@@ -14,6 +14,7 @@ import typer
 from pyfiglet import Figlet
 from typing import Optional, List, Dict, Any
 from pathlib import Path
+import psutil
 
 from rich.panel import Panel
 from rich.align import Align
@@ -106,7 +107,6 @@ def parse_target_input(target_input: str):
     utils.console.print(Align.center(f"[bold green]Hostname celu: {config.HOSTNAME_TARGET} | Domena główna: {config.CLEAN_DOMAIN_TARGET}[/bold green]"))
 
 def detect_waf_and_propose_safe_mode(osint_data: Dict[str, Any]):
-    # Wykorzystaj dane z Fazy 0, jeśli są dostępne
     if 'Error' in osint_data.get('technologies', []) or 'Error' in str(osint_data):
          utils.console.print("[yellow]Pominięto detekcję WAF z powodu błędu w fazie OSINT.[/yellow]")
          return
@@ -334,16 +334,17 @@ def main(
     if config.EXCLUSION_PATTERNS:
         utils.console.print(f"[bold yellow]Aktywne filtry wykluczeń: {', '.join(config.EXCLUSION_PATTERNS)}[/bold yellow]")
 
-    for current_target in targets_to_scan:
-        utils.console.rule(f"[bold cyan]Przetwarzanie celu: {current_target}[/bold cyan]")
-        scan_initiated = False
-        p0_data = {}
-        p1_files, all_subdomains = {}, []
-        active_urls_data: List[Dict[str, Any]] = []
-        p2_results, p3_results, p4_results = {}, {}, {}
-        p3_verified_data: List[Dict[str, Any]] = []
-        
-        try:
+    scan_initiated = False
+    try:
+        for current_target in targets_to_scan:
+            utils.console.rule(f"[bold cyan]Przetwarzanie celu: {current_target}[/bold cyan]")
+            
+            p0_data = {}
+            p1_files, all_subdomains = {}, []
+            active_urls_data: List[Dict[str, Any]] = []
+            p2_results, p3_results, p4_results = {}, {}, {}
+            p3_verified_data: List[Dict[str, Any]] = []
+            
             parse_target_input(current_target)
             report_dir_name = f"report_{config.HOSTNAME_TARGET.replace('/', '_')}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
             config.REPORT_DIR = os.path.join(config.OUTPUT_BASE_DIR, report_dir_name)
@@ -456,16 +457,29 @@ def main(
                         generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
                     break 
 
-        except KeyboardInterrupt:
-            utils.console.print("\n[yellow]Przerwano przez użytkownika.[/yellow]")
-            break
-        finally:
-            if scan_initiated:
-                report_path = os.path.join(config.REPORT_DIR, "report.html")
-                if os.path.exists(report_path) and not config.QUIET_MODE and not no_report:
-                    if utils.ask_user_decision("Otworzyć raport HTML?", ["y","n"], "y") == 'y':
-                        open_html_report(report_path)
-                cleanup_temp_files()
+    except KeyboardInterrupt:
+        utils.console.print("\n[bold yellow]Przerwano przez użytkownika. Zatrzymuję podprocesy...[/bold yellow]")
+        current_process = psutil.Process()
+        children = current_process.children(recursive=True)
+        if children:
+            for child in children:
+                try:
+                    child.terminate()
+                except psutil.NoSuchProcess:
+                    pass
+            gone, alive = psutil.wait_procs(children, timeout=3)
+            for p in alive:
+                try:
+                    p.kill()
+                except psutil.NoSuchProcess:
+                    pass
+    finally:
+        if scan_initiated:
+            report_path = os.path.join(config.REPORT_DIR, "report.html")
+            if os.path.exists(report_path) and not config.QUIET_MODE and not no_report:
+                if utils.ask_user_decision("Otworzyć raport HTML?", ["y","n"], "y") == 'y':
+                    open_html_report(report_path)
+            cleanup_temp_files()
 
 if __name__ == "__main__":
     app()
