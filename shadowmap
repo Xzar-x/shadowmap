@@ -126,12 +126,25 @@ def detect_waf_and_propose_safe_mode():
         utils.log_and_echo(f"Błąd podczas uruchamiania wafw00f: {e}", "ERROR")
 
 def open_html_report(report_path: str):
-    if sys.platform == "darwin": subprocess.run(["open", report_path])
-    else:
-        try: subprocess.run(["xdg-open", report_path])
-        except FileNotFoundError: utils.console.print("[yellow]Otwórz raport ręcznie.[/yellow]")
+    if not report_path or not os.path.exists(report_path):
+        utils.console.print(f"[yellow]Ostrzeżenie: Plik raportu '{report_path}' nie istnieje. Nie można go otworzyć.[/yellow]")
+        return
 
-def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results):
+    utils.console.print(f"[cyan]Próba otwarcia raportu: {report_path}[/cyan]")
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(["open", report_path], check=True)
+        elif sys.platform.startswith("linux"):
+            subprocess.run(["xdg-open", report_path], check=True)
+        elif sys.platform == "win32":
+            os.startfile(report_path)
+        else:
+            utils.console.print("[yellow]Nieznany system operacyjny. Otwórz raport ręcznie.[/yellow]")
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        utils.console.print(f"[red]Błąd podczas otwierania raportu. Otwórz go ręcznie.[/red]\n[dim]Szczegóły: {e}[/dim]")
+
+
+def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results) -> Optional[str]:
     utils.console.print(Align.center("[blue]Generowanie raportu HTML...[/blue]"))
     
     def read_file_content(path: Optional[str]) -> str:
@@ -144,7 +157,7 @@ def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_res
         with open(config.HTML_TEMPLATE_PATH, 'r', encoding='utf-8') as f: template = f.read()
     except FileNotFoundError:
         utils.console.print(f"[red]BŁĄD: Nie znaleziono szablonu: {config.HTML_TEMPLATE_PATH}[/red]")
-        return
+        return None
     
     p3_results_by_tool = p3_results.get("results_by_tool", {})
     all_subdomains_list = sorted(list(set((read_file_content(p1_files.get(t)) for t in ["Subfinder", "Assetfinder", "Findomain", "Puredns"]))))
@@ -186,7 +199,9 @@ def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_res
 
     report_path = os.path.join(config.REPORT_DIR, "report.html")
     with open(report_path, 'w', encoding='utf-8') as f: f.write(template)
-    utils.console.print(f"[green]✓ Raport HTML: {report_path}[/green]")
+    utils.console.print(f"[green]✓ Raport HTML wygenerowany: {report_path}[/green]")
+    return report_path
+
 
 def cleanup_temp_files():
     for f_path in config.TEMP_FILES_TO_CLEAN:
@@ -233,20 +248,89 @@ def main(
             config.ORIGINAL_TARGET = best_target_url # Aktualizacja celu
             detect_waf_and_propose_safe_mode()
             
+            choice = ''
             while True:
-                choice = display_main_menu()
+                if not choice:
+                    choice = display_main_menu()
                 
                 if choice == '1':
                     if phase1_subdomain.display_phase1_tool_selection_menu(display_banner):
                         p1_files, active_urls_data, _ = phase1_subdomain.start_phase1_scan()
+                        if active_urls_data:
+                            if utils.ask_user_decision("Zakończono Fazę 1. Kontynuować do Fazy 2 (Skanowanie Portów)?", ["y", "n"], "y") == 'y':
+                                choice = '2'
+                            else:
+                                choice = ''
+                                continue
+                        else:
+                            utils.console.print(Align.center("[yellow]Nie znaleziono aktywnych subdomen. Wracam do menu głównego.[/yellow]"))
+                            time.sleep(2)
+                            choice = ''
+                            continue
+                    else:
+                        choice = ''
                 
-                elif choice == '3':
+                if choice == '2':
+                    if not active_urls_data:
+                        utils.console.print(Align.center("[bold yellow]Najpierw uruchom Fazę 1, aby znaleźć aktywne subdomeny do skanowania.[/bold yellow]"))
+                        time.sleep(2)
+                        choice = ''
+                        continue
+
+                    if phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
+                         targets_for_p2 = [item['url'] for item in active_urls_data]
+                         p2_results = phase2_port_scanning.start_port_scan(targets_for_p2, None, None)
+                         if p2_results and p2_results.get("open_ports_by_host"):
+                             if utils.ask_user_decision("Zakończono Fazę 2. Kontynuować do Fazy 3 (Wyszukiwanie Katalogów)?", ["y", "n"], "y") == 'y':
+                                 choice = '3'
+                             else:
+                                 choice = ''
+                                 continue
+                         else:
+                            utils.console.print(Align.center("[yellow]Nie znaleziono otwartych portów. Wracam do menu głównego.[/yellow]"))
+                            time.sleep(2)
+                            choice = ''
+                            continue
+                    else:
+                        choice = ''
+
+                if choice == '3':
                     if phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
                         targets = [item['url'] for item in active_urls_data] or [config.ORIGINAL_TARGET]
-                        p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(targets)
+                        
+                        num_tools = sum(config.selected_phase3_tools)
+                        total_tasks = len(targets) * num_tools
+                        
+                        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
+                            task = progress.add_task("[green]Faza 3: Wyszukiwanie katalogów[/green]", total=total_tasks if total_tasks > 0 else 1)
+                            p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(targets, progress, task)
+                        
+                        if utils.ask_user_decision("Zakończono Fazę 3. Kontynuować do Fazy 4 (Web Crawling)?", ["y", "n"], "y") == 'y':
+                            choice = '4'
+                        else:
+                            choice = ''
+                            continue
+                    else:
+                        choice = ''
                 
-                elif choice.lower() == 'q':
-                    generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
+                if choice == '4':
+                    if phase4_webcrawling.display_phase4_tool_selection_menu(display_banner):
+                        targets_for_p4 = [item['url'] for item in p3_verified_data] or [item['url'] for item in active_urls_data] or [config.ORIGINAL_TARGET]
+                        num_tools = sum(config.selected_phase4_tools)
+                        total_tasks = len(targets_for_p4) * num_tools
+                        
+                        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
+                            task = progress.add_task("[green]Faza 4: Web Crawling[/green]", total=total_tasks if total_tasks > 0 else 1)
+                            p4_results = phase4_webcrawling.start_web_crawl(targets_for_p4, progress, task)
+                        
+                        utils.console.print(Align.center("[bold green]Faza 4 zakończona. Wracam do menu głównego.[/bold green]"))
+                        time.sleep(2)
+                    choice = '' # Po fazie 4 zawsze wracaj do menu
+
+                if choice.lower() == 'q':
+                    report_file_path = generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
+                    if report_file_path:
+                        open_html_report(report_file_path)
                     break 
 
     except KeyboardInterrupt:

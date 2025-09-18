@@ -50,17 +50,14 @@ def _run_scan_tool(
             errors='ignore'
         )
         
-        # --- Zmieniona logika zarządzania procesem ---
         with utils.processes_lock:
             utils.managed_processes.append(process)
         
         stdout, stderr = process.communicate(timeout=timeout)
         returncode = process.returncode
         
-        # Zapisz output
         with open(output_file, 'w', encoding='utf-8') as f:
             if tool_name == "Masscan":
-                # Specjalne parsowanie dla Masscan w locie
                 for line in stdout.splitlines():
                     if line.startswith("Discovered open port"):
                         parts = line.split()
@@ -88,7 +85,6 @@ def _run_scan_tool(
         msg = f"Ogólny błąd wykonania komendy '{tool_name}' dla {target}: {e}"
         utils.log_and_echo(msg, "ERROR")
     finally:
-        # Zawsze usuń proces z listy po zakończeniu
         if process:
             with utils.processes_lock:
                 if process in utils.managed_processes:
@@ -149,27 +145,46 @@ def start_port_scan(
     
     utils.console.print(Align.center(f"[bold green]Rozpoczynam Fazę 2 - Skanowanie Portów...[/bold green]"))
 
-    # --- NOWA LOGIKA: Rozwiązywanie domen na unikalne IP ---
     unique_ips = set()
     with utils.console.status("[bold cyan]Rozpoznawanie nazw domen na unikalne adresy IP...[/bold cyan]"):
-        for target in targets:
-            if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", target):
-                unique_ips.add(target)
+        for url in targets:
+            hostname_match = re.search(r'https?://([^/:]+)', url)
+            target_host = hostname_match.group(1) if hostname_match else url
+
+            if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", target_host):
+                unique_ips.add(target_host)
             else:
                 try:
-                    ip_address = socket.gethostbyname(target)
+                    ip_address = socket.gethostbyname(target_host)
                     unique_ips.add(ip_address)
                 except socket.gaierror:
-                    utils.log_and_echo(f"Nie można rozwiązać domeny {target} na adres IP. Pomijam.", "WARN")
+                    utils.log_and_echo(f"Nie można rozwiązać domeny {target_host} na adres IP. Pomijam.", "WARN")
     
     targets_to_scan = sorted(list(unique_ips))
     utils.console.print(Align.center(f"Będę skanować [bold green]{len(targets_to_scan)}[/bold green] unikalnych adresów IP."))
+
+    if not targets_to_scan:
+        return final_results
+
+    # --- POCZĄTEK NOWEJ LOGIKI ---
+    nmap_scan_type = config.NMAP_SOLO_SCAN_MODE
+    if nmap_enabled and not discovery_tools:
+        utils.console.print(Align.center(Panel(
+            "[bold cyan]Nmap będzie działał samodzielnie.[/bold cyan]\n"
+            "Jaki rodzaj skanowania portów chcesz przeprowadzić?",
+            title="[yellow]Tryb Skanowania Nmap[/yellow]",
+            border_style="yellow"
+        )))
+        nmap_scan_type = Prompt.ask(
+            "[bold]Wybierz tryb[/bold]",
+            choices=["default", "full", "fast"],
+            default=config.NMAP_SOLO_SCAN_MODE
+        )
     # --- KONIEC NOWEJ LOGIKI ---
 
     num_discovery_tools = naabu_enabled + masscan_enabled
     num_nmap_tasks = len(targets_to_scan) if nmap_enabled else 0
     total_tasks = (len(targets_to_scan) * num_discovery_tools) + num_nmap_tasks
-
 
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
         phase2_task = progress.add_task("[green]Faza 2: Skanowanie portów[/green]", total=total_tasks if total_tasks > 0 else 1)
@@ -183,7 +198,7 @@ def start_port_scan(
             with ThreadPoolExecutor(max_workers=config.THREADS * len(discovery_tools)) as executor:
                 futures = []
                 for tool_name in discovery_tools:
-                    for target in targets_to_scan: # Używamy unikalnej listy IP
+                    for target in targets_to_scan:
                         output_file = os.path.join(config.REPORT_DIR, f"{tool_name.lower()}_{target.replace('.', '_')}.txt")
                         cmd = []
                         if tool_name == "Naabu":
@@ -202,7 +217,7 @@ def start_port_scan(
             for tool_name in discovery_tools:
                 agg_file = os.path.join(config.REPORT_DIR, f"{tool_name.lower()}_aggregated_results.txt")
                 with open(agg_file, 'w', encoding='utf-8') as agg_f:
-                    for target in targets_to_scan: # Używamy unikalnej listy IP
+                    for target in targets_to_scan:
                         tool_file = os.path.join(config.REPORT_DIR, f"{tool_name.lower()}_{target.replace('.', '_')}.txt")
                         if os.path.exists(tool_file):
                             with open(tool_file, 'r', encoding='utf-8') as f: agg_f.write(f.read())
@@ -223,7 +238,7 @@ def start_port_scan(
 
             with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
                 futures = {}
-                for target in targets_to_scan: # Używamy unikalnej listy IP
+                for target in targets_to_scan:
                     ports_to_scan_for_target = open_ports_by_host.get(target)
                     if discovery_tools and not ports_to_scan_for_target:
                         utils.console.print(f"[yellow]Pomijam Nmap dla {target}, ponieważ nie znaleziono otwartych portów.[/yellow]")
@@ -234,8 +249,11 @@ def start_port_scan(
                     if ports_to_scan_for_target:
                         cmd.extend(["-p", ",".join(map(str, ports_to_scan_for_target))])
                     else: 
-                        if config.NMAP_SOLO_SCAN_MODE == 'full': cmd.extend(["-p-"])
-                        elif config.NMAP_SOLO_SCAN_MODE == 'fast': cmd.extend(["-F"])
+                        # Użyj wartości z interaktywnego promptu (lub z configu, jeśli nie było promptu)
+                        if nmap_scan_type == 'full':
+                            cmd.extend(["-p-"])
+                        elif nmap_scan_type == 'fast':
+                            cmd.extend(["-F"])
                     
                     output_file = os.path.join(config.REPORT_DIR, f"nmap_{target.replace('.', '_')}.txt")
                     cmd.extend(["-oN", output_file, target])
@@ -349,3 +367,4 @@ def display_phase2_settings_menu(display_banner_func):
         elif choice.lower() == 'q': sys.exit(0)
         else: utils.console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
         time.sleep(0.1)
+
