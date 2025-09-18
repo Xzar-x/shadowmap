@@ -60,9 +60,12 @@ def get_whois_info(domain: str) -> Dict[str, Any]:
 
 def get_http_info(target: str) -> Dict[str, Any]:
     """
-    Używa httpx do zebrania informacji o IP, ASN, CDN i technologiach.
+    Używa httpx do zebrania informacji o IP, ASN, CDN i technologiach,
+    z fallbackiem do manualnego rozwiązywania DNS.
     """
-    results = {}
+    results: Dict[str, Any] = {}
+    httpx_data: Optional[Dict[str, Any]] = None
+    
     try:
         command = [
             "httpx", "-u", target, "-silent", "-json",
@@ -71,19 +74,36 @@ def get_http_info(target: str) -> Dict[str, Any]:
         process = subprocess.run(command, capture_output=True, text=True, timeout=60)
         
         if process.stdout:
-            # httpx zwraca JSONL (JSON per linia), bierzemy pierwszą linię
             first_line = process.stdout.strip().split('\n')[0]
-            data = json.loads(first_line)
+            httpx_data = json.loads(first_line)
             
-            results["ip"] = data.get("ip")
-            results["asn_details"] = f"AS{data.get('asn', {}).get('as_number')} ({data.get('asn', {}).get('as_name')})"
-            results["cdn_name"] = data.get("cdn_name")
-            results["technologies"] = data.get("tech")
+            results["asn_details"] = f"AS{httpx_data.get('asn', {}).get('as_number')} ({httpx_data.get('asn', {}).get('as_name')})"
+            results["cdn_name"] = httpx_data.get("cdn_name")
+            results["technologies"] = httpx_data.get("tech")
+            
+            # --- ZMIANA: Logika pobierania IP z fallbackiem ---
+            ip_address = httpx_data.get("ip")
+            if not ip_address:
+                try:
+                    # Używamy `hostname` z wyników httpx lub oryginalnego celu
+                    hostname_to_resolve = httpx_data.get('host', config.CLEAN_DOMAIN_TARGET)
+                    ip_address = socket.gethostbyname(hostname_to_resolve)
+                    utils.log_and_echo(f"Httpx nie zwrócił IP. Użyto socket.gethostbyname dla '{hostname_to_resolve}', znaleziono: {ip_address}", "DEBUG")
+                except socket.gaierror:
+                    utils.log_and_echo(f"Nie udało się rozwiązać adresu IP dla '{config.CLEAN_DOMAIN_TARGET}' przez socket.", "WARN")
+                    ip_address = "Nie udało się rozwiązać"
+            results["ip"] = ip_address
+            # --- KONIEC ZMIANY ---
 
     except FileNotFoundError:
         return {"Error": "The 'httpx' command is not installed."}
     except (json.JSONDecodeError, IndexError):
-        return {"Error": "Failed to parse httpx JSON output."}
+        # Jeśli httpx zawiedzie, spróbuj chociaż rozwiązać IP
+        try:
+            results["ip"] = socket.gethostbyname(config.CLEAN_DOMAIN_TARGET)
+        except socket.gaierror:
+            results["ip"] = "Nie udało się rozwiązać"
+        return {"Error": "Failed to parse httpx JSON output.", **results}
     except subprocess.TimeoutExpired:
         return {"Error": "httpx command timed out."}
     except Exception as e:
@@ -100,7 +120,6 @@ def start_phase0_osint() -> Dict[str, Any]:
     osint_data: Dict[str, Any] = {}
 
     with ThreadPoolExecutor() as executor:
-        # Uruchom httpx i whois równolegle
         future_http = executor.submit(get_http_info, config.ORIGINAL_TARGET)
         future_whois = executor.submit(get_whois_info, config.CLEAN_DOMAIN_TARGET)
 
@@ -139,4 +158,3 @@ def start_phase0_osint() -> Dict[str, Any]:
 
     utils.console.print(table)
     return osint_data
-

@@ -29,7 +29,7 @@ def _run_scan_tool(
     timeout: int
 ) -> Optional[str]:
     """
-    Uruchamia narzędzie do skanowania portów i zapisuje jego wynik do pliku.
+    Uruchamia narzędzie do skanowania portów za pomocą Popen, zarządza procesem i zapisuje wynik do pliku.
     """
     sudo_prefix = []
     if tool_name in ["Naabu", "Masscan"] and os.geteuid() != 0:
@@ -39,30 +39,40 @@ def _run_scan_tool(
     cmd_str = ' '.join(f'"{p}"' if ' ' in p else p for p in full_command)
     utils.console.print(f"[bold cyan]Uruchamiam {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
 
+    process = None
     try:
-        if tool_name == "Masscan":
-            with open(output_file, 'w', encoding='utf-8') as f_out:
-                process = subprocess.Popen(full_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='ignore')
-                for line in process.stdout:
+        process = subprocess.Popen(
+            full_command, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE, 
+            text=True, 
+            encoding='utf-8', 
+            errors='ignore'
+        )
+        
+        # --- Zmieniona logika zarządzania procesem ---
+        with utils.processes_lock:
+            utils.managed_processes.append(process)
+        
+        stdout, stderr = process.communicate(timeout=timeout)
+        returncode = process.returncode
+        
+        # Zapisz output
+        with open(output_file, 'w', encoding='utf-8') as f:
+            if tool_name == "Masscan":
+                # Specjalne parsowanie dla Masscan w locie
+                for line in stdout.splitlines():
                     if line.startswith("Discovered open port"):
                         parts = line.split()
                         port_proto = parts[3]
                         port = port_proto.split('/')[0]
                         ip = parts[5]
-                        f_out.write(f"{ip}:{port}\n")
-                _, stderr = process.communicate(timeout=timeout)
-                returncode = process.returncode
-                if returncode != 0 and stderr:
-                    f_out.write(f"\n--- STDERR ---\n{stderr}")
-        else:
-            process = subprocess.run(
-                full_command, capture_output=True, text=True, timeout=timeout, check=False,
-                encoding='utf-8', errors='ignore'
-            )
-            with open(output_file, 'w', encoding='utf-8') as f:
-                f.write(process.stdout)
-                if process.stderr: f.write(f"\n--- STDERR ---\n{process.stderr}")
-            returncode = process.returncode
+                        f.write(f"{ip}:{port}\n")
+            else:
+                f.write(stdout)
+            
+            if stderr:
+                f.write(f"\n--- STDERR ---\n{stderr}")
 
         if returncode == 0:
             utils.console.print(f"[bold green]✅ {tool_name} zakończył skanowanie dla {target}.[/bold green]")
@@ -77,6 +87,12 @@ def _run_scan_tool(
     except Exception as e:
         msg = f"Ogólny błąd wykonania komendy '{tool_name}' dla {target}: {e}"
         utils.log_and_echo(msg, "ERROR")
+    finally:
+        # Zawsze usuń proces z listy po zakończeniu
+        if process:
+            with utils.processes_lock:
+                if process in utils.managed_processes:
+                    utils.managed_processes.remove(process)
     
     return None
 
@@ -150,8 +166,10 @@ def start_port_scan(
     utils.console.print(Align.center(f"Będę skanować [bold green]{len(targets_to_scan)}[/bold green] unikalnych adresów IP."))
     # --- KONIEC NOWEJ LOGIKI ---
 
-    num_selected_tools = nmap_enabled + naabu_enabled + masscan_enabled
-    total_tasks = len(targets_to_scan) * num_selected_tools
+    num_discovery_tools = naabu_enabled + masscan_enabled
+    num_nmap_tasks = len(targets_to_scan) if nmap_enabled else 0
+    total_tasks = (len(targets_to_scan) * num_discovery_tools) + num_nmap_tasks
+
 
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
         phase2_task = progress.add_task("[green]Faza 2: Skanowanie portów[/green]", total=total_tasks if total_tasks > 0 else 1)
@@ -331,4 +349,3 @@ def display_phase2_settings_menu(display_banner_func):
         elif choice.lower() == 'q': sys.exit(0)
         else: utils.console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
         time.sleep(0.1)
-

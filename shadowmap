@@ -20,7 +20,7 @@ from rich.panel import Panel
 from rich.align import Align
 from rich.text import Text
 from rich.table import Table
-from rich.progress import Progress, BarColumn, SpinnerColumn, TimeElapsedColumn, MofNCompleteColumn, TaskID
+from rich.progress import Progress, BarColumn, SpinnerColumn, TimeElapsedColumn, MofNCompleteColumn, TaskID, TextColumn
 
 # --- Add path to modules and import them ---
 SHARE_DIR = "/usr/local/share/shadowmap/"
@@ -189,24 +189,24 @@ def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_res
 
     # Przygotowanie danych z Fazy 0
     osint_ip = p0_data.get('ip', 'Brak danych')
-    osint_asn = p0_data.get('asn_details', 'Brak danych')
+    osint_asn_details = p0_data.get('asn_details', 'Brak danych')
     osint_cdn = p0_data.get('cdn_name', 'Brak')
     osint_registrar = p0_data.get('registrar', 'Brak danych')
-    osint_creation = p0_data.get('creation_date', 'Brak danych')
-    osint_expiry = p0_data.get('expiration_date', 'Brak danych')
-    osint_ns = '<br>'.join(p0_data.get('name_servers', []))
-    osint_tech = '<br>'.join(p0_data.get('technologies', []))
+    osint_creation_date = p0_data.get('creation_date', 'Brak danych')
+    osint_expiration_date = p0_data.get('expiration_date', 'Brak danych')
+    osint_name_servers = '\n'.join(p0_data.get('name_servers', []))
+    osint_technologies = '\n'.join(p0_data.get('technologies', []))
 
     replacements = {
         "{{DOMAIN}}": config.HOSTNAME_TARGET,
         "{{OSINT_IP}}": osint_ip,
-        "{{OSINT_ASN}}": osint_asn,
+        "{{OSINT_ASN_DETAILS}}": osint_asn_details,
         "{{OSINT_CDN}}": osint_cdn,
         "{{OSINT_REGISTRAR}}": osint_registrar,
-        "{{OSINT_CREATION}}": osint_creation,
-        "{{OSINT_EXPIRY}}": osint_expiry,
-        "{{OSINT_NS}}": osint_ns,
-        "{{OSINT_TECH}}": osint_tech,
+        "{{OSINT_CREATION_DATE}}": osint_creation_date,
+        "{{OSINT_EXPIRATION_DATE}}": osint_expiration_date,
+        "{{OSINT_NAME_SERVERS}}": osint_name_servers,
+        "{{OSINT_TECHNOLOGIES}}": osint_technologies,
         "{{COUNT_ALL_SUBDOMAINS}}": str(len(all_subdomains_list)),
         "{{COUNT_HTTPX}}": str(len(active_urls_data)),
         "{{COUNT_OPEN_PORTS}}": str(total_open_ports),
@@ -237,7 +237,7 @@ def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_res
     }
     
     for placeholder, value in replacements.items():
-        template = template.replace(placeholder, str(value))
+        template = template.replace(placeholder, str(value) if value is not None else "Brak danych")
 
     report_path = os.path.join(config.REPORT_DIR, "report.html")
     with open(report_path, 'w', encoding='utf-8') as f: f.write(template)
@@ -390,7 +390,7 @@ def main(
                     if not urls_to_scan_p2: continue
 
                     if phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
-                        p2_results = phase2_port_scanning.start_port_scan(urls_to_scan_p2)
+                        p2_results = phase2_port_scanning.start_port_scan(urls_to_scan_p2, None, None)
                         if utils.ask_user_decision("Zakończono Fazę 2. Kontynuować do Fazy 3?", ["y", "n"], "y") == 'y':
                             choice = '3'
                         else:
@@ -415,7 +415,7 @@ def main(
                         num_tools = sum(config.selected_phase3_tools)
                         total_tasks = len(urls_to_scan_p3) * num_tools
                         with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
-                            task = progress.add_task("[green]Faza 3: Wyszukiwanie katalogów[/green]", total=total_tasks)
+                            task = progress.add_task("[green]Faza 3: Wyszukiwanie katalogów[/green]", total=total_tasks if total_tasks > 0 else 1)
                             p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(urls_to_scan_p3, progress, task)
                         if utils.ask_user_decision("Zakończono Fazę 3. Kontynuować do Fazy 4?", ["y", "n"], "y") == 'y':
                             choice = '4'
@@ -445,7 +445,7 @@ def main(
                         num_tools_p4 = sum(config.selected_phase4_tools)
                         total_tasks_p4 = len(urls_to_scan_p4) * num_tools_p4
                         with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
-                           task_p4 = progress.add_task("[green]Faza 4: Web Crawling[/green]", total=total_tasks_p4)
+                           task_p4 = progress.add_task("[green]Faza 4: Web Crawling[/green]", total=total_tasks_p4 if total_tasks_p4 > 0 else 1)
                            p4_results = phase4_webcrawling.start_web_crawl(urls_to_scan_p4, progress, task_p4)
                         utils.ask_user_decision("Zakończono Fazę 4 (ostatnia). Wrócić do menu?", ["y"], "y")
                         continue
@@ -459,20 +459,30 @@ def main(
 
     except KeyboardInterrupt:
         utils.console.print("\n[bold yellow]Przerwano przez użytkownika. Zatrzymuję podprocesy...[/bold yellow]")
-        current_process = psutil.Process()
-        children = current_process.children(recursive=True)
-        if children:
-            for child in children:
-                try:
-                    child.terminate()
-                except psutil.NoSuchProcess:
-                    pass
-            gone, alive = psutil.wait_procs(children, timeout=3)
-            for p in alive:
+        # --- Zmieniona, bezpieczna logika czyszczenia ---
+        with utils.processes_lock:
+            # Tworzymy kopię listy, aby uniknąć problemów z modyfikacją podczas iteracji
+            procs_to_terminate = list(utils.managed_processes)
+        
+        for p in procs_to_terminate:
+            try:
+                # SIGTERM jest bardziej "grzeczny" niż SIGKILL
+                p.terminate()
+            except ProcessLookupError:
+                # Proces już się zakończył, co jest w porządku
+                pass
+        
+        # Opcjonalnie poczekaj chwilę, aby procesy mogły się zakończyć
+        time.sleep(1)
+
+        # Jeśli jakieś procesy nadal działają, użyj SIGKILL
+        for p in procs_to_terminate:
+             if p.poll() is None: # poll() zwraca None, jeśli proces wciąż działa
                 try:
                     p.kill()
-                except psutil.NoSuchProcess:
+                except ProcessLookupError:
                     pass
+
     finally:
         if scan_initiated:
             report_path = os.path.join(config.REPORT_DIR, "report.html")

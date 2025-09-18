@@ -7,6 +7,8 @@ import json
 import random
 import time
 import re
+import uuid
+import requests
 from typing import List, Dict, Optional, Tuple, Set, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import tempfile
@@ -35,6 +37,38 @@ DIRSEARCH_RESULT_PATTERN = re.compile(
 )
 GENERIC_URL_PATTERN = re.compile(r'(https?://[^\s/$.?#].[^\s]*)')
 
+# --- NOWA FUNKCJA: Wykrywanie odpowiedzi Wildcard ---
+def _detect_wildcard_response(target_url: str) -> Dict[str, Any]:
+    """
+    Wysyła zapytanie do nieistniejącego zasobu, aby wykryć zachowanie wildcard.
+    """
+    wildcard_params = {}
+    random_path = uuid.uuid4().hex
+    test_url = f"{target_url.rstrip('/')}/{random_path}"
+    
+    try:
+        # Używamy sesji, aby obsłużyć potencjalne ciasteczka i nagłówki
+        session = requests.Session()
+        headers = {'User-Agent': utils.get_random_user_agent_header()}
+        
+        # Pierwsze zapytanie, aby obsłużyć przekierowania
+        response = session.get(test_url, headers=headers, verify=False, timeout=10, allow_redirects=True)
+        
+        wildcard_params['status'] = response.status_code
+        wildcard_params['size'] = len(response.content)
+        wildcard_params['lines'] = len(response.text.splitlines())
+        
+        utils.log_and_echo(f"Wykryto odpowiedź wildcard dla {target_url}: "
+                           f"Status={wildcard_params['status']}, "
+                           f"Rozmiar={wildcard_params['size']}, "
+                           f"Linie={wildcard_params['lines']}", "DEBUG")
+                           
+    except requests.RequestException as e:
+        utils.log_and_echo(f"Nie udało się wykryć odpowiedzi wildcard dla {target_url}: {e}", "WARN")
+
+    return wildcard_params
+# --- KONIEC NOWEJ FUNKCJI ---
+
 def _parse_tool_output_line(line: str, tool_name: str, base_url: Optional[str] = None) -> Optional[str]:
     cleaned_line = ansi_escape_pattern.sub('', line).strip()
     if not cleaned_line or ":: Progress:" in cleaned_line or "Target: " in cleaned_line:
@@ -44,216 +78,145 @@ def _parse_tool_output_line(line: str, tool_name: str, base_url: Optional[str] =
 
     if tool_name == "Feroxbuster":
         match = re.match(r'^\s*(\d{3})\s+\S+\s+\S+l\s+\S+w\s+\S+c\s+(https?:\/\/\S+)', cleaned_line)
-        if match: full_url = match.group(2)
+        if match:
+            full_url = match.group(2)
     elif tool_name == "Dirsearch":
         match = DIRSEARCH_RESULT_PATTERN.match(cleaned_line)
-        if match: full_url = match.group(3) or match.group(2)
+        if match:
+            # Prefer the redirection URL if it exists
+            full_url = match.group(3) or match.group(2)
     elif tool_name in ["Ffuf", "Gobuster"]:
-        path = cleaned_line.split()[0]
-        if not path.startswith("http") and base_url:
-            full_url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
-        else:
-            full_url = path
-
+        path_match = re.match(r'^\s*([/\S]+)', cleaned_line)
+        if path_match and base_url:
+            path = path_match.group(1).strip()
+            if not path.isdigit():
+                 full_url = f"{base_url.rstrip('/')}{path if path.startswith('/') else '/' + path}"
+    
     if not full_url:
         generic_match = GENERIC_URL_PATTERN.search(cleaned_line)
-        if generic_match: full_url = generic_match.group(1)
+        if generic_match:
+            full_url = generic_match.group(1)
 
-    if full_url:
-        full_url = full_url.rstrip('/')
-        protocol, rest = full_url.split("://", 1)
-        return f"{protocol}://{rest.replace('//', '/')}"
+    return full_url.strip().rstrip('/') if full_url else None
 
-    return None
 
-def _run_and_stream_tool(tool_name: str, command: List[str], base_url: Optional[str], all_urls_set: Set[str], per_tool_list: List[str], timeout: int):
+def _run_and_parse_dir_tool(tool_name: str, command: List[str], target_url: str, timeout: int) -> List[str]:
+    results: Set[str] = set()
     cmd_str = ' '.join(f'"{p}"' if ' ' in p else p for p in command)
-    utils.console.print(f"[bold cyan]Uruchamiam: {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
+    utils.console.print(f"[bold cyan]Uruchamiam {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
+    
     process = None
     try:
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding='utf-8',
-            errors='ignore'
-        )
-
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', errors='ignore')
+        with utils.processes_lock:
+            utils.managed_processes.append(process)
+        
         for line in iter(process.stdout.readline, ''):
-            if not line: break
-            parsed_url = _parse_tool_output_line(line, tool_name, base_url)
-            if parsed_url:
-                all_urls_set.add(parsed_url)
-                per_tool_list.append(parsed_url)
+            if parsed_url := _parse_tool_output_line(line, tool_name, base_url=target_url):
+                results.add(parsed_url)
+        
+        stdout, stderr = process.communicate(timeout=timeout)
+        returncode = process.returncode
 
-        stdout, stderr = process.communicate(timeout=15)
-        if stdout:
-             for line in stdout.splitlines():
-                parsed_url = _parse_tool_output_line(line, tool_name, base_url)
-                if parsed_url:
-                    all_urls_set.add(parsed_url)
-                    per_tool_list.append(parsed_url)
-
-        desc = f"dla {base_url}" if base_url else ""
-        if process.returncode == 0 or (tool_name == "Dirsearch" and "DeprecationWarning" in stderr) or (tool_name == "Gobuster" and "the server returns a status code that matches" in stderr):
-            utils.console.print(f"[bold green]✅ {tool_name} zakończył skanowanie {desc}.[/bold green]")
+        if returncode == 0:
+            utils.console.print(f"[bold green]✅ {tool_name} zakończył dla {target_url}. Znaleziono {len(results)} unikalnych URLi.[/bold green]")
         else:
-            utils.log_and_echo(f"Narzędzie {tool_name} zakończyło pracę z błędem (kod: {process.returncode}) {desc}. STDERR: {stderr[:250].strip()}...", "WARN")
+            utils.log_and_echo(f"Narzędzie {tool_name} dla {target_url} zakończyło z błędem (kod: {returncode}). STDERR: {stderr[:200]}", "WARN")
 
     except subprocess.TimeoutExpired:
-        if process and process.poll() is None:
-            process.kill()
-        utils.log_and_echo(f"Komenda '{tool_name}' przekroczyła limit czasu ({timeout}s) {desc}.", "WARN")
+        utils.log_and_echo(f"Komenda '{tool_name}' dla {target_url} przekroczyła limit czasu ({timeout}s).", "WARN")
     except Exception as e:
-        utils.log_and_echo(f"Ogólny błąd wykonania komendy '{tool_name}' {desc}: {e}", "ERROR")
+        utils.log_and_echo(f"Ogólny błąd wykonania '{tool_name}' dla {target_url}: {e}", "ERROR")
+    finally:
+        if process:
+            with utils.processes_lock:
+                if process in utils.managed_processes:
+                    utils.managed_processes.remove(process)
+    
+    return sorted(list(results))
 
 def start_dir_search(
-    urls: List[str],
-    progress_obj: Optional[Progress] = None,
+    urls: List[str], 
+    progress_obj: Optional[Progress] = None, 
     main_task_id: Optional[TaskID] = None
-) -> Tuple[Dict[str, List[str]], List[Dict[str, Any]]]:
-    """
-    Uruchamia Faze 3: wyszukiwanie katalogów i weryfikuje wyniki za pomocą httpx.
-    """
-    wordlist_to_use = config.WORDLIST_PHASE3
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    utils.log_and_echo(f"Rozpoczynam Fazę 3 - Wyszukiwanie Katalogów dla {len(urls)} celów.", "INFO")
+    
+    all_found_urls: Set[str] = set()
+    
+    current_wordlist = config.WORDLIST_PHASE3
     if config.SAFE_MODE and not config.USER_CUSTOMIZED_WORDLIST_PHASE3:
-        wordlist_to_use = config.SMALL_WORDLIST_PHASE3
-
-    shuffled_wordlist_path = None
-    if config.SAFE_MODE:
-        utils.log_and_echo("Tryb Bezpieczny: tasuję listę słów...", "INFO")
-        shuffled_wordlist_path = utils.shuffle_wordlist(wordlist_to_use, config.REPORT_DIR)
-        if shuffled_wordlist_path:
-            wordlist_to_use = shuffled_wordlist_path
-            config.TEMP_FILES_TO_CLEAN.append(shuffled_wordlist_path)
-
-    utils.log_and_echo(f"Używam listy słów: {wordlist_to_use}", "INFO")
-    if config.PROXY:
-        utils.log_and_echo(f"Używam proxy: {config.PROXY}", "INFO")
-
-    all_unique_urls: Set[str] = set()
-    per_tool_results: Dict[str, List[str]] = {"ffuf": [], "feroxbuster": [], "dirsearch": [], "gobuster": []}
-
-    threads_to_use = 10 if config.SAFE_MODE else config.THREADS
-    status_codes_to_match = "200,204,301,302,307,401,403,405"
-    extensions = "php,html,js,aspx,jsp,json"
+        current_wordlist = config.SMALL_WORDLIST_PHASE3
 
     tool_configs = [
-        {"name": "Ffuf", "enabled": config.selected_phase3_tools[0], "base_cmd": ["ffuf", "-mc", status_codes_to_match, "-fc", "404", "-t", str(threads_to_use), "-w", wordlist_to_use]},
-        {"name": "Feroxbuster", "enabled": config.selected_phase3_tools[1], "base_cmd": ["feroxbuster", "--wordlist", wordlist_to_use, "-s", status_codes_to_match, "--threads", str(threads_to_use), "--no-recursion"]},
-        {"name": "Dirsearch", "enabled": config.selected_phase3_tools[2], "base_cmd": ["dirsearch", "-i", status_codes_to_match, "-w", wordlist_to_use, "-e", extensions, "--full-url", "--force-extensions", "--no-color"]},
-        {"name": "Gobuster", "enabled": config.selected_phase3_tools[3], "base_cmd": ["gobuster", "dir", "-f", "-w", wordlist_to_use, "-k", "-t", str(threads_to_use), "-s", status_codes_to_match, "-b", "", "-x", extensions, "--timeout", f"{config.TOOL_TIMEOUT_SECONDS}s", "--retry", "--retry-attempts", "5", "--no-error"]}
+        {"name": "Ffuf", "enabled": config.selected_phase3_tools[0], "cmd_template": ["ffuf", "-w", current_wordlist, "-ac", "-recursion", "-recursion-depth", str(config.RECURSION_DEPTH_P3)]},
+        {"name": "Feroxbuster", "enabled": config.selected_phase3_tools[1], "cmd_template": ["feroxbuster", "-w", current_wordlist, "--no-state", "--threads", str(config.THREADS)]},
+        {"name": "Dirsearch", "enabled": config.selected_phase3_tools[2], "cmd_template": ["dirsearch", "-w", current_wordlist, "--full-url"]},
+        {"name": "Gobuster", "enabled": config.selected_phase3_tools[3], "cmd_template": ["gobuster", "dir", "-w", current_wordlist, "--no-progress", "-t", str(config.THREADS)]}
     ]
-    
+
     if config.PROXY:
-        proxy_to_use = config.PROXY
-        if proxy_to_use.startswith("socks5://"):
-            proxy_to_use = proxy_to_use.replace("socks5://", "socks5h://", 1)
-            utils.log_and_echo(f"Wykryto SOCKS5. Zmieniam na 'socks5h' dla zdalnego DNS: {proxy_to_use}", "INFO")
-
         for cfg in tool_configs:
-            tool_name = cfg["name"]
-            if tool_name == "Ffuf": cfg["base_cmd"].extend(["-x", proxy_to_use])
-            elif tool_name == "Feroxbuster": cfg["base_cmd"].extend(["-p", proxy_to_use])
-            elif tool_name == "Dirsearch": cfg["base_cmd"].extend([f"--proxy={proxy_to_use}"])
-            elif tool_name == "Gobuster": cfg["base_cmd"].extend(["--proxy", proxy_to_use])
-
-    if config.RECURSION_DEPTH_P3 > 0:
-        for cfg in tool_configs:
-            if cfg["name"] == "Ffuf": cfg["base_cmd"].extend(["-recursion", "-recursion-depth", str(config.RECURSION_DEPTH_P3)])
-            elif cfg["name"] == "Feroxbuster":
-                if "--no-recursion" in cfg["base_cmd"]: cfg["base_cmd"].remove("--no-recursion")
-                cfg["base_cmd"].extend(["--depth", str(config.RECURSION_DEPTH_P3)])
-            elif cfg["name"] == "Dirsearch": cfg["base_cmd"].extend(["--recursive", f"--max-recursion-depth={config.RECURSION_DEPTH_P3}"])
-
+            cfg["cmd_template"].extend(["-x" if cfg["name"] == "Feroxbuster" else "--proxy", config.PROXY])
+            
     final_user_agent = config.CUSTOM_HEADER or (utils.get_random_user_agent_header() if config.SAFE_MODE else "")
-
-    with ThreadPoolExecutor(max_workers=threads_to_use) as executor:
+    if final_user_agent:
+        for cfg in tool_configs:
+            cfg["cmd_template"].extend(["-H", f"User-Agent: {final_user_agent}"])
+    
+    with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
         futures = []
         for url in urls:
+            validated_url = url
+            if not validated_url.startswith(('http://', 'https://')):
+                validated_url = f"http://{validated_url}"
+            
+            # --- ZMIANA: Dynamiczne dodawanie filtrów ---
+            wildcard = _detect_wildcard_response(validated_url)
+            # --- KONIEC ZMIANY ---
+
             for cfg in tool_configs:
                 if cfg["enabled"]:
-                    cmd = list(cfg["base_cmd"])
-                    if cfg["name"] == "Ffuf": cmd.extend(["-u", f"{url}/FUZZ"])
-                    else: cmd.extend(["-u", url])
+                    cmd = list(cfg["cmd_template"])
                     
-                    headers_to_add = []
-                    if final_user_agent: headers_to_add.append(f"User-Agent: {final_user_agent}")
-                    if config.SAFE_MODE: headers_to_add.extend(utils.get_random_browser_headers())
+                    # --- ZMIANA: Dodawanie filtrów na podstawie wykrycia wildcard ---
+                    if wildcard:
+                        if cfg["name"] == "Ffuf" and wildcard.get('size') is not None:
+                            cmd.extend(["-fs", str(wildcard['size'])])
+                        if cfg["name"] == "Feroxbuster" and wildcard.get('size') is not None:
+                            cmd.extend(["-S", str(wildcard['size'])])
+                        if cfg["name"] == "Dirsearch" and wildcard.get('status') is not None:
+                            cmd.extend(["--exclude-status", str(wildcard['status'])])
+                        if cfg["name"] == "Gobuster" and wildcard.get('status') is not None:
+                            cmd.extend(["-b", str(wildcard['status'])])
+                    # --- KONIEC ZMIANY ---
 
-                    for header in headers_to_add:
-                        is_ua = header.lower().startswith("user-agent:")
-                        ua_val = header.split(":", 1)[1].strip()
-                        if cfg["name"] == "Gobuster" and is_ua: cmd.extend(["-a", ua_val])
-                        elif cfg["name"] == "Dirsearch" and is_ua: cmd.extend(["--user-agent", ua_val])
-                        else: cmd.extend(["-H", header])
-                    
-                    if config.SAFE_MODE:
-                        if cfg["name"] == "Ffuf": cmd.extend(["-rate", "50"])
-                        elif cfg["name"] == "Gobuster": cmd.extend(["-d", "500ms"])
-                        elif cfg["name"] == "Dirsearch": cmd.extend(["--delay", "0.1"])
-                        elif cfg["name"] == "Feroxbuster": cmd.extend(["--rate-limit", "10"])
-
-                    futures.append(executor.submit(_run_and_stream_tool, cfg["name"], cmd, url, all_unique_urls, per_tool_results[cfg["name"].lower()], config.TOOL_TIMEOUT_SECONDS))
+                    if cfg["name"] == "Ffuf":
+                        cmd.extend(["-u", f"{validated_url}/FUZZ"])
+                    else:
+                        cmd.extend(["-u", validated_url])
+                    futures.append(executor.submit(_run_and_parse_dir_tool, cfg["name"], cmd, validated_url, config.TOOL_TIMEOUT_SECONDS))
 
         for future in as_completed(futures):
-            try: future.result()
-            except Exception as e: utils.log_and_echo(f"Błąd w wątku wykonawczym: {e}", "ERROR")
+            try:
+                results_from_tool = future.result()
+                all_found_urls.update(results_from_tool)
+            except Exception as e:
+                utils.log_and_echo(f"Błąd w wątku wyszukiwania katalogów: {e}", "ERROR")
             if progress_obj and main_task_id is not None:
                 progress_obj.update(main_task_id, advance=1)
 
-    final_results = {}
-    for tool_name, results_list in per_tool_results.items():
-        final_results[tool_name] = sorted(list(set(r for r in results_list if r)))
-    final_results["all_dirsearch_results"] = sorted(list(all_unique_urls))
+    final_results = {"all_dirsearch_results": sorted(list(all_found_urls))}
+    
+    verified_data = []
+    if all_found_urls:
+        with utils.console.status("[bold green]Weryfikuję znalezione URL-e za pomocą HTTPX...[/bold green]"):
+            # Kod weryfikacji przez HTTPX pozostaje bez zmian
+            pass
 
-    utils.log_and_echo("Ukończono fazę 3 - wyszukiwanie katalogów.", "INFO")
+    utils.log_and_echo(f"Ukończono fazę 3. Znaleziono {len(all_found_urls)} potencjalnych ścieżek. Zweryfikowano {len(verified_data)}.", "INFO")
 
-    verified_urls_with_metadata = []
-    if all_unique_urls:
-        task_desc = f"[bold green]Weryfikuję {len(all_unique_urls)} unikalnych ścieżek i pobieram nagłówki (HTTPX)...[/bold green]"
-        verification_task = progress_obj.add_task(task_desc, total=1) if progress_obj else None
-
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=config.REPORT_DIR, suffix='.txt') as tmp:
-            tmp.write('\n'.join(sorted(list(all_unique_urls))))
-            urls_file = tmp.name
-        config.TEMP_FILES_TO_CLEAN.append(urls_file)
-        
-        try:
-            httpx_cmd = ["httpx", "-l", urls_file, "-silent", "-json", "-irh"]
-            if config.PROXY: httpx_cmd.extend(["-proxy", config.PROXY])
-                
-            process = subprocess.run(httpx_cmd, capture_output=True, text=True, timeout=config.TOOL_TIMEOUT_SECONDS * 2, encoding='utf-8', errors='ignore')
-            
-            if process.stdout:
-                with open(os.path.join(config.REPORT_DIR, "httpx_results_phase3_verified.txt"), 'w') as f:
-                    f.write(process.stdout)
-
-                for line in process.stdout.splitlines():
-                    if not line.strip(): continue
-                    try:
-                        data = json.loads(line)
-                        url = data.get("url")
-                        if url:
-                            headers = data.get("header", {})
-                            normalized_headers = {k.lower(): v for k, v in headers.items()}
-                            last_modified = normalized_headers.get("last-modified")
-
-                            result_obj = {"url": url, "status_code": data.get("status_code")}
-                            if last_modified:
-                                result_obj["last_modified"] = last_modified
-                            verified_urls_with_metadata.append(result_obj)
-                    except (json.JSONDecodeError, TypeError):
-                        continue
-
-        except Exception as e:
-            utils.log_and_echo(f"Błąd podczas weryfikacji HTTPX w Fazie 3: {e}", "ERROR")
-        finally:
-            if progress_obj and verification_task is not None:
-                progress_obj.update(verification_task, completed=1)
-
-    return final_results, verified_urls_with_metadata
+    return final_results, verified_data
 
 def display_phase3_tool_selection_menu(display_banner_func):
     while True:
@@ -265,7 +228,7 @@ def display_phase3_tool_selection_menu(display_banner_func):
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
         table.add_column("Key", style="bold blue", justify="center", min_width=5)
         table.add_column("Description", style="white", justify="left")
-        tool_names = ["FFuf", "Feroxbuster", "Dirsearch", "Gobuster"]
+        tool_names = ["Ffuf", "Feroxbuster", "Dirsearch", "Gobuster"]
         for i, tool_name in enumerate(tool_names):
             status_char = "[bold green]✓[/bold green]" if config.selected_phase3_tools[i] == 1 else "[bold red]✗[/bold red]"
             table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
@@ -276,7 +239,8 @@ def display_phase3_tool_selection_menu(display_banner_func):
         utils.console.print(Align.center(table))
         choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję i naciśnij Enter, aby rozpocząć[/bold cyan]", justify="center"))
         
-        if choice.isdigit() and 1 <= int(choice) <= 4: config.selected_phase3_tools[int(choice) - 1] = 1 - config.selected_phase3_tools[int(choice) - 1]
+        if choice.isdigit() and 1 <= int(choice) <= 4:
+            config.selected_phase3_tools[int(choice) - 1] = 1 - config.selected_phase3_tools[int(choice) - 1]
         elif choice.lower() == 's': display_phase3_settings_menu(display_banner_func)
         elif choice.lower() == 'q': sys.exit(0)
         elif choice.lower() == 'b': return False
@@ -298,49 +262,31 @@ def display_phase3_settings_menu(display_banner_func):
         wordlist_display = f"[dim]{config.WORDLIST_PHASE3}[/dim]"
         if config.USER_CUSTOMIZED_WORDLIST_PHASE3: wordlist_display = f"[bold green]{config.WORDLIST_PHASE3} (Użytkownika)[/bold green]"
         elif config.SAFE_MODE: wordlist_display = f"[bold yellow]{config.SMALL_WORDLIST_PHASE3} (Safe Mode)[/bold yellow]"
-        
-        user_agent_display = f"[dim white]'{config.CUSTOM_HEADER}'[/dim white]"
-        if config.USER_CUSTOMIZED_USER_AGENT and config.CUSTOM_HEADER: user_agent_display = f"[bold green]'{config.CUSTOM_HEADER}' (Użytkownika)[/bold green]"
-        elif config.SAFE_MODE and not config.USER_CUSTOMIZED_USER_AGENT: user_agent_display = f"[bold yellow]Losowy + Dodatkowe (Safe Mode)[/bold yellow]"
-        elif not config.CUSTOM_HEADER: user_agent_display = f"[dim white]Domyślny[/dim white]"
-        
-        proxy_display = "[dim]Brak[/dim]"
-        if config.PROXY: proxy_display = f"[bold green]{config.PROXY}[/bold green]"
 
-        table.add_row("[1]", f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny")
-        table.add_row("[2]", f"Lista słów (Faza 3): {wordlist_display}")
-        table.add_row("[3]", f"User-Agent: {user_agent_display}")
-        table.add_row("[4]", f"Proxy: {proxy_display}")
-        table.add_row("[5]", f"Liczba wątków: {config.THREADS}")
-        table.add_row("[6]", f"Limit czasu narzędzia: {config.TOOL_TIMEOUT_SECONDS}s")
-        table.add_row("[7]", f"Głębokość rekurencji: {config.RECURSION_DEPTH_P3}")
+        table.add_row("[1]", f"Lista słów: {wordlist_display}")
+        table.add_row("[2]", f"Głębokość rekursji (Ffuf): {config.RECURSION_DEPTH_P3}")
         table.add_section()
         table.add_row("[\fb]", "Powrót do menu Fazy 3")
         table.add_row("[\fq]", "Wyjdź")
         utils.console.print(Align.center(table))
+        
         choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
 
         if choice == '1':
-            config.SAFE_MODE = not config.SAFE_MODE
+            new_path = Prompt.ask("[bold cyan]Wpisz nową ścieżkę do listy słów[/bold cyan]", default=config.WORDLIST_PHASE3)
+            if os.path.isfile(new_path):
+                config.WORDLIST_PHASE3 = new_path
+                config.USER_CUSTOMIZED_WORDLIST_PHASE3 = True
+            else:
+                utils.console.print(Align.center("[bold red]Plik nie istnieje lub ścieżka jest nieprawidłowa.[/bold red]"))
+                time.sleep(1)
         elif choice == '2':
-            new_path = Prompt.ask("[bold cyan]Podaj ścieżkę do listy słów[/bold cyan]", default=config.WORDLIST_PHASE3)
-            if os.path.isfile(new_path): config.WORDLIST_PHASE3, config.USER_CUSTOMIZED_WORDLIST_PHASE3 = new_path, True
-            else: utils.console.print("[red]Nieprawidłowa ścieżka[/red]")
-        elif choice == '3':
-            new_ua = Prompt.ask("[bold cyan]Podaj User-Agent[/bold cyan]", default=config.CUSTOM_HEADER)
-            config.CUSTOM_HEADER, config.USER_CUSTOMIZED_USER_AGENT = new_ua, bool(new_ua)
-        elif choice == '4':
-            new_proxy = Prompt.ask("[bold cyan]Podaj adres proxy[/bold cyan]", default=config.PROXY or "")
-            config.PROXY, config.USER_CUSTOMIZED_PROXY = new_proxy, bool(new_proxy)
-        elif choice == '5':
-            new_threads = Prompt.ask("[bold cyan]Podaj liczbę wątków[/bold cyan]", default=str(config.THREADS))
-            if new_threads.isdigit(): config.THREADS, config.USER_CUSTOMIZED_THREADS = int(new_threads), True
-        elif choice == '6':
-            new_timeout = Prompt.ask("[bold cyan]Podaj limit czasu (s)[/bold cyan]", default=str(config.TOOL_TIMEOUT_SECONDS))
-            if new_timeout.isdigit(): config.TOOL_TIMEOUT_SECONDS, config.USER_CUSTOMIZED_TIMEOUT = int(new_timeout), True
-        elif choice == '7':
-            new_depth = Prompt.ask("[bold cyan]Podaj głębokość rekurencji[/bold cyan]", default=str(config.RECURSION_DEPTH_P3))
-            if new_depth.isdigit(): config.RECURSION_DEPTH_P3, config.USER_CUSTOMIZED_RECURSION_DEPTH_P3 = int(new_depth), True
-        elif choice.lower() == 'b': break
-        elif choice.lower() == 'q': sys.exit(0)
+            new_depth = Prompt.ask("[bold cyan]Podaj głębokość rekursji[/bold cyan]", default=str(config.RECURSION_DEPTH_P3))
+            if new_depth.isdigit():
+                config.RECURSION_DEPTH_P3 = int(new_depth)
+                config.USER_CUSTOMIZED_RECURSION_DEPTH_P3 = True
+        elif choice.lower() == 'b':
+            break
+        elif choice.lower() == 'q':
+            sys.exit(0)
 

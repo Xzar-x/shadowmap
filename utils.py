@@ -8,6 +8,7 @@ import time
 import json
 import re
 import tempfile
+import threading
 from typing import Optional, List
 
 from rich.console import Console
@@ -22,6 +23,12 @@ import config
 # Konfiguracja Rich i logowania
 console = Console()
 LOG_COLOR_MAP = {"INFO": "green", "WARN": "yellow", "ERROR": "red", "DEBUG": "blue"}
+
+# --- NOWOŚĆ: Globalne zarządzanie procesami ---
+managed_processes = []
+processes_lock = threading.Lock()
+# --- KONIEC NOWOŚCI ---
+
 
 # Import specyficzny dla systemu operacyjnego
 if sys.platform != "win32":

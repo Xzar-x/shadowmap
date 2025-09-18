@@ -25,7 +25,7 @@ def _run_and_parse_crawl_tool(tool_name: str, command: List[str], target_url: st
     """
     results: Set[str] = set()
     cmd_str = ' '.join(f'"{p}"' if ' ' in p else p for p in command)
-    utils.console.print(f"[bold cyan]Uruchamiam {tool_name} dla {target_url}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
+    utils.console.print(f"[bold cyan]Uruchamiam {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]")
     
     try:
         process = subprocess.run(command, capture_output=True, text=True, timeout=timeout, encoding='utf-8', errors='ignore')
