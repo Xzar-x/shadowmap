@@ -209,7 +209,7 @@
             z-index: 1000; opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
         }
         .copy-notification.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
-        .port-scan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; padding: 10px; margin: 0 auto; max-width: 90%; }
+        .port-scan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px; padding: 10px; margin: 0 auto; max-width: 90%; }
         .port-card {
             background: linear-gradient(135deg, #2a2a3a, #1e1e2e); border: 1px solid #444; border-radius: 8px;
             padding: 15px; transition: all 0.3s ease;
@@ -243,7 +243,7 @@
         <div class="main-tabs">
             <div class="main-tab-button active" onclick="openMainTab(event, 'summary')">Podsumowanie</div>
             <div class="main-tab-button" onclick="openMainTab(event, 'phase1')">Faza 1: Subdomeny</div>
-            <div class="main-tab-button" onclick="openMainTab(event, 'phase2')">Faza 2: Skanowanie Portów</div>
+            <div class="main-tab-button" onclick="openMainTab(event, 'phase2')">Faza 2: Porty</div>
             <div class="main-tab-button" onclick="openMainTab(event, 'phase3')">Faza 3: Katalogi</div>
             <div class="main-tab-button" onclick="openMainTab(event, 'phase4')">Faza 4: Web Crawling</div>
             <div class="main-tab-button" onclick="openMainTab(event, 'all_results')">Wszystkie wyniki</div>
@@ -257,10 +257,6 @@
             <div class="summary-item"><strong>Liczba otwartych portów (Faza 2):</strong> {{COUNT_OPEN_PORTS}}</div>
             <div class="summary-item"><strong>Liczba znalezionych katalogów/plików (Faza 3):</strong> {{COUNT_DIR_SEARCH}}</div>
             <div class="summary-item"><strong>Liczba unikalnych URL-i z crawlera (Faza 4):</strong> {{COUNT_ALL_URLS_P4}}</div>
-            <div class="summary-item"><strong>Liczba znalezionych parametrów:</strong> {{COUNT_PARAMETERS}}</div>
-            <div class="summary-item"><strong>Liczba plików JavaScript:</strong> {{COUNT_JS_FILES}}</div>
-            <div class="summary-item"><strong>Liczba endpointów API:</strong> {{COUNT_API_ENDPOINTS}}</div>
-            <div class="summary-item"><strong>Liczba interesujących ścieżek:</strong> {{COUNT_INTERESTING_PATHS}}</div>
         </div>
 
         <div id="phase1" class="tab-content">
@@ -292,15 +288,19 @@
             <div class="sub-tabs">
                 <div class="sub-tab-button active" onclick="openSubTab(event, 'phase2', 'summary_ports')">Podsumowanie Portów</div>
                 <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'nmap_raw')">Nmap (Surowe)</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'naabu_raw')">Naabu (Surowe)</div>
+                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'masscan_raw')">Masscan (Surowe)</div>
             </div>
             <div id="phase2-summary_ports" class="sub-tab-content active">
-                <h3>Wizualne podsumowanie otwartych portów</h3>
+                <h3>Wizualne podsumowanie otwartych portów (Wyniki Nmap)</h3>
                 <div id="port-scan-results" class="port-scan-grid"></div>
             </div>
             <div id="phase2-nmap_raw" class="sub-tab-content">
                 <h3>Surowe wyniki Nmap</h3>
                 <div id="nmap-raw-output"></div>
             </div>
+            <div id="phase2-naabu_raw" class="sub-tab-content"><h3>Surowe wyniki Naabu</h3><pre class="output" id="naabu-raw-output">Brak danych</pre></div>
+            <div id="phase2-masscan_raw" class="sub-tab-content"><h3>Surowe wyniki Masscan</h3><pre class="output" id="masscan-raw-output">Brak danych</pre></div>
         </div>
         
         <div id="phase3" class="tab-content">
@@ -358,11 +358,12 @@
 
     <script>
         // --- Globalne dane ---
-        const httpxDataP1 = "{{HTTPX_OUTPUT_JSON_P1}}";
-        const httpxDataP3 = "{{HTTPX_OUTPUT_JSON_P3}}";
-        const naabuResults = "{{NAABU_RESULTS_JSON}}";
-        const nmapRawResults = "{{NMAP_RESULTS_RAW_JSON}}";
-        
+        const httpxDataP1 = {{HTTPX_OUTPUT_JSON_P1}};
+        const httpxDataP3 = {{HTTPX_OUTPUT_JSON_P3}};
+        const nmapRawResults = {{NMAP_RESULTS_RAW_JSON}};
+        const naabuRawOutput = `{{NAABU_RAW_OUTPUT}}`;
+        const masscanRawOutput = `{{MASSCAN_RAW_OUTPUT}}`;
+
         function copyToClipboard(text) {
             const notification = document.getElementById('copy-notification');
             if (!text || !notification) return;
@@ -466,40 +467,35 @@
             });
         }
         
-        function renderPortScanResults(naabuData, nmapData) {
+        function renderPortScanResults(nmapData) {
             const container = document.getElementById('port-scan-results');
             if (!container) return;
             container.innerHTML = '';
             
-            let parsedNaabu, parsedNmap;
+            let parsedNmap;
             try {
-                parsedNaabu = typeof naabuData === 'string' ? JSON.parse(naabuData) : naabuData;
                 parsedNmap = typeof nmapData === 'string' ? JSON.parse(nmapData) : nmapData;
             } catch (e) {
-                container.innerHTML = '<p style="text-align: center;">Błąd parsowania danych portów.</p>';
+                container.innerHTML = '<p style="text-align: center;">Błąd parsowania danych Nmap.</p>';
                 return;
             }
 
-            const allHosts = new Set([...Object.keys(parsedNaabu), ...Object.keys(parsedNmap)]);
-            if (allHosts.size === 0) {
-                container.innerHTML = '<p style="text-align: center;">Brak znalezionych otwartych portów.</p>';
+            if (Object.keys(parsedNmap).length === 0) {
+                container.innerHTML = '<p style="text-align: center;">Brak wyników skanowania portów.</p>';
                 return;
             }
 
-            allHosts.forEach(host => {
+            for (const host in parsedNmap) {
                 const card = document.createElement('div');
                 card.className = 'port-card';
                 let listItems = '';
 
-                const openPorts = new Set(parsedNaabu[host] || []);
-                
                 (parsedNmap[host] || "").split('\n').forEach(line => {
                     const match = line.match(/^(\d+)\/tcp\s+(open|filtered|closed)\s+(.*)/);
                     if (match) {
                         const port = parseInt(match[1]);
                         const status = match[2];
                         const service = match[3].trim();
-                        openPorts.add(port); // Add nmap found ports too
                         
                         listItems += `
                             <li class="port-list-item">
@@ -511,21 +507,20 @@
                     }
                 });
 
-                if (listItems === '') {
-                    (parsedNaabu[host] || []).forEach(port => {
-                         listItems += `
-                            <li class="port-list-item">
-                                <span class="port-number">${port}/tcp</span>
-                                <span class="port-status open">open</span>
-                            </li>`;
-                    });
+                if (listItems) {
+                    card.innerHTML = `<h4>${host}</h4><ul class="port-list">${listItems}</ul>`;
+                    container.appendChild(card);
                 }
-
-                card.innerHTML = `<h4>${host}</h4><ul class="port-list">${listItems}</ul>`;
-                container.appendChild(card);
-            });
+            }
         }
 
+        function renderRawText(data, elementId) {
+            const element = document.getElementById(elementId);
+            if (element && data && data.trim() !== 'Brak danych') {
+                element.textContent = data;
+            }
+        }
+        
         function renderNmapRawResults(nmapData) {
             const container = document.getElementById('nmap-raw-output');
             if (!container) return;
@@ -550,7 +545,6 @@
             }
         }
 
-
         function openMainTab(evt, tabName) {
             Array.from(document.getElementsByClassName("tab-content")).forEach(t => t.style.display = "none");
             Array.from(document.getElementsByClassName("main-tab-button")).forEach(b => b.classList.remove("active"));
@@ -569,8 +563,10 @@
         document.addEventListener('DOMContentLoaded', () => {
             renderResults(httpxDataP1, 'httpx-results', false);
             renderResults(httpxDataP3, 'verified-httpx-results', false);
-            renderPortScanResults(naabuResults, nmapRawResults);
+            renderPortScanResults(nmapRawResults);
             renderNmapRawResults(nmapRawResults);
+            renderRawText(naabuRawOutput, 'naabu-raw-output');
+            renderRawText(masscanRawOutput, 'masscan-raw-output');
             
             document.querySelector('.main-tab-button').click();
             const firstActiveSubTab = document.querySelector('.tab-content.active .sub-tab-button');

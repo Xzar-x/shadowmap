@@ -37,6 +37,8 @@ except ImportError as e:
     print(f"BŁĄD: Nie można zaimportować modułów z {SHARE_DIR}. Uruchom install.py. Błąd: {e}", file=sys.stderr)
     sys.exit(1)
 
+app = typer.Typer(add_completion=False, help="ShadowMap: Zautomatyzowany zestaw narzędzi do rekonesansu.\n\nPrzykłady użycia:\n- shadowmap example.com\n- shadowmap -l targets.txt -o /path/to/reports\n- shadowmap 192.168.1.1 --quiet")
+
 def display_banner():
     f = Figlet(font='slant')
     banner_text = f.renderText('ShadowMap')
@@ -73,9 +75,9 @@ def display_main_menu():
     table.add_row("[3]", "Faza 3: Wyszukiwanie Katalogów")
     table.add_row("[4]", "Faza 4: Web Crawling")
     table.add_section()
-    table.add_row("[\fq]", "Wyjdź")
+    table.add_row("[\fq]", "Zapisz raport i Wyjdź")
     utils.console.print(Align.center(table))
-    return utils.get_single_char_input_with_prompt(Text.from_markup("\n[bold cyan]Wybierz fazę, od której chcesz zacząć[/bold cyan]", justify="center"))
+    return utils.get_single_char_input_with_prompt(Text.from_markup("\n[bold cyan]Wybierz fazę do uruchomienia[/bold cyan]", justify="center"))
 
 def parse_target_input(target_input: str):
     config.ORIGINAL_TARGET = target_input
@@ -118,28 +120,17 @@ def detect_waf_and_propose_safe_mode():
                 f"[bold red]Wykryto WAF:[/bold red] [bold blue]{waf_name}[/bold blue]",
                 justify="center"
             )
-            panel = Panel(
-                waf_detect_text,
-                title="[yellow]Wynik Detekcji[/yellow]",
-                expand=False,
-                border_style="yellow"
-            )
+            panel = Panel(waf_detect_text, title="[yellow]Wynik Detekcji[/yellow]", expand=False, border_style="yellow")
             utils.console.print(Align.center(panel))
 
             if utils.ask_user_decision("Czy włączyć Tryb Bezpieczny?", ["y", "n"], "y") == 'y':
                 config.SAFE_MODE = True
-                if not config.USER_CUSTOMIZED_PROXY:
-                    config.PROXY = "socks5://127.0.0.1:9050"
+                if not config.USER_CUSTOMIZED_PROXY: config.PROXY = "socks5://127.0.0.1:9050"
                 safe_mode_panel = Panel(Text("Tryb Bezpieczny WŁĄCZONY.", justify="center", style="bold green"), expand=False)
                 utils.console.print(Align.center(safe_mode_panel))
         else:
             no_waf_text = Text("Nie wykryto WAF.", justify="center")
-            panel = Panel(
-                no_waf_text, 
-                title="[green]Wynik Detekcji[/green]", 
-                expand=False, 
-                border_style="green"
-            )
+            panel = Panel(no_waf_text, title="[green]Wynik Detekcji[/green]", expand=False, border_style="green")
             utils.console.print(Align.center(panel))
 
     except Exception as e:
@@ -152,16 +143,8 @@ def open_html_report(report_path: str):
         try: subprocess.run(["xdg-open", report_path], check=False)
         except FileNotFoundError: utils.console.print("[yellow]xdg-open nie znaleziono. Otwórz raport ręcznie.[/yellow]")
 
-def generate_html_report(
-    p1_files: Dict, 
-    active_urls_data: List[Dict[str, Any]], 
-    p2_results: Dict, 
-    p3_results: Dict, 
-    p3_verified_data: List[Dict[str, Any]], 
-    p4_raw_results: Dict
-):
+def generate_html_report(p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results):
     utils.console.print(Align.center("[bold blue]Generowanie raportu HTML...[/bold blue]"))
-    
     def read_file_content(path: Optional[str]) -> str:
         if path and os.path.exists(path):
             try:
@@ -178,40 +161,24 @@ def generate_html_report(
         utils.console.print(f"[bold red]BŁĄD: Nie znaleziono szablonu raportu: {config.HTML_TEMPLATE_PATH}[/bold red]")
         return
     
-    # Przetwarzanie danych Fazy 1
     subfinder_raw = read_file_content(p1_files.get("Subfinder"))
     assetfinder_raw = read_file_content(p1_files.get("Assetfinder"))
     findomain_raw = read_file_content(p1_files.get("Findomain"))
     puredns_raw = read_file_content(p1_files.get("Puredns"))
-
-    all_subdomains_list = sorted(list(set(
-        subfinder_raw.splitlines() + 
-        assetfinder_raw.splitlines() +
-        findomain_raw.splitlines() + 
-        puredns_raw.splitlines()
-    ))) if p1_files else [] # FIX: Initialize as empty if P1 was skipped
+    all_subdomains_list = sorted(list(set((subfinder_raw + assetfinder_raw + findomain_raw + puredns_raw).splitlines()))) if p1_files else []
     all_subdomains_raw = "\n".join(filter(None, all_subdomains_list))
 
-    # Przetwarzanie danych Fazy 2
     naabu_raw = read_file_content(p2_results.get("naabu_file"))
-    
-    # FIX: Correctly count open ports from the structured data
+    masscan_raw = read_file_content(p2_results.get("masscan_file"))
     total_open_ports = sum(len(ports) for ports in p2_results.get("open_ports_by_host", {}).values())
-    
-    nmap_raw_outputs = {}
-    for target, nmap_file in p2_results.get("nmap_files", {}).items():
-        nmap_raw_outputs[target] = read_file_content(nmap_file)
+    nmap_raw_outputs = {target: read_file_content(nmap_file) for target, nmap_file in p2_results.get("nmap_files", {}).items()}
 
-    # Przetwarzanie danych Fazy 3
     dirsearch_all_raw = "\n".join(p3_results.get("all_dirsearch_results", []))
-    
-    # Przetwarzanie danych Fazy 4
-    p4_all_urls = "\n".join(p4_raw_results.get("all_urls", []))
-    p4_params = "\n".join(p4_raw_results.get("parameters", []))
-    p4_js = "\n".join(p4_raw_results.get("js_files", []))
-    p4_api = "\n".join(p4_raw_results.get("api_endpoints", []))
-    p4_interesting = "\n".join(p4_raw_results.get("interesting_paths", []))
-
+    p4_all_urls = "\n".join(p4_results.get("all_urls", []))
+    p4_params = "\n".join(p4_results.get("parameters", []))
+    p4_js = "\n".join(p4_results.get("js_files", []))
+    p4_api = "\n".join(p4_results.get("api_endpoints", []))
+    p4_interesting = "\n".join(p4_results.get("interesting_paths", []))
     all_urls_combined = "\n".join(sorted(list(set(dirsearch_all_raw.splitlines() + p4_all_urls.splitlines()))))
 
     replacements = {
@@ -225,12 +192,11 @@ def generate_html_report(
         "{{COUNT_JS_FILES}}": str(len(p4_js.splitlines())),
         "{{COUNT_API_ENDPOINTS}}": str(len(p4_api.splitlines())),
         "{{COUNT_INTERESTING_PATHS}}": str(len(p4_interesting.splitlines())),
-        
-        "{{HTTPX_OUTPUT_JSON_P1}}": json.dumps(active_urls_data),
-        "{{HTTPX_OUTPUT_JSON_P3}}": json.dumps(p3_verified_data),
-        "{{NAABU_RESULTS_JSON}}": json.dumps(p2_results.get("open_ports_by_host", {})),
+        "{{HTTPX_OUTPUT_JSON_P1}}": json.dumps(active_urls_data, indent=4),
+        "{{HTTPX_OUTPUT_JSON_P3}}": json.dumps(p3_verified_data, indent=4),
         "{{NMAP_RESULTS_RAW_JSON}}": json.dumps(nmap_raw_outputs),
-
+        "{{NAABU_RAW_OUTPUT}}": naabu_raw.replace('`', '\\`'),
+        "{{MASSCAN_RAW_OUTPUT}}": masscan_raw.replace('`', '\\`'),
         "{{SUBFINDER_OUTPUT}}": subfinder_raw,
         "{{ASSETFINDER_OUTPUT}}": assetfinder_raw,
         "{{FINDOMAIN_OUTPUT}}": findomain_raw,
@@ -245,19 +211,12 @@ def generate_html_report(
         "{{ALL_URLS_COMBINED_OUTPUT}}": all_urls_combined,
         "{{COUNT_ALL_URLS_COMBINED}}": str(len(all_urls_combined.splitlines()))
     }
-
+    
     for placeholder, value in replacements.items():
-        if isinstance(value, str):
-            template = template.replace(placeholder, value if value and value.strip() and "Brak danych" not in value else "Brak danych")
-        else: # For JSON data
-            template = template.replace(f'"{placeholder}"', json.dumps(value)) # Handles script tags
-            template = template.replace(placeholder, json.dumps(value)) # Fallback for other cases
-
+        template = template.replace(placeholder, str(value))
 
     report_path = os.path.join(config.REPORT_DIR, "report.html")
-    with open(report_path, 'w', encoding='utf-8') as f:
-        f.write(template)
-    
+    with open(report_path, 'w', encoding='utf-8') as f: f.write(template)
     utils.console.print(f"[bold green]✓ Raport HTML wygenerowany: {report_path}[/bold green]")
 
 
@@ -269,152 +228,210 @@ def cleanup_temp_files():
         except OSError as e:
             utils.log_and_echo(f"Nie można usunąć pliku '{f_path}': {e}", "WARN")
 
-@typer.run
+def run_quiet_mode_scan(no_report: bool):
+    """Uruchamia pełne skanowanie w trybie cichym."""
+    p1_files, active_urls_data, all_subdomains = {}, [], []
+    p2_results, p3_results, p4_results = {}, {}, {}
+    p3_verified_data = []
+
+    utils.console.rule("[bold cyan]Faza 1: Odkrywanie Subdomen[/bold cyan]")
+    config.selected_phase1_tools = [1,1,1,1] if not config.TARGET_IS_IP else [0,0,0,1]
+    p1_files, active_urls_data, all_subdomains = phase1_subdomain.start_phase1_scan()
+    if config.EXCLUSION_PATTERNS:
+        all_subdomains = utils.apply_exclusions(all_subdomains, config.EXCLUSION_PATTERNS)
+        active_urls_data = [item for item in active_urls_data if not any(utils.apply_exclusions([item['url']], config.EXCLUSION_PATTERNS))]
+
+    utils.console.rule("[bold cyan]Faza 2: Skanowanie Portów[/bold cyan]")
+    config.selected_phase2_tools = [1,1,1]
+    targets_for_p2 = all_subdomains if all_subdomains else [config.CLEAN_DOMAIN_TARGET]
+    p2_results = phase2_port_scanning.start_port_scan(targets_for_p2, None, None)
+
+    utils.console.rule("[bold cyan]Faza 3: Wyszukiwanie Katalogów[/bold cyan]")
+    config.selected_phase3_tools = [1,1,1,1]
+    targets_for_p3 = [item['url'] for item in active_urls_data] if active_urls_data else [config.ORIGINAL_TARGET]
+    p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(targets_for_p3, None, None)
+    
+    utils.console.rule("[bold cyan]Faza 4: Web Crawling[/bold cyan]")
+    config.selected_phase4_tools = [1,1,1,1,1]
+    urls_from_p1 = [item['url'] for item in active_urls_data]
+    urls_from_p3 = [item['url'] for item in p3_verified_data]
+    targets_for_p4 = sorted(list(set(urls_from_p1 + urls_from_p3)))
+    if not targets_for_p4: targets_for_p4 = [config.ORIGINAL_TARGET]
+    p4_results = phase4_webcrawling.start_web_crawl(targets_for_p4, None, None)
+
+    if not no_report:
+        generate_html_report(p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
+
+
+@app.command(context_settings={"help_option_names": ["-h", "--help"]})
 def main(
-    target: str = typer.Argument(..., help="Domena lub adres IP do skanowania."),
+    target: Optional[str] = typer.Argument(None, help="Domena lub adres IP do skanowania."),
+    target_list: Optional[Path] = typer.Option(None, "--list", "-l", help="Plik zawierający listę celów do skanowania."),
+    exclude: Optional[List[str]] = typer.Option(None, "--exclude", "-e", help="Wyklucz subdomeny (np. admin.example.com,*.internal.com)."),
+    exclude_file: Optional[Path] = typer.Option(None, "--exclude-file", "-ef", help="Plik zawierający listę subdomen do wykluczenia."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Uruchamia skanowanie w trybie cichym (nieinteraktywnym)."),
     output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Katalog wyjściowy dla raportu."),
     assume_yes: bool = typer.Option(False, "--yes", "-y", help="Automatycznie akceptuje wszystkie interaktywne monity."),
     no_report: bool = typer.Option(False, "--no-report", help="Pomija generowanie raportu HTML."),
-    log_file: Optional[Path] = typer.Option(None, "--log-file", "-l", help="Zapisuje logi do pliku."),
+    log_file: Optional[Path] = typer.Option(None, "--log-file", help="Zapisuje logi do pliku."),
     proxy: Optional[str] = typer.Option(None, "--proxy", help="Adres URL proxy (np. http://127.0.0.1:8080)."),
     use_tor: bool = typer.Option(False, "--tor", help="Użyj Tor jako proxy dla Faz 3 i 4.")
 ):
-    scan_initiated = False
-    p1_files, all_subdomains = {}, []
-    active_urls_data: List[Dict[str, Any]] = []
-    p2_results, p3_results, p4_results = {}, {}, {}
-    p3_verified_data: List[Dict[str, Any]] = []
     
-    phase1_completed = False
-    phase2_completed = False
-    phase3_completed = False
+    config.QUIET_MODE = quiet or assume_yes
+    if log_file:
+        config.LOG_FILE = str(log_file)
+        logging.basicConfig(filename=config.LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    if output_dir: config.OUTPUT_BASE_DIR = str(output_dir)
+    if use_tor: config.PROXY = "socks5://127.0.0.1:9050"
+    if proxy: config.PROXY = proxy
+
+    targets_to_scan = []
+    if target_list and target_list.is_file():
+        with open(target_list, 'r') as f:
+            targets_to_scan.extend(line.strip() for line in f if line.strip())
+        config.QUIET_MODE = True 
+    elif target:
+        targets_to_scan.append(target)
     
-    try:
-        config.QUIET_MODE = quiet or assume_yes
-        if log_file:
-            config.LOG_FILE = str(log_file)
-            logging.basicConfig(filename=config.LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-        if output_dir: config.OUTPUT_BASE_DIR = str(output_dir)
-        parse_target_input(target)
-        if use_tor: config.PROXY = "socks5://127.0.0.1:9050"
-        if proxy: config.PROXY = proxy
+    if not targets_to_scan:
+        utils.console.print("[bold red]Błąd: Musisz podać pojedynczy cel lub listę celów za pomocą flagi -l.[/bold red]")
+        raise typer.Exit()
 
-        if config.QUIET_MODE:
-            config.selected_phase1_tools = [1,1,1,1] if not config.TARGET_IS_IP else [0,0,0,1]
-            config.selected_phase2_tools = [1,1]
-            config.selected_phase3_tools = [1,1,1,1]
-            config.selected_phase4_tools = [1,1,1,1,1]
-            start_phase = 1
-        else:
-            choice = display_main_menu()
-            start_phase = int(choice) if choice.isdigit() else 0
+    exclusions = []
+    if exclude_file and exclude_file.is_file():
+        with open(exclude_file, 'r') as f:
+            exclusions.extend(line.strip() for line in f if line.strip())
+    if exclude:
+        exclusions.extend(exclude)
+    config.EXCLUSION_PATTERNS = list(set(exclusions))
+    if config.EXCLUSION_PATTERNS:
+        utils.console.print(f"[bold yellow]Aktywne filtry wykluczeń: {', '.join(config.EXCLUSION_PATTERNS)}[/bold yellow]")
 
-        if not start_phase: return
-
-        scan_initiated = True
-        config.REPORT_DIR = os.path.join(config.OUTPUT_BASE_DIR, f"report_{config.HOSTNAME_TARGET}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
-        os.makedirs(config.REPORT_DIR, exist_ok=True)
-        utils.console.print(Align.center(f"[green]Katalog raportu: {config.REPORT_DIR}[/green]"))
-
-        if not config.QUIET_MODE:
-            detect_waf_and_propose_safe_mode()
-
-        # --- FAZA 1 ---
-        if start_phase <= 1:
-            if config.QUIET_MODE or phase1_subdomain.display_phase1_tool_selection_menu(display_banner):
-                p1_files, active_urls_data, all_subdomains = phase1_subdomain.start_phase1_scan()
-                phase1_completed = True
-            else:
-                return
-
-        # --- FAZA 2 ---
-        if start_phase <= 2:
-            if not config.QUIET_MODE and phase1_completed:
-                if utils.ask_user_decision("Czy chcesz kontynuować do Fazy 2 (Skanowanie Portów)?", ["y", "n"], "y") == 'n':
-                    return
-            
-            targets_for_p2 = all_subdomains if all_subdomains else [config.CLEAN_DOMAIN_TARGET]
-            if not targets_for_p2: targets_for_p2 = [config.HOSTNAME_TARGET]
-
-            if not config.QUIET_MODE:
-                critical_subdomains = utils.filter_critical_urls(targets_for_p2)
-                if critical_subdomains and len(critical_subdomains) < len(targets_for_p2):
-                    urls_to_scan_p2 = ask_scan_scope(targets_for_p2, critical_subdomains, "Fazie 2")
-                    if not urls_to_scan_p2: return
-                else:
-                    urls_to_scan_p2 = targets_for_p2
-            else:
-                 urls_to_scan_p2 = targets_for_p2
-
-            if config.QUIET_MODE or phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
-                p2_results = phase2_port_scanning.start_port_scan(urls_to_scan_p2, None, None)
-                phase2_completed = True
-            else:
-                return
+    for current_target in targets_to_scan:
+        utils.console.rule(f"[bold cyan]Przetwarzanie celu: {current_target}[/bold cyan]")
+        scan_initiated = False
+        p1_files, all_subdomains = {}, []
+        active_urls_data: List[Dict[str, Any]] = []
+        p2_results, p3_results, p4_results = {}, {}, {}
+        p3_verified_data: List[Dict[str, Any]] = []
         
-        # --- FAZA 3 ---
-        if start_phase <= 3:
-            if not config.QUIET_MODE and phase2_completed:
-                if utils.ask_user_decision("Czy chcesz kontynuować do Fazy 3 (Wyszukiwanie Katalogów)?", ["y", "n"], "y") == 'n':
-                    return
+        try:
+            parse_target_input(current_target)
+            report_dir_name = f"report_{config.HOSTNAME_TARGET.replace('/', '_')}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            config.REPORT_DIR = os.path.join(config.OUTPUT_BASE_DIR, report_dir_name)
+            os.makedirs(config.REPORT_DIR, exist_ok=True)
+            utils.console.print(Align.center(f"[green]Katalog raportu: {config.REPORT_DIR}[/green]"))
+            scan_initiated = True
 
-            targets_for_p3 = [item['url'] for item in active_urls_data] if active_urls_data else [config.ORIGINAL_TARGET]
-            if not config.QUIET_MODE:
-                critical_urls = utils.filter_critical_urls(targets_for_p3)
-                if critical_urls and len(critical_urls) < len(targets_for_p3):
-                    urls_to_scan_p3 = ask_scan_scope(targets_for_p3, critical_urls, "Fazie 3")
-                    if not urls_to_scan_p3: return
-                else:
-                    urls_to_scan_p3 = targets_for_p3
-            else:
-                urls_to_scan_p3 = targets_for_p3
-            
-            if config.QUIET_MODE or phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
-                p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(urls_to_scan_p3, None, None)
-                phase3_completed = True
-            else:
-                return
-
-        # --- FAZA 4 ---
-        if start_phase <= 4:
-            if not config.QUIET_MODE and phase3_completed:
-                if utils.ask_user_decision("Czy chcesz kontynuować do Fazy 4 (Web Crawling)?", ["y", "n"], "y") == 'n':
-                    return
-
-            urls_from_p1 = [item['url'] for item in active_urls_data]
-            urls_from_p3 = [item['url'] for item in p3_verified_data]
-            targets_for_p4 = sorted(list(set(urls_from_p1 + urls_from_p3)))
-            if not targets_for_p4: targets_for_p4 = [config.ORIGINAL_TARGET]
+            if config.QUIET_MODE:
+                run_quiet_mode_scan(no_report)
+                continue
 
             if not config.QUIET_MODE:
-                critical_urls_p4 = utils.filter_critical_urls(targets_for_p4)
-                if critical_urls_p4 and len(critical_urls_p4) < len(targets_for_p4):
-                    urls_to_scan_p4 = ask_scan_scope(targets_for_p4, critical_urls_p4, "Fazie 4")
-                    if not urls_to_scan_p4: return
-                else:
-                    urls_to_scan_p4 = targets_for_p4
-            else:
-                urls_to_scan_p4 = targets_for_p4
+                detect_waf_and_propose_safe_mode()
             
-            if config.QUIET_MODE or phase4_webcrawling.display_phase4_tool_selection_menu(display_banner):
-                p4_results = phase4_webcrawling.start_web_crawl(urls_to_scan_p4, None, None)
-            else:
-                return
+            # --- Główna pętla menu ---
+            while True:
+                choice = display_main_menu()
+                
+                if choice == '1':
+                    if phase1_subdomain.display_phase1_tool_selection_menu(display_banner):
+                        p1_files, active_urls_data, all_subdomains = phase1_subdomain.start_phase1_scan()
+                        if config.EXCLUSION_PATTERNS:
+                            all_subdomains = utils.apply_exclusions(all_subdomains, config.EXCLUSION_PATTERNS)
+                            active_urls_data = [item for item in active_urls_data if not any(utils.apply_exclusions([item['url']], config.EXCLUSION_PATTERNS))]
+                        if utils.ask_user_decision("Zakończono Fazę 1. Kontynuować do Fazy 2?", ["y", "n"], "y") == 'y':
+                           choice = '2'
+                        else:
+                            continue
+                    else: 
+                        continue
 
-    except KeyboardInterrupt:
-        utils.console.print("\n[yellow]Przerwano przez użytkownika.[/yellow]")
-    finally:
-        if scan_initiated:
-            if not no_report:
-                generate_html_report(p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
-            
-            report_path = os.path.join(config.REPORT_DIR, "report.html")
-            if os.path.exists(report_path) and not config.QUIET_MODE:
-                if utils.ask_user_decision("Otworzyć raport HTML?", ["y","n"], "y") == 'y':
-                    open_html_report(report_path)
-            cleanup_temp_files()
+                if choice == '2':
+                    targets_for_p2 = all_subdomains if all_subdomains else [config.CLEAN_DOMAIN_TARGET]
+                    if not config.QUIET_MODE and all_subdomains:
+                        critical_subdomains = utils.filter_critical_urls(targets_for_p2)
+                        if critical_subdomains and len(critical_subdomains) < len(targets_for_p2):
+                            urls_to_scan_p2 = ask_scan_scope(targets_for_p2, critical_subdomains, "Fazie 2")
+                        else:
+                            urls_to_scan_p2 = targets_for_p2
+                    else:
+                        urls_to_scan_p2 = targets_for_p2
+                    
+                    if not urls_to_scan_p2: continue
+
+                    if phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
+                        p2_results = phase2_port_scanning.start_port_scan(urls_to_scan_p2, None, None)
+                        if utils.ask_user_decision("Zakończono Fazę 2. Kontynuować do Fazy 3?", ["y", "n"], "y") == 'y':
+                            choice = '3'
+                        else:
+                            continue
+                    else:
+                        continue
+                
+                if choice == '3':
+                    targets_for_p3 = [item['url'] for item in active_urls_data] if active_urls_data else [config.ORIGINAL_TARGET]
+                    if not config.QUIET_MODE and active_urls_data:
+                        critical_urls = utils.filter_critical_urls(targets_for_p3)
+                        if critical_urls and len(critical_urls) < len(targets_for_p3):
+                            urls_to_scan_p3 = ask_scan_scope(targets_for_p3, critical_urls, "Fazie 3")
+                        else:
+                             urls_to_scan_p3 = targets_for_p3
+                    else:
+                        urls_to_scan_p3 = targets_for_p3
+                    
+                    if not urls_to_scan_p3: continue
+                    
+                    if phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
+                        p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(urls_to_scan_p3, None, None)
+                        if utils.ask_user_decision("Zakończono Fazę 3. Kontynuować do Fazy 4?", ["y", "n"], "y") == 'y':
+                            choice = '4'
+                        else:
+                            continue
+                    else:
+                        continue
+
+                if choice == '4':
+                    urls_from_p1 = [item['url'] for item in active_urls_data]
+                    urls_from_p3 = [item['url'] for item in p3_verified_data]
+                    targets_for_p4 = sorted(list(set(urls_from_p1 + urls_from_p3)))
+                    if not targets_for_p4: targets_for_p4 = [config.ORIGINAL_TARGET]
+
+                    if not config.QUIET_MODE:
+                        critical_urls_p4 = utils.filter_critical_urls(targets_for_p4)
+                        if critical_urls_p4 and len(critical_urls_p4) < len(targets_for_p4):
+                             urls_to_scan_p4 = ask_scan_scope(targets_for_p4, critical_urls_p4, "Fazie 4")
+                        else:
+                             urls_to_scan_p4 = targets_for_p4
+                    else:
+                        urls_to_scan_p4 = targets_for_p4
+                    
+                    if not urls_to_scan_p4: continue
+                    
+                    if phase4_webcrawling.display_phase4_tool_selection_menu(display_banner):
+                        p4_results = phase4_webcrawling.start_web_crawl(urls_to_scan_p4, None, None)
+                        utils.ask_user_decision("Zakończono Fazę 4 (ostatnia). Wrócić do menu?", ["y"], "y")
+                        continue
+                    else:
+                        continue
+
+                if choice.lower() == 'q':
+                    if not no_report:
+                        generate_html_report(p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
+                    break 
+
+        except KeyboardInterrupt:
+            utils.console.print("\n[yellow]Przerwano przez użytkownika.[/yellow]")
+            break
+        finally:
+            if scan_initiated:
+                report_path = os.path.join(config.REPORT_DIR, "report.html")
+                if os.path.exists(report_path) and not config.QUIET_MODE and not no_report:
+                    if utils.ask_user_decision("Otworzyć raport HTML?", ["y","n"], "y") == 'y':
+                        open_html_report(report_path)
+                cleanup_temp_files()
 
 if __name__ == "__main__":
-    typer.run(main)
+    app()
 

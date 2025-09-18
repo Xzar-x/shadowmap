@@ -25,8 +25,9 @@ TEMP_FILES_TO_CLEAN: List[str] = []
 SAFE_MODE: bool = False
 CUSTOM_HEADER: str = ""
 PROXY: Optional[str] = None
+EXCLUSION_PATTERNS: List[str] = []
 
-# --- Stan celu ---
+# --- Stan celu (będzie nadpisywany w pętli dla wielu celów) ---
 ORIGINAL_TARGET: str = ""
 HOSTNAME_TARGET: str = ""
 CLEAN_DOMAIN_TARGET: str = ""
@@ -46,10 +47,12 @@ RESOLVERS_FILE: str = DEFAULT_RESOLVERS_FILE
 NMAP_USE_SCRIPTS: bool = False
 NMAP_AGGRESSIVE_SCAN: bool = False
 NAABU_SOURCE_PORT: Optional[str] = None
+MASSCAN_RATE: int = 300 
+NMAP_SOLO_SCAN_MODE: str = "default" # 'default', 'full', 'fast'
 
 # --- Wybrane narzędzia ---
 selected_phase1_tools: List[int] = [0, 0, 0, 0] # Subfinder, Assetfinder, Findomain, Puredns
-selected_phase2_tools: List[int] = [0, 0] # Nmap, Naabu
+selected_phase2_tools: List[int] = [0, 0, 0] # Nmap, Naabu, Masscan
 selected_phase3_tools: List[int] = [0, 0, 0, 0] # Ffuf, Feroxbuster, Dirsearch, Gobuster
 selected_phase4_tools: List[int] = [0, 0, 0, 0, 0] # Katana, Hakrawler, ParamSpider, LinkFinder, gauplus
 
@@ -65,3 +68,5 @@ USER_CUSTOMIZED_RESOLVERS: bool = False
 USER_CUSTOMIZED_PROXY: bool = False
 USER_CUSTOMIZED_AUTO_FORM_FILL: bool = False
 USER_CUSTOMIZED_NAABU_SOURCE_PORT: bool = False
+USER_CUSTOMIZED_MASSCAN_RATE: bool = False
+

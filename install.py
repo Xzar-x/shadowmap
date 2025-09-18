@@ -31,7 +31,7 @@ DRY_RUN = "-d" in sys.argv or "--dry-run" in sys.argv
 NONINTERACTIVE = "-n" in sys.argv or "--non-interactive" in sys.argv
 IS_ROOT = os.geteuid() == 0
 
-SYSTEM_DEPS = ["go", "python3", "pip3", "nmap"]
+SYSTEM_DEPS = ["go", "python3", "pip3", "nmap", "masscan"]
 GO_TOOLS = {
     "subfinder": "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
     "assetfinder": "github.com/tomnomnom/assetfinder@latest",
@@ -88,7 +88,6 @@ def run_command(command, description, sudo=False, live_output=False):
 def check_dependencies():
     missing_system, missing_go = [], []
     
-    # Tabela 1: Zależności systemowe i Python
     system_table = Table(title="Zależności Systemowe i Python", box=box.ROUNDED, show_header=True, header_style="bold magenta")
     system_table.add_column("Narzędzie", style="cyan")
     system_table.add_column("Status", justify="center")
@@ -100,7 +99,6 @@ def check_dependencies():
             system_table.add_row(dep, "[bold red]✗ BRAK[/bold red]")
             missing_system.append(dep)
 
-    # Tabela 2: Narzędzia Go
     go_table = Table(title="Narzędzia Rekonesansu (Go)", box=box.ROUNDED, show_header=True, header_style="bold magenta")
     go_table.add_column("Narzędzie", style="cyan")
     go_table.add_column("Status", justify="center")

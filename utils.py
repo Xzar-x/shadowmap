@@ -57,6 +57,31 @@ def filter_critical_urls(urls: List[str]) -> List[str]:
     ]
     return [url for url in urls if any(keyword in url.lower() for keyword in critical_keywords)]
 
+def apply_exclusions(domains: List[str], exclusions: List[str]) -> List[str]:
+    """Filtruje listę domen na podstawie podanych wzorców wykluczeń."""
+    if not exclusions:
+        return domains
+
+    filtered_domains = []
+    for domain in domains:
+        is_excluded = False
+        for pattern in exclusions:
+            # Obsługa wildcard, np. *.example.com
+            if pattern.startswith('*.'):
+                if domain.endswith(pattern[2:]):
+                    is_excluded = True
+                    break
+            # Dokładne dopasowanie, np. admin.example.com
+            else:
+                if domain == pattern:
+                    is_excluded = True
+                    break
+        if not is_excluded:
+            filtered_domains.append(domain)
+    
+    return filtered_domains
+
+
 def get_single_char_input_with_prompt(prompt_text: Text, choices: Optional[List[str]] = None, default: Optional[str] = None) -> str:
     console.print(Align.center(prompt_text), end="")
     sys.stdout.flush()
