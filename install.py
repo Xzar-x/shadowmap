@@ -31,7 +31,7 @@ DRY_RUN = "-d" in sys.argv or "--dry-run" in sys.argv
 NONINTERACTIVE = "-n" in sys.argv or "--non-interactive" in sys.argv
 IS_ROOT = os.geteuid() == 0
 
-SYSTEM_DEPS = ["go", "python3", "pip3", "nmap", "masscan"]
+SYSTEM_DEPS = ["go", "python3", "pip3", "nmap", "masscan", "whois"]
 GO_TOOLS = {
     "subfinder": "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
     "assetfinder": "github.com/tomnomnom/assetfinder@latest",
@@ -45,7 +45,7 @@ GO_TOOLS = {
     "hakrawler": "github.com/hakluke/hakrawler@latest",
     "gauplus": "github.com/bp0lr/gauplus@latest"
 }
-PYTHON_PKGS = ["rich", "questionary", "pyfiglet", "typer"]
+PYTHON_PKGS = ["rich", "questionary", "pyfiglet", "typer", "psutil"]
 
 def display_banner():
     f = Figlet(font='slant')
@@ -152,7 +152,7 @@ def main():
     run_command(["chmod", "+x", os.path.join(BIN_DIR, "shadowmap")], "Nadawanie uprawnień wykonywalnych", sudo=True)
 
     files_to_copy_to_share = [
-        "config.py", "utils.py", "phase1_subdomain.py", "phase2_port_scanning.py",
+        "config.py", "utils.py", "phase0_osint.py", "phase1_subdomain.py", "phase2_port_scanning.py",
         "phase3_dirsearch.py", "phase4_webcrawling.py", "report_template.html",
         "resolvers.txt", "user_agents.txt", "subdomen_wordlist.txt", "dir_wordlist.txt"
     ]

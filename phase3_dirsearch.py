@@ -110,8 +110,8 @@ def _run_and_stream_tool(tool_name: str, command: List[str], base_url: Optional[
 
 def start_dir_search(
     urls: List[str],
-    progress_obj: Optional[Progress],
-    main_task_id: Optional[TaskID]
+    progress_obj: Optional[Progress] = None,
+    main_task_id: Optional[TaskID] = None
 ) -> Tuple[Dict[str, List[str]], List[Dict[str, Any]]]:
     """
     Uruchamia Faze 3: wyszukiwanie katalogów i weryfikuje wyniki za pomocą httpx.
@@ -147,12 +147,17 @@ def start_dir_search(
     ]
     
     if config.PROXY:
+        proxy_to_use = config.PROXY
+        if proxy_to_use.startswith("socks5://"):
+            proxy_to_use = proxy_to_use.replace("socks5://", "socks5h://", 1)
+            utils.log_and_echo(f"Wykryto SOCKS5. Zmieniam na 'socks5h' dla zdalnego DNS: {proxy_to_use}", "INFO")
+
         for cfg in tool_configs:
             tool_name = cfg["name"]
-            if tool_name == "Ffuf": cfg["base_cmd"].extend(["-x", config.PROXY])
-            elif tool_name == "Feroxbuster": cfg["base_cmd"].extend(["-p", config.PROXY])
-            elif tool_name == "Dirsearch": cfg["base_cmd"].extend([f"--proxy={config.PROXY}"])
-            elif tool_name == "Gobuster": cfg["base_cmd"].extend(["--proxy", config.PROXY])
+            if tool_name == "Ffuf": cfg["base_cmd"].extend(["-x", proxy_to_use])
+            elif tool_name == "Feroxbuster": cfg["base_cmd"].extend(["-p", proxy_to_use])
+            elif tool_name == "Dirsearch": cfg["base_cmd"].extend([f"--proxy={proxy_to_use}"])
+            elif tool_name == "Gobuster": cfg["base_cmd"].extend(["--proxy", proxy_to_use])
 
     if config.RECURSION_DEPTH_P3 > 0:
         for cfg in tool_configs:
@@ -216,7 +221,6 @@ def start_dir_search(
         config.TEMP_FILES_TO_CLEAN.append(urls_file)
         
         try:
-            # FIX: Dodano flagę -irh do httpx w celu pobrania nagłówków
             httpx_cmd = ["httpx", "-l", urls_file, "-silent", "-json", "-irh"]
             if config.PROXY: httpx_cmd.extend(["-proxy", config.PROXY])
                 
@@ -339,3 +343,4 @@ def display_phase3_settings_menu(display_banner_func):
             if new_depth.isdigit(): config.RECURSION_DEPTH_P3, config.USER_CUSTOMIZED_RECURSION_DEPTH_P3 = int(new_depth), True
         elif choice.lower() == 'b': break
         elif choice.lower() == 'q': sys.exit(0)
+

@@ -93,8 +93,8 @@ def _categorize_urls(urls: List[str]) -> Dict[str, List[str]]:
 
 def start_web_crawl(
     urls: List[str],
-    progress_obj: Optional[Progress],
-    main_task_id: Optional[TaskID]
+    progress_obj: Optional[Progress] = None,
+    main_task_id: Optional[TaskID] = None
 ) -> Dict[str, List[str]]:
     """
     Uruchamia Fazę 4: Web Crawling, agreguje i kategoryzuje wyniki.
@@ -136,8 +136,6 @@ def start_web_crawl(
                     if cfg["name"] in ["ParamSpider", "LinkFinder"]:
                         cmd.extend(["-i" if cfg["name"] == "LinkFinder" else "-d", url])
                     else: # Katana, Hakrawler, Gauplus
-                        # Te narzędzia przyjmują URL jako stdin lub argument, musimy to ujednolicić
-                        # Dla uproszczenia, będziemy je wołać z argumentem
                         cmd.extend(["-u", url] if cfg["name"] == "Katana" else [url])
 
                     futures.append(executor.submit(_run_and_parse_crawl_tool, cfg["name"], cmd, url, config.TOOL_TIMEOUT_SECONDS))
@@ -238,3 +236,4 @@ def display_phase4_settings_menu(display_banner_func):
             if new_timeout.isdigit(): config.TOOL_TIMEOUT_SECONDS, config.USER_CUSTOMIZED_TIMEOUT = int(new_timeout), True
         elif choice.lower() == 'b': break
         elif choice.lower() == 'q': sys.exit(0)
+

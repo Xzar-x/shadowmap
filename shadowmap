@@ -29,6 +29,7 @@ if SHARE_DIR not in sys.path:
 try:
     import config
     import utils
+    import phase0_osint
     import phase1_subdomain
     import phase2_port_scanning
     import phase3_dirsearch
@@ -104,7 +105,12 @@ def parse_target_input(target_input: str):
 
     utils.console.print(Align.center(f"[bold green]Hostname celu: {config.HOSTNAME_TARGET} | Domena główna: {config.CLEAN_DOMAIN_TARGET}[/bold green]"))
 
-def detect_waf_and_propose_safe_mode():
+def detect_waf_and_propose_safe_mode(osint_data: Dict[str, Any]):
+    # Wykorzystaj dane z Fazy 0, jeśli są dostępne
+    if 'Error' in osint_data.get('technologies', []) or 'Error' in str(osint_data):
+         utils.console.print("[yellow]Pominięto detekcję WAF z powodu błędu w fazie OSINT.[/yellow]")
+         return
+
     initial_message = Text("Sprawdzam ochronę WAF...", justify="center")
     utils.console.print(Align.center(Panel(initial_message, title="[cyan]Detekcja WAF[/cyan]", expand=False, border_style="cyan")))
     
@@ -143,7 +149,7 @@ def open_html_report(report_path: str):
         try: subprocess.run(["xdg-open", report_path], check=False)
         except FileNotFoundError: utils.console.print("[yellow]xdg-open nie znaleziono. Otwórz raport ręcznie.[/yellow]")
 
-def generate_html_report(p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results):
+def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results):
     utils.console.print(Align.center("[bold blue]Generowanie raportu HTML...[/bold blue]"))
     def read_file_content(path: Optional[str]) -> str:
         if path and os.path.exists(path):
@@ -181,8 +187,26 @@ def generate_html_report(p1_files, active_urls_data, p2_results, p3_results, p3_
     p4_interesting = "\n".join(p4_results.get("interesting_paths", []))
     all_urls_combined = "\n".join(sorted(list(set(dirsearch_all_raw.splitlines() + p4_all_urls.splitlines()))))
 
+    # Przygotowanie danych z Fazy 0
+    osint_ip = p0_data.get('ip', 'Brak danych')
+    osint_asn = p0_data.get('asn_details', 'Brak danych')
+    osint_cdn = p0_data.get('cdn_name', 'Brak')
+    osint_registrar = p0_data.get('registrar', 'Brak danych')
+    osint_creation = p0_data.get('creation_date', 'Brak danych')
+    osint_expiry = p0_data.get('expiration_date', 'Brak danych')
+    osint_ns = '<br>'.join(p0_data.get('name_servers', []))
+    osint_tech = '<br>'.join(p0_data.get('technologies', []))
+
     replacements = {
         "{{DOMAIN}}": config.HOSTNAME_TARGET,
+        "{{OSINT_IP}}": osint_ip,
+        "{{OSINT_ASN}}": osint_asn,
+        "{{OSINT_CDN}}": osint_cdn,
+        "{{OSINT_REGISTRAR}}": osint_registrar,
+        "{{OSINT_CREATION}}": osint_creation,
+        "{{OSINT_EXPIRY}}": osint_expiry,
+        "{{OSINT_NS}}": osint_ns,
+        "{{OSINT_TECH}}": osint_tech,
         "{{COUNT_ALL_SUBDOMAINS}}": str(len(all_subdomains_list)),
         "{{COUNT_HTTPX}}": str(len(active_urls_data)),
         "{{COUNT_OPEN_PORTS}}": str(total_open_ports),
@@ -230,6 +254,8 @@ def cleanup_temp_files():
 
 def run_quiet_mode_scan(no_report: bool):
     """Uruchamia pełne skanowanie w trybie cichym."""
+    p0_data = phase0_osint.start_phase0_osint()
+    
     p1_files, active_urls_data, all_subdomains = {}, [], []
     p2_results, p3_results, p4_results = {}, {}, {}
     p3_verified_data = []
@@ -260,7 +286,7 @@ def run_quiet_mode_scan(no_report: bool):
     p4_results = phase4_webcrawling.start_web_crawl(targets_for_p4, None, None)
 
     if not no_report:
-        generate_html_report(p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
+        generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
 
 
 @app.command(context_settings={"help_option_names": ["-h", "--help"]})
@@ -311,6 +337,7 @@ def main(
     for current_target in targets_to_scan:
         utils.console.rule(f"[bold cyan]Przetwarzanie celu: {current_target}[/bold cyan]")
         scan_initiated = False
+        p0_data = {}
         p1_files, all_subdomains = {}, []
         active_urls_data: List[Dict[str, Any]] = []
         p2_results, p3_results, p4_results = {}, {}, {}
@@ -327,9 +354,9 @@ def main(
             if config.QUIET_MODE:
                 run_quiet_mode_scan(no_report)
                 continue
-
-            if not config.QUIET_MODE:
-                detect_waf_and_propose_safe_mode()
+            
+            p0_data = phase0_osint.start_phase0_osint()
+            detect_waf_and_propose_safe_mode(p0_data)
             
             # --- Główna pętla menu ---
             while True:
@@ -362,7 +389,7 @@ def main(
                     if not urls_to_scan_p2: continue
 
                     if phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
-                        p2_results = phase2_port_scanning.start_port_scan(urls_to_scan_p2, None, None)
+                        p2_results = phase2_port_scanning.start_port_scan(urls_to_scan_p2)
                         if utils.ask_user_decision("Zakończono Fazę 2. Kontynuować do Fazy 3?", ["y", "n"], "y") == 'y':
                             choice = '3'
                         else:
@@ -384,7 +411,11 @@ def main(
                     if not urls_to_scan_p3: continue
                     
                     if phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
-                        p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(urls_to_scan_p3, None, None)
+                        num_tools = sum(config.selected_phase3_tools)
+                        total_tasks = len(urls_to_scan_p3) * num_tools
+                        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
+                            task = progress.add_task("[green]Faza 3: Wyszukiwanie katalogów[/green]", total=total_tasks)
+                            p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(urls_to_scan_p3, progress, task)
                         if utils.ask_user_decision("Zakończono Fazę 3. Kontynuować do Fazy 4?", ["y", "n"], "y") == 'y':
                             choice = '4'
                         else:
@@ -410,7 +441,11 @@ def main(
                     if not urls_to_scan_p4: continue
                     
                     if phase4_webcrawling.display_phase4_tool_selection_menu(display_banner):
-                        p4_results = phase4_webcrawling.start_web_crawl(urls_to_scan_p4, None, None)
+                        num_tools_p4 = sum(config.selected_phase4_tools)
+                        total_tasks_p4 = len(urls_to_scan_p4) * num_tools_p4
+                        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
+                           task_p4 = progress.add_task("[green]Faza 4: Web Crawling[/green]", total=total_tasks_p4)
+                           p4_results = phase4_webcrawling.start_web_crawl(urls_to_scan_p4, progress, task_p4)
                         utils.ask_user_decision("Zakończono Fazę 4 (ostatnia). Wrócić do menu?", ["y"], "y")
                         continue
                     else:
@@ -418,7 +453,7 @@ def main(
 
                 if choice.lower() == 'q':
                     if not no_report:
-                        generate_html_report(p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
+                        generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
                     break 
 
         except KeyboardInterrupt:
