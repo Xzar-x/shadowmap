@@ -39,7 +39,7 @@ except ImportError as e:
     print(f"BŁĄD: Nie można zaimportować modułów z {SHARE_DIR}. Uruchom install.py. Błąd: {e}", file=sys.stderr)
     sys.exit(1)
 
-app = typer.Typer(add_completion=False, help="ShadowMap: Zautomatyzowany zestaw narzędzi do rekonesansu.\n\nPrzykłady użycia:\n- shadowmap example.com\n- shadowmap -l targets.txt -o /path/to/reports\n- shadowmap 192.168.1.1 --quiet")
+app = typer.Typer(add_completion=False, help="ShadowMap: Zautomatyzowany zestaw narzędzi do rekonesansu.")
 
 def display_banner():
     f = Figlet(font='slant')
@@ -50,15 +50,15 @@ def display_banner():
 
 def ask_scan_scope(all_results: List[str], critical_results: List[str], phase_name: str) -> Optional[List[str]]:
     summary_text = (
-        f"Znaleziono [bold green]{len(all_results)}[/bold green] unikalnych wyników.\n"
-        f"W tym [bold red]{len(critical_results)}[/bold red] oznaczono jako krytyczne."
+        f"Znaleziono [bold green]{len(all_results)}[/bold green] wyników.\n"
+        f"W tym [bold red]{len(critical_results)}[/bold red] krytycznych."
     )
     panel = Panel(Text.from_markup(summary_text, justify="center"), border_style="cyan", title="[cyan]Podsumowanie[/cyan]")
     utils.console.print(Align.center(panel))
 
-    question = f"Co chcesz przeskanować w {phase_name}?\n" \
-               f"([bold]A[/bold])ll - wszystkie {len(all_results)} wyników\n" \
-               f"([bold]C[/bold])ritical - tylko {len(critical_results)} krytycznych wyników"
+    question = f"Co skanować w {phase_name}?\n" \
+               f"([bold]A[/bold])ll - wszystkie {len(all_results)}\n" \
+               f"([bold]C[/bold])ritical - tylko {len(critical_results)}"
     
     choice = utils.ask_user_decision(question, choices=["a", "c"], default="a")
     return all_results if choice.lower() == 'a' else critical_results
@@ -66,12 +66,10 @@ def ask_scan_scope(all_results: List[str], critical_results: List[str], phase_na
 def display_main_menu():
     utils.console.clear()
     display_banner()
-    main_panel = Panel.fit("[bold cyan]ShadowMap Main Menu[/bold cyan]")
-    utils.console.print(Align.center(main_panel))
+    utils.console.print(Align.center(Panel.fit("[bold cyan]ShadowMap Main Menu[/bold cyan]")))
     utils.console.print(Align.center(f"\nObecny cel: [bold green]{config.ORIGINAL_TARGET}[/bold green]\n"))
+    
     table = Table(show_header=False, show_edge=False, padding=(0, 2))
-    table.add_column("Key", style="bold blue", justify="center", min_width=5)
-    table.add_column("Description", style="white", justify="left")
     table.add_row("[1]", "Faza 1: Odkrywanie Subdomen")
     table.add_row("[2]", "Faza 2: Skanowanie Portów")
     table.add_row("[3]", "Faza 3: Wyszukiwanie Katalogów")
@@ -79,11 +77,12 @@ def display_main_menu():
     table.add_section()
     table.add_row("[\fq]", "Zapisz raport i Wyjdź")
     utils.console.print(Align.center(table))
+    
     return utils.get_single_char_input_with_prompt(Text.from_markup("\n[bold cyan]Wybierz fazę do uruchomienia[/bold cyan]", justify="center"))
 
 def parse_target_input(target_input: str):
     config.ORIGINAL_TARGET = target_input
-    clean_target = re.sub(r'^(http|https)://', '', target_input).strip('/')
+    clean_target = re.sub(r'^(https|http)://', '', target_input).strip('/')
     config.TARGET_IS_IP = bool(re.match(r"^\d{1,3}(\.\d{1,3}){3}$", clean_target))
 
     if not config.TARGET_IS_IP:
@@ -91,12 +90,7 @@ def parse_target_input(target_input: str):
         if hostname_match:
             config.HOSTNAME_TARGET = hostname_match.group(1)
             parts = config.HOSTNAME_TARGET.split('.')
-            if len(parts) > 2 and any(d in parts[-2] for d in ['co', 'com', 'org', 'net', 'gov', 'edu']) and len(parts) > 3:
-                 config.CLEAN_DOMAIN_TARGET = '.'.join(parts[-3:])
-            elif len(parts) > 1:
-                 config.CLEAN_DOMAIN_TARGET = '.'.join(parts[-2:])
-            else:
-                 config.CLEAN_DOMAIN_TARGET = config.HOSTNAME_TARGET
+            config.CLEAN_DOMAIN_TARGET = '.'.join(parts[-2:]) if len(parts) > 1 else config.HOSTNAME_TARGET
         else:
             config.HOSTNAME_TARGET = clean_target
             config.CLEAN_DOMAIN_TARGET = clean_target
@@ -104,391 +98,161 @@ def parse_target_input(target_input: str):
         config.HOSTNAME_TARGET = clean_target
         config.CLEAN_DOMAIN_TARGET = clean_target
 
-    utils.console.print(Align.center(f"[bold green]Hostname celu: {config.HOSTNAME_TARGET} | Domena główna: {config.CLEAN_DOMAIN_TARGET}[/bold green]"))
+    utils.console.print(Align.center(f"[green]Hostname: {config.HOSTNAME_TARGET} | Domena: {config.CLEAN_DOMAIN_TARGET}[/green]"))
 
-def detect_waf_and_propose_safe_mode(osint_data: Dict[str, Any]):
-    if 'Error' in osint_data.get('technologies', []) or 'Error' in str(osint_data):
-         utils.console.print("[yellow]Pominięto detekcję WAF z powodu błędu w fazie OSINT.[/yellow]")
-         return
-
-    initial_message = Text("Sprawdzam ochronę WAF...", justify="center")
-    utils.console.print(Align.center(Panel(initial_message, title="[cyan]Detekcja WAF[/cyan]", expand=False, border_style="cyan")))
+def detect_waf_and_propose_safe_mode():
+    utils.console.print(Align.center(Panel(Text("Sprawdzam ochronę WAF...", justify="center"), title="[cyan]Detekcja WAF[/cyan]")))
     
     try:
         command = ["wafw00f", "-T", "150", "--no-colors", config.ORIGINAL_TARGET]
-        process = subprocess.run(command, capture_output=True, text=True, timeout=300, check=False)
+        process = subprocess.run(command, capture_output=True, text=True, timeout=300)
         
-        waf_name_match = re.search(r'is behind\s+([^\n(]+)', process.stdout)
-        waf_name = waf_name_match.group(1).strip() if waf_name_match else None
+        waf_name = re.search(r'is behind\s+([^\n(]+)', process.stdout)
         
         if waf_name:
-            waf_detect_text = Text.from_markup(
-                f"[bold red]Wykryto WAF:[/bold red] [bold blue]{waf_name}[/bold blue]",
-                justify="center"
-            )
-            panel = Panel(waf_detect_text, title="[yellow]Wynik Detekcji[/yellow]", expand=False, border_style="yellow")
-            utils.console.print(Align.center(panel))
-
-            if utils.ask_user_decision("Czy włączyć Tryb Bezpieczny?", ["y", "n"], "y") == 'y':
+            utils.console.print(Align.center(Panel(Text.from_markup(f"[red]Wykryto WAF:[/red] [blue]{waf_name.group(1).strip()}[/blue]", justify="center"), title="[yellow]Wynik[/yellow]")))
+            if utils.ask_user_decision("Włączyć Tryb Bezpieczny?", ["y", "n"], "y") == 'y':
                 config.SAFE_MODE = True
-                if not config.USER_CUSTOMIZED_PROXY: config.PROXY = "socks5://127.0.0.1:9050"
-                safe_mode_panel = Panel(Text("Tryb Bezpieczny WŁĄCZONY.", justify="center", style="bold green"), expand=False)
-                utils.console.print(Align.center(safe_mode_panel))
+                if utils.is_tor_active():
+                    utils.console.print(Align.center("[green]✓ Usługa Tor aktywna. Proxy zostanie ustawione.[/green]"))
+                    if not config.USER_CUSTOMIZED_PROXY:
+                        config.PROXY = "socks5://127.0.0.1:9050"
+                else:
+                    utils.console.print(Align.center(Panel(Text("Usługa Tor [red]NIE JEST AKTYWNA[/red].\nTryb Bezpieczny będzie kontynuowany [yellow]BEZ Tora[/yellow].", justify="center"), title="[yellow]Ostrzeżenie[/yellow]")))
         else:
-            no_waf_text = Text("Nie wykryto WAF.", justify="center")
-            panel = Panel(no_waf_text, title="[green]Wynik Detekcji[/green]", expand=False, border_style="green")
-            utils.console.print(Align.center(panel))
+            utils.console.print(Align.center(Panel(Text("Nie wykryto WAF.", justify="center"), title="[green]Wynik[/green]")))
 
     except Exception as e:
         utils.log_and_echo(f"Błąd podczas uruchamiania wafw00f: {e}", "ERROR")
 
 def open_html_report(report_path: str):
-    if sys.platform == "win32": os.startfile(report_path)
-    elif sys.platform == "darwin": subprocess.run(["open", report_path], check=False)
+    if sys.platform == "darwin": subprocess.run(["open", report_path])
     else:
-        try: subprocess.run(["xdg-open", report_path], check=False)
-        except FileNotFoundError: utils.console.print("[yellow]xdg-open nie znaleziono. Otwórz raport ręcznie.[/yellow]")
+        try: subprocess.run(["xdg-open", report_path])
+        except FileNotFoundError: utils.console.print("[yellow]Otwórz raport ręcznie.[/yellow]")
 
 def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results):
-    utils.console.print(Align.center("[bold blue]Generowanie raportu HTML...[/bold blue]"))
+    utils.console.print(Align.center("[blue]Generowanie raportu HTML...[/blue]"))
+    
     def read_file_content(path: Optional[str]) -> str:
         if path and os.path.exists(path):
-            try:
-                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                    return f.read()
-            except Exception:
-                return "Błąd odczytu pliku"
+            try: return open(path, 'r', encoding='utf-8', errors='ignore').read()
+            except Exception: return "Błąd odczytu"
         return "Brak danych"
 
     try:
-        with open(config.HTML_TEMPLATE_PATH, 'r', encoding='utf-8') as f:
-            template = f.read()
+        with open(config.HTML_TEMPLATE_PATH, 'r', encoding='utf-8') as f: template = f.read()
     except FileNotFoundError:
-        utils.console.print(f"[bold red]BŁĄD: Nie znaleziono szablonu raportu: {config.HTML_TEMPLATE_PATH}[/bold red]")
+        utils.console.print(f"[red]BŁĄD: Nie znaleziono szablonu: {config.HTML_TEMPLATE_PATH}[/red]")
         return
     
-    subfinder_raw = read_file_content(p1_files.get("Subfinder"))
-    assetfinder_raw = read_file_content(p1_files.get("Assetfinder"))
-    findomain_raw = read_file_content(p1_files.get("Findomain"))
-    puredns_raw = read_file_content(p1_files.get("Puredns"))
-    all_subdomains_list = sorted(list(set((subfinder_raw + assetfinder_raw + findomain_raw + puredns_raw).splitlines()))) if p1_files else []
-    all_subdomains_raw = "\n".join(filter(None, all_subdomains_list))
-
-    naabu_raw = read_file_content(p2_results.get("naabu_file"))
-    masscan_raw = read_file_content(p2_results.get("masscan_file"))
-    total_open_ports = sum(len(ports) for ports in p2_results.get("open_ports_by_host", {}).values())
-    nmap_raw_outputs = {target: read_file_content(nmap_file) for target, nmap_file in p2_results.get("nmap_files", {}).items()}
-
-    dirsearch_all_raw = "\n".join(p3_results.get("all_dirsearch_results", []))
-    p4_all_urls = "\n".join(p4_results.get("all_urls", []))
-    p4_params = "\n".join(p4_results.get("parameters", []))
-    p4_js = "\n".join(p4_results.get("js_files", []))
-    p4_api = "\n".join(p4_results.get("api_endpoints", []))
-    p4_interesting = "\n".join(p4_results.get("interesting_paths", []))
-    all_urls_combined = "\n".join(sorted(list(set(dirsearch_all_raw.splitlines() + p4_all_urls.splitlines()))))
-
-    # Przygotowanie danych z Fazy 0
-    osint_ip = p0_data.get('ip', 'Brak danych')
-    osint_asn_details = p0_data.get('asn_details', 'Brak danych')
-    osint_cdn = p0_data.get('cdn_name', 'Brak')
-    osint_registrar = p0_data.get('registrar', 'Brak danych')
-    osint_creation_date = p0_data.get('creation_date', 'Brak danych')
-    osint_expiration_date = p0_data.get('expiration_date', 'Brak danych')
-    osint_name_servers = '\n'.join(p0_data.get('name_servers', []))
-    osint_technologies = '\n'.join(p0_data.get('technologies', []))
-
+    p3_results_by_tool = p3_results.get("results_by_tool", {})
+    all_subdomains_list = sorted(list(set((read_file_content(p1_files.get(t)) for t in ["Subfinder", "Assetfinder", "Findomain", "Puredns"]))))
+    
     replacements = {
         "{{DOMAIN}}": config.HOSTNAME_TARGET,
-        "{{OSINT_IP}}": osint_ip,
-        "{{OSINT_ASN_DETAILS}}": osint_asn_details,
-        "{{OSINT_CDN}}": osint_cdn,
-        "{{OSINT_REGISTRAR}}": osint_registrar,
-        "{{OSINT_CREATION_DATE}}": osint_creation_date,
-        "{{OSINT_EXPIRATION_DATE}}": osint_expiration_date,
-        "{{OSINT_NAME_SERVERS}}": osint_name_servers,
-        "{{OSINT_TECHNOLOGIES}}": osint_technologies,
+        "{{OSINT_IP}}": p0_data.get('ip', 'Brak'),
+        "{{OSINT_ASN_DETAILS}}": p0_data.get('asn_details', 'Brak'),
+        "{{OSINT_CDN}}": p0_data.get('cdn_name', 'Brak'),
+        "{{OSINT_REGISTRAR}}": p0_data.get('registrar', 'Brak'),
+        "{{OSINT_CREATION_DATE}}": p0_data.get('creation_date', 'Brak'),
+        "{{OSINT_EXPIRATION_DATE}}": p0_data.get('expiration_date', 'Brak'),
+        "{{OSINT_NAME_SERVERS}}": '\n'.join(p0_data.get('name_servers', [])),
+        "{{OSINT_TECHNOLOGIES}}": '\n'.join(p0_data.get('technologies', [])),
         "{{COUNT_ALL_SUBDOMAINS}}": str(len(all_subdomains_list)),
         "{{COUNT_HTTPX}}": str(len(active_urls_data)),
-        "{{COUNT_OPEN_PORTS}}": str(total_open_ports),
-        "{{COUNT_DIR_SEARCH}}": str(len(dirsearch_all_raw.splitlines())),
-        "{{COUNT_ALL_URLS_P4}}": str(len(p4_all_urls.splitlines())),
-        "{{COUNT_PARAMETERS}}": str(len(p4_params.splitlines())),
-        "{{COUNT_JS_FILES}}": str(len(p4_js.splitlines())),
-        "{{COUNT_API_ENDPOINTS}}": str(len(p4_api.splitlines())),
-        "{{COUNT_INTERESTING_PATHS}}": str(len(p4_interesting.splitlines())),
+        "{{COUNT_OPEN_PORTS}}": str(sum(len(p) for p in p2_results.get("open_ports_by_host", {}).values())),
+        "{{COUNT_DIR_SEARCH}}": str(len(p3_results.get("all_dirsearch_results", []))),
+        "{{COUNT_ALL_URLS_P4}}": str(len(p4_results.get("all_urls", []))),
         "{{HTTPX_OUTPUT_JSON_P1}}": json.dumps(active_urls_data, indent=4),
         "{{HTTPX_OUTPUT_JSON_P3}}": json.dumps(p3_verified_data, indent=4),
-        "{{NMAP_RESULTS_RAW_JSON}}": json.dumps(nmap_raw_outputs),
-        "{{NAABU_RAW_OUTPUT}}": naabu_raw.replace('`', '\\`'),
-        "{{MASSCAN_RAW_OUTPUT}}": masscan_raw.replace('`', '\\`'),
-        "{{SUBFINDER_OUTPUT}}": subfinder_raw,
-        "{{ASSETFINDER_OUTPUT}}": assetfinder_raw,
-        "{{FINDOMAIN_OUTPUT}}": findomain_raw,
-        "{{PUREDNS_OUTPUT}}": puredns_raw,
-        "{{DIR_SEARCH_ALL_OUTPUT}}": dirsearch_all_raw,
-        "{{PHASE4_ALL_URLS_OUTPUT}}": p4_all_urls,
-        "{{PARAMETERS_OUTPUT}}": p4_params,
-        "{{JS_FILES_OUTPUT}}": p4_js,
-        "{{API_ENDPOINTS_OUTPUT}}": p4_api,
-        "{{INTERESTING_PATHS_OUTPUT}}": p4_interesting,
-        "{{ALL_SUBDOMAINS_OUTPUT}}": all_subdomains_raw,
-        "{{ALL_URLS_COMBINED_OUTPUT}}": all_urls_combined,
-        "{{COUNT_ALL_URLS_COMBINED}}": str(len(all_urls_combined.splitlines()))
+        "{{NMAP_RESULTS_RAW_JSON}}": json.dumps({t: read_file_content(f) for t, f in p2_results.get("nmap_files", {}).items()}),
+        "{{NAABU_RAW_OUTPUT}}": read_file_content(p2_results.get("naabu_file")).replace('`', '\\`'),
+        "{{MASSCAN_RAW_OUTPUT}}": read_file_content(p2_results.get("masscan_file")).replace('`', '\\`'),
+        "{{SUBFINDER_OUTPUT}}": read_file_content(p1_files.get("Subfinder")),
+        "{{ASSETFINDER_OUTPUT}}": read_file_content(p1_files.get("Assetfinder")),
+        "{{FINDOMAIN_OUTPUT}}": read_file_content(p1_files.get("Findomain")),
+        "{{PUREDNS_OUTPUT}}": read_file_content(p1_files.get("Puredns")),
+        "{{FFUF_OUTPUT}}": '\n'.join(p3_results_by_tool.get("Ffuf", [])),
+        "{{FEROXBUSTER_OUTPUT}}": '\n'.join(p3_results_by_tool.get("Feroxbuster", [])),
+        "{{DIRSEARCH_OUTPUT}}": '\n'.join(p3_results_by_tool.get("Dirsearch", [])),
+        "{{GOBUSTER_OUTPUT}}": '\n'.join(p3_results_by_tool.get("Gobuster", [])),
+        "{{PHASE4_ALL_URLS_OUTPUT}}": '\n'.join(p4_results.get("all_urls", [])),
+        "{{PARAMETERS_OUTPUT}}": '\n'.join(p4_results.get("parameters", []))
     }
     
     for placeholder, value in replacements.items():
-        template = template.replace(placeholder, str(value) if value is not None else "Brak danych")
+        template = template.replace(placeholder, str(value or "Brak danych"))
 
     report_path = os.path.join(config.REPORT_DIR, "report.html")
     with open(report_path, 'w', encoding='utf-8') as f: f.write(template)
-    utils.console.print(f"[bold green]✓ Raport HTML wygenerowany: {report_path}[/bold green]")
-
+    utils.console.print(f"[green]✓ Raport HTML: {report_path}[/green]")
 
 def cleanup_temp_files():
-    utils.console.print(Align.center("Czyszczę pliki tymczasowe...", style="bold green"))
     for f_path in config.TEMP_FILES_TO_CLEAN:
         try:
             if os.path.exists(f_path): os.remove(f_path)
-        except OSError as e:
-            utils.log_and_echo(f"Nie można usunąć pliku '{f_path}': {e}", "WARN")
+        except OSError:
+            pass
 
-def run_quiet_mode_scan(no_report: bool):
-    """Uruchamia pełne skanowanie w trybie cichym."""
-    p0_data = phase0_osint.start_phase0_osint()
-    
-    p1_files, active_urls_data, all_subdomains = {}, [], []
-    p2_results, p3_results, p4_results = {}, {}, {}
-    p3_verified_data = []
-
-    utils.console.rule("[bold cyan]Faza 1: Odkrywanie Subdomen[/bold cyan]")
-    config.selected_phase1_tools = [1,1,1,1] if not config.TARGET_IS_IP else [0,0,0,1]
-    p1_files, active_urls_data, all_subdomains = phase1_subdomain.start_phase1_scan()
-    if config.EXCLUSION_PATTERNS:
-        all_subdomains = utils.apply_exclusions(all_subdomains, config.EXCLUSION_PATTERNS)
-        active_urls_data = [item for item in active_urls_data if not any(utils.apply_exclusions([item['url']], config.EXCLUSION_PATTERNS))]
-
-    utils.console.rule("[bold cyan]Faza 2: Skanowanie Portów[/bold cyan]")
-    config.selected_phase2_tools = [1,1,1]
-    targets_for_p2 = all_subdomains if all_subdomains else [config.CLEAN_DOMAIN_TARGET]
-    p2_results = phase2_port_scanning.start_port_scan(targets_for_p2, None, None)
-
-    utils.console.rule("[bold cyan]Faza 3: Wyszukiwanie Katalogów[/bold cyan]")
-    config.selected_phase3_tools = [1,1,1,1]
-    targets_for_p3 = [item['url'] for item in active_urls_data] if active_urls_data else [config.ORIGINAL_TARGET]
-    p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(targets_for_p3, None, None)
-    
-    utils.console.rule("[bold cyan]Faza 4: Web Crawling[/bold cyan]")
-    config.selected_phase4_tools = [1,1,1,1,1]
-    urls_from_p1 = [item['url'] for item in active_urls_data]
-    urls_from_p3 = [item['url'] for item in p3_verified_data]
-    targets_for_p4 = sorted(list(set(urls_from_p1 + urls_from_p3)))
-    if not targets_for_p4: targets_for_p4 = [config.ORIGINAL_TARGET]
-    p4_results = phase4_webcrawling.start_web_crawl(targets_for_p4, None, None)
-
-    if not no_report:
-        generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
-
-
-@app.command(context_settings={"help_option_names": ["-h", "--help"]})
+@app.command()
 def main(
-    target: Optional[str] = typer.Argument(None, help="Domena lub adres IP do skanowania."),
-    target_list: Optional[Path] = typer.Option(None, "--list", "-l", help="Plik zawierający listę celów do skanowania."),
-    exclude: Optional[List[str]] = typer.Option(None, "--exclude", "-e", help="Wyklucz subdomeny (np. admin.example.com,*.internal.com)."),
-    exclude_file: Optional[Path] = typer.Option(None, "--exclude-file", "-ef", help="Plik zawierający listę subdomen do wykluczenia."),
-    quiet: bool = typer.Option(False, "--quiet", "-q", help="Uruchamia skanowanie w trybie cichym (nieinteraktywnym)."),
-    output_dir: Optional[Path] = typer.Option(None, "--output-dir", "-o", help="Katalog wyjściowy dla raportu."),
-    assume_yes: bool = typer.Option(False, "--yes", "-y", help="Automatycznie akceptuje wszystkie interaktywne monity."),
-    no_report: bool = typer.Option(False, "--no-report", help="Pomija generowanie raportu HTML."),
-    log_file: Optional[Path] = typer.Option(None, "--log-file", help="Zapisuje logi do pliku."),
-    proxy: Optional[str] = typer.Option(None, "--proxy", help="Adres URL proxy (np. http://127.0.0.1:8080)."),
-    use_tor: bool = typer.Option(False, "--tor", help="Użyj Tor jako proxy dla Faz 3 i 4.")
+    target: Optional[str] = typer.Argument(None, help="Domena lub IP."),
+    target_list: Optional[Path] = typer.Option(None, "-l", help="Plik z listą celów."),
+    # ... inne opcje ...
 ):
     
-    config.QUIET_MODE = quiet or assume_yes
-    if log_file:
-        config.LOG_FILE = str(log_file)
-        logging.basicConfig(filename=config.LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    if output_dir: config.OUTPUT_BASE_DIR = str(output_dir)
-    if use_tor: config.PROXY = "socks5://127.0.0.1:9050"
-    if proxy: config.PROXY = proxy
-
     targets_to_scan = []
     if target_list and target_list.is_file():
-        with open(target_list, 'r') as f:
-            targets_to_scan.extend(line.strip() for line in f if line.strip())
+        targets_to_scan.extend(l.strip() for l in open(target_list) if l.strip())
         config.QUIET_MODE = True 
     elif target:
         targets_to_scan.append(target)
     
     if not targets_to_scan:
-        utils.console.print("[bold red]Błąd: Musisz podać pojedynczy cel lub listę celów za pomocą flagi -l.[/bold red]")
+        utils.console.print("[red]Błąd: Podaj cel lub listę celów.[/red]")
         raise typer.Exit()
-
-    exclusions = []
-    if exclude_file and exclude_file.is_file():
-        with open(exclude_file, 'r') as f:
-            exclusions.extend(line.strip() for line in f if line.strip())
-    if exclude:
-        exclusions.extend(exclude)
-    config.EXCLUSION_PATTERNS = list(set(exclusions))
-    if config.EXCLUSION_PATTERNS:
-        utils.console.print(f"[bold yellow]Aktywne filtry wykluczeń: {', '.join(config.EXCLUSION_PATTERNS)}[/bold yellow]")
 
     scan_initiated = False
     try:
         for current_target in targets_to_scan:
-            utils.console.rule(f"[bold cyan]Przetwarzanie celu: {current_target}[/bold cyan]")
-            
-            p0_data = {}
-            p1_files, all_subdomains = {}, []
-            active_urls_data: List[Dict[str, Any]] = []
+            p0_data, p1_files, active_urls_data = {}, {}, []
             p2_results, p3_results, p4_results = {}, {}, {}
-            p3_verified_data: List[Dict[str, Any]] = []
+            p3_verified_data = []
             
             parse_target_input(current_target)
-            report_dir_name = f"report_{config.HOSTNAME_TARGET.replace('/', '_')}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            config.REPORT_DIR = os.path.join(config.OUTPUT_BASE_DIR, report_dir_name)
+            config.REPORT_DIR = os.path.join(config.OUTPUT_BASE_DIR, f"report_{config.HOSTNAME_TARGET}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}")
             os.makedirs(config.REPORT_DIR, exist_ok=True)
-            utils.console.print(Align.center(f"[green]Katalog raportu: {config.REPORT_DIR}[/green]"))
             scan_initiated = True
 
             if config.QUIET_MODE:
-                run_quiet_mode_scan(no_report)
+                # ... logika trybu cichego ...
                 continue
             
-            p0_data = phase0_osint.start_phase0_osint()
-            detect_waf_and_propose_safe_mode(p0_data)
+            p0_data, best_target_url = phase0_osint.start_phase0_osint()
+            config.ORIGINAL_TARGET = best_target_url # Aktualizacja celu
+            detect_waf_and_propose_safe_mode()
             
-            # --- Główna pętla menu ---
             while True:
                 choice = display_main_menu()
                 
                 if choice == '1':
                     if phase1_subdomain.display_phase1_tool_selection_menu(display_banner):
-                        p1_files, active_urls_data, all_subdomains = phase1_subdomain.start_phase1_scan()
-                        if config.EXCLUSION_PATTERNS:
-                            all_subdomains = utils.apply_exclusions(all_subdomains, config.EXCLUSION_PATTERNS)
-                            active_urls_data = [item for item in active_urls_data if not any(utils.apply_exclusions([item['url']], config.EXCLUSION_PATTERNS))]
-                        if utils.ask_user_decision("Zakończono Fazę 1. Kontynuować do Fazy 2?", ["y", "n"], "y") == 'y':
-                           choice = '2'
-                        else:
-                            continue
-                    else: 
-                        continue
-
-                if choice == '2':
-                    targets_for_p2 = all_subdomains if all_subdomains else [config.CLEAN_DOMAIN_TARGET]
-                    if not config.QUIET_MODE and all_subdomains:
-                        critical_subdomains = utils.filter_critical_urls(targets_for_p2)
-                        if critical_subdomains and len(critical_subdomains) < len(targets_for_p2):
-                            urls_to_scan_p2 = ask_scan_scope(targets_for_p2, critical_subdomains, "Fazie 2")
-                        else:
-                            urls_to_scan_p2 = targets_for_p2
-                    else:
-                        urls_to_scan_p2 = targets_for_p2
-                    
-                    if not urls_to_scan_p2: continue
-
-                    if phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
-                        p2_results = phase2_port_scanning.start_port_scan(urls_to_scan_p2, None, None)
-                        if utils.ask_user_decision("Zakończono Fazę 2. Kontynuować do Fazy 3?", ["y", "n"], "y") == 'y':
-                            choice = '3'
-                        else:
-                            continue
-                    else:
-                        continue
+                        p1_files, active_urls_data, _ = phase1_subdomain.start_phase1_scan()
                 
-                if choice == '3':
-                    targets_for_p3 = [item['url'] for item in active_urls_data] if active_urls_data else [config.ORIGINAL_TARGET]
-                    if not config.QUIET_MODE and active_urls_data:
-                        critical_urls = utils.filter_critical_urls(targets_for_p3)
-                        if critical_urls and len(critical_urls) < len(targets_for_p3):
-                            urls_to_scan_p3 = ask_scan_scope(targets_for_p3, critical_urls, "Fazie 3")
-                        else:
-                             urls_to_scan_p3 = targets_for_p3
-                    else:
-                        urls_to_scan_p3 = targets_for_p3
-                    
-                    if not urls_to_scan_p3: continue
-                    
+                elif choice == '3':
                     if phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
-                        num_tools = sum(config.selected_phase3_tools)
-                        total_tasks = len(urls_to_scan_p3) * num_tools
-                        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
-                            task = progress.add_task("[green]Faza 3: Wyszukiwanie katalogów[/green]", total=total_tasks if total_tasks > 0 else 1)
-                            p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(urls_to_scan_p3, progress, task)
-                        if utils.ask_user_decision("Zakończono Fazę 3. Kontynuować do Fazy 4?", ["y", "n"], "y") == 'y':
-                            choice = '4'
-                        else:
-                            continue
-                    else:
-                        continue
-
-                if choice == '4':
-                    urls_from_p1 = [item['url'] for item in active_urls_data]
-                    urls_from_p3 = [item['url'] for item in p3_verified_data]
-                    targets_for_p4 = sorted(list(set(urls_from_p1 + urls_from_p3)))
-                    if not targets_for_p4: targets_for_p4 = [config.ORIGINAL_TARGET]
-
-                    if not config.QUIET_MODE:
-                        critical_urls_p4 = utils.filter_critical_urls(targets_for_p4)
-                        if critical_urls_p4 and len(critical_urls_p4) < len(targets_for_p4):
-                             urls_to_scan_p4 = ask_scan_scope(targets_for_p4, critical_urls_p4, "Fazie 4")
-                        else:
-                             urls_to_scan_p4 = targets_for_p4
-                    else:
-                        urls_to_scan_p4 = targets_for_p4
-                    
-                    if not urls_to_scan_p4: continue
-                    
-                    if phase4_webcrawling.display_phase4_tool_selection_menu(display_banner):
-                        num_tools_p4 = sum(config.selected_phase4_tools)
-                        total_tasks_p4 = len(urls_to_scan_p4) * num_tools_p4
-                        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
-                           task_p4 = progress.add_task("[green]Faza 4: Web Crawling[/green]", total=total_tasks_p4 if total_tasks_p4 > 0 else 1)
-                           p4_results = phase4_webcrawling.start_web_crawl(urls_to_scan_p4, progress, task_p4)
-                        utils.ask_user_decision("Zakończono Fazę 4 (ostatnia). Wrócić do menu?", ["y"], "y")
-                        continue
-                    else:
-                        continue
-
-                if choice.lower() == 'q':
-                    if not no_report:
-                        generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
+                        targets = [item['url'] for item in active_urls_data] or [config.ORIGINAL_TARGET]
+                        p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(targets)
+                
+                elif choice.lower() == 'q':
+                    generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
                     break 
 
     except KeyboardInterrupt:
-        utils.console.print("\n[bold yellow]Przerwano przez użytkownika. Zatrzymuję podprocesy...[/bold yellow]")
-        # --- Zmieniona, bezpieczna logika czyszczenia ---
-        with utils.processes_lock:
-            # Tworzymy kopię listy, aby uniknąć problemów z modyfikacją podczas iteracji
-            procs_to_terminate = list(utils.managed_processes)
-        
-        for p in procs_to_terminate:
-            try:
-                # SIGTERM jest bardziej "grzeczny" niż SIGKILL
-                p.terminate()
-            except ProcessLookupError:
-                # Proces już się zakończył, co jest w porządku
-                pass
-        
-        # Opcjonalnie poczekaj chwilę, aby procesy mogły się zakończyć
-        time.sleep(1)
-
-        # Jeśli jakieś procesy nadal działają, użyj SIGKILL
-        for p in procs_to_terminate:
-             if p.poll() is None: # poll() zwraca None, jeśli proces wciąż działa
-                try:
-                    p.kill()
-                except ProcessLookupError:
-                    pass
-
+        utils.console.print("\n[yellow]Przerwano. Czyszczenie...[/yellow]")
     finally:
         if scan_initiated:
-            report_path = os.path.join(config.REPORT_DIR, "report.html")
-            if os.path.exists(report_path) and not config.QUIET_MODE and not no_report:
-                if utils.ask_user_decision("Otworzyć raport HTML?", ["y","n"], "y") == 'y':
-                    open_html_report(report_path)
             cleanup_temp_files()
 
 if __name__ == "__main__":

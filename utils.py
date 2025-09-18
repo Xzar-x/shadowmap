@@ -9,6 +9,8 @@ import json
 import re
 import tempfile
 import threading
+import subprocess
+import socket
 from typing import Optional, List
 
 from rich.console import Console
@@ -16,6 +18,7 @@ from rich.panel import Panel
 from rich.align import Align
 from rich.text import Text
 from rich.prompt import Prompt
+from rich.markup import escape
 
 # Importuj konfigurację centralną
 import config
@@ -48,11 +51,49 @@ else:
         import msvcrt
         return msvcrt.getch().decode('utf-8')
 
+def is_tor_active() -> bool:
+    """
+    Sprawdza, czy usługa Tor jest aktywna. Najpierw próbuje połączyć się z portem SOCKS,
+    a jako fallback sprawdza status usługi systemd 'tor@default.service'.
+    """
+    # Metoda 1: Sprawdzenie portu (najbardziej niezawodna)
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            s.connect(("127.0.0.1", 9050))
+        return True
+    except (socket.timeout, ConnectionRefusedError):
+        pass  # Jeśli port jest zamknięty, przejdź do metody 2
+    except Exception as e:
+        log_and_echo(f"Błąd podczas sprawdzania portu Tora: {e}", "DEBUG")
+
+    # Metoda 2: Sprawdzenie statusu usługi systemd (fallback)
+    if sys.platform == "win32":
+        return False
+    try:
+        # Sprawdzamy najpierw 'tor@default.service', a potem 'tor.service'
+        for service_name in ["tor@default.service", "tor.service"]:
+            result = subprocess.run(
+                ["systemctl", "is-active", service_name],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            # 'is-active' zwraca 'active' i kod 0, jeśli usługa działa
+            if result.stdout.strip() == "active":
+                return True
+    except FileNotFoundError:
+        # systemctl nie jest dostępny
+        return False
+    
+    return False
+
+
 def log_and_echo(message: str, level: str = "INFO"):
     log_level = getattr(logging, level.upper(), logging.INFO)
     color = LOG_COLOR_MAP.get(level.upper(), "white")
     if level == "ERROR":
-        console.print(message, style=f"bold {color}")
+        console.print(escape(message), style=f"bold {color}")
     if config.LOG_FILE:
         logging.log(log_level, message)
 
@@ -73,12 +114,10 @@ def apply_exclusions(domains: List[str], exclusions: List[str]) -> List[str]:
     for domain in domains:
         is_excluded = False
         for pattern in exclusions:
-            # Obsługa wildcard, np. *.example.com
             if pattern.startswith('*.'):
                 if domain.endswith(pattern[2:]):
                     is_excluded = True
                     break
-            # Dokładne dopasowanie, np. admin.example.com
             else:
                 if domain == pattern:
                     is_excluded = True
@@ -116,7 +155,6 @@ def ask_user_decision(question: str, choices: List[str], default: str) -> str:
         if choice in choices:
             console.print(f"[bold cyan]{choice.upper()}[/bold cyan]")
             return choice
-        # Ignoruj inne klawisze
 
 def get_random_user_agent_header() -> str:
     """Reads a random User-Agent from a file."""
@@ -168,3 +206,4 @@ def get_random_browser_headers() -> List[str]:
         f"Cookie: sessionid={''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=32))}"
     ]
     return headers
+

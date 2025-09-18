@@ -4,7 +4,7 @@ import subprocess
 import socket
 import json
 import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor
 
 from rich.panel import Panel
@@ -16,6 +16,41 @@ from rich import box
 import config
 import utils
 
+def get_best_target_url(target: str) -> str:
+    """
+    Sprawdza dostępność celu na porcie 443 (HTTPS) i 80 (HTTP) za pomocą gniazd (sockets)
+    i zwraca najlepszy URL (preferując HTTPS).
+    """
+    utils.console.print(Align.center("[bold cyan]Sprawdzam protokół (HTTP/HTTPS)...[/bold cyan]"))
+    
+    # Sprawdź port 443 (HTTPS)
+    try:
+        sock_https = socket.create_connection((target, 443), timeout=5)
+        sock_https.close()
+        https_url = f"https://{target}"
+        utils.console.print(Align.center(f"[bold green]✓ Port 443 (HTTPS) jest otwarty. Używam: {https_url}[/bold green]"))
+        return https_url
+    except (socket.timeout, ConnectionRefusedError, OSError):
+        # Port 443 jest zamknięty lub nieosiągalny
+        pass
+
+    # Jeśli HTTPS zawiódł, sprawdź port 80 (HTTP)
+    try:
+        sock_http = socket.create_connection((target, 80), timeout=5)
+        sock_http.close()
+        http_url = f"http://{target}"
+        utils.console.print(Align.center(f"[bold yellow]! Port 443 zamknięty. Port 80 (HTTP) jest otwarty. Używam: {http_url}[/bold yellow]"))
+        return http_url
+    except (socket.timeout, ConnectionRefusedError, OSError):
+        # Oba porty są zamknięte
+        pass
+
+    # Fallback, jeśli oba porty są niedostępne
+    default_url = f"http://{config.HOSTNAME_TARGET}"
+    utils.console.print(Align.center(f"[bold red]! Nie udało się połączyć ani z portem 80, ani 443. Używam fallback: {default_url}[/bold red]"))
+    return default_url
+
+
 def get_whois_info(domain: str) -> Dict[str, Any]:
     """
     Pobiera informacje WHOIS dla podanej domeny.
@@ -24,7 +59,6 @@ def get_whois_info(domain: str) -> Dict[str, Any]:
     if config.TARGET_IS_IP:
         return {"Error": "WHOIS lookup not applicable for IP addresses."}
     try:
-        # Używamy flagi `-H`, aby ukryć informacje prawne, które zaśmiecają output
         command = ["whois", domain]
         process = subprocess.run(command, capture_output=True, text=True, timeout=60)
         
@@ -60,11 +94,9 @@ def get_whois_info(domain: str) -> Dict[str, Any]:
 
 def get_http_info(target: str) -> Dict[str, Any]:
     """
-    Używa httpx do zebrania informacji o IP, ASN, CDN i technologiach,
-    z fallbackiem do manualnego rozwiązywania DNS.
+    Używa httpx do zebrania informacji o IP, ASN, CDN i technologiach.
     """
     results: Dict[str, Any] = {}
-    httpx_data: Optional[Dict[str, Any]] = None
     
     try:
         command = [
@@ -74,31 +106,30 @@ def get_http_info(target: str) -> Dict[str, Any]:
         process = subprocess.run(command, capture_output=True, text=True, timeout=60)
         
         if process.stdout:
-            first_line = process.stdout.strip().split('\n')[0]
-            httpx_data = json.loads(first_line)
-            
-            results["asn_details"] = f"AS{httpx_data.get('asn', {}).get('as_number')} ({httpx_data.get('asn', {}).get('as_name')})"
-            results["cdn_name"] = httpx_data.get("cdn_name")
-            results["technologies"] = httpx_data.get("tech")
-            
-            # --- ZMIANA: Logika pobierania IP z fallbackiem ---
-            ip_address = httpx_data.get("ip")
-            if not ip_address:
+            # Znajdź pierwszą prawidłową linię JSON
+            for line in process.stdout.strip().split('\n'):
                 try:
-                    # Używamy `hostname` z wyników httpx lub oryginalnego celu
-                    hostname_to_resolve = httpx_data.get('host', config.CLEAN_DOMAIN_TARGET)
-                    ip_address = socket.gethostbyname(hostname_to_resolve)
-                    utils.log_and_echo(f"Httpx nie zwrócił IP. Użyto socket.gethostbyname dla '{hostname_to_resolve}', znaleziono: {ip_address}", "DEBUG")
-                except socket.gaierror:
-                    utils.log_and_echo(f"Nie udało się rozwiązać adresu IP dla '{config.CLEAN_DOMAIN_TARGET}' przez socket.", "WARN")
-                    ip_address = "Nie udało się rozwiązać"
-            results["ip"] = ip_address
-            # --- KONIEC ZMIANY ---
+                    httpx_data = json.loads(line)
+                    results["asn_details"] = f"AS{httpx_data.get('asn', {}).get('as_number')} ({httpx_data.get('asn', {}).get('as_name')})"
+                    results["cdn_name"] = httpx_data.get("cdn_name")
+                    results["technologies"] = httpx_data.get("tech")
+                    
+                    ip_address = httpx_data.get("ip")
+                    if not ip_address:
+                        try:
+                            hostname_to_resolve = httpx_data.get('host', config.CLEAN_DOMAIN_TARGET)
+                            ip_address = socket.gethostbyname(hostname_to_resolve)
+                        except socket.gaierror:
+                            ip_address = "Nie udało się rozwiązać"
+                    results["ip"] = ip_address
+                    # Znaleziono dane, przerwij pętlę
+                    break
+                except json.JSONDecodeError:
+                    continue
 
     except FileNotFoundError:
         return {"Error": "The 'httpx' command is not installed."}
     except (json.JSONDecodeError, IndexError):
-        # Jeśli httpx zawiedzie, spróbuj chociaż rozwiązać IP
         try:
             results["ip"] = socket.gethostbyname(config.CLEAN_DOMAIN_TARGET)
         except socket.gaierror:
@@ -111,16 +142,17 @@ def get_http_info(target: str) -> Dict[str, Any]:
 
     return results
 
-def start_phase0_osint() -> Dict[str, Any]:
+def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
     """
-    Orkiestruje zbieranie informacji w Fazie 0 i wyświetla wyniki.
+    Orkiestruje zbieranie informacji w Fazie 0 i zwraca wyniki oraz najlepszy URL.
     """
     utils.console.print(Align.center(Panel.fit(f"[bold cyan]Faza 0: Zwiad Pasywny (OSINT) dla {config.ORIGINAL_TARGET}[/bold cyan]")))
     
-    osint_data: Dict[str, Any] = {}
+    best_target_url = get_best_target_url(config.HOSTNAME_TARGET)
 
+    osint_data: Dict[str, Any] = {}
     with ThreadPoolExecutor() as executor:
-        future_http = executor.submit(get_http_info, config.ORIGINAL_TARGET)
+        future_http = executor.submit(get_http_info, best_target_url)
         future_whois = executor.submit(get_whois_info, config.CLEAN_DOMAIN_TARGET)
 
         http_results = future_http.result()
@@ -129,12 +161,10 @@ def start_phase0_osint() -> Dict[str, Any]:
         osint_data.update(http_results)
         osint_data.update(whois_results)
 
-    # Przygotowanie tabeli do wyświetlenia
     table = Table(show_header=True, header_style="bold magenta", box=box.ROUNDED, expand=True)
     table.add_column("Pole", style="cyan", min_width=20)
     table.add_column("Wartość", style="white")
 
-    # Dodawanie wierszy do tabeli
     table.add_row("Adres IP", osint_data.get("ip", "Brak danych"))
     table.add_row("ASN / Dostawca", osint_data.get("asn_details", "Brak danych"))
     table.add_row("CDN", osint_data.get("cdn_name", "Brak") or "Brak")
@@ -157,4 +187,5 @@ def start_phase0_osint() -> Dict[str, Any]:
         table.add_row("Technologie (strona główna)", "\n".join(sorted(technologies)))
 
     utils.console.print(table)
-    return osint_data
+    return osint_data, best_target_url
+

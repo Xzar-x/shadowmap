@@ -135,8 +135,16 @@ def start_web_crawl(
                     cmd = list(cfg["cmd_template"])
                     if cfg["name"] in ["ParamSpider", "LinkFinder"]:
                         cmd.extend(["-i" if cfg["name"] == "LinkFinder" else "-d", url])
-                    else: # Katana, Hakrawler, Gauplus
-                        cmd.extend(["-u", url] if cfg["name"] == "Katana" else [url])
+                    elif cfg["name"] == "Gauplus":
+                        # Gauplus działa na domenie, a nie na pełnym URL
+                        domain_match = re.search(r'https?://([^/]+)', url)
+                        if domain_match:
+                            domain = domain_match.group(1)
+                            cmd.append(domain)
+                        else:
+                            continue # Pomiń, jeśli nie można wyodrębnić domeny
+                    else: # Katana, Hakrawler
+                        cmd.extend(["-u", url])
 
                     futures.append(executor.submit(_run_and_parse_crawl_tool, cfg["name"], cmd, url, config.TOOL_TIMEOUT_SECONDS))
 
@@ -158,13 +166,19 @@ def display_phase4_tool_selection_menu(display_banner_func):
     while True:
         utils.console.clear()
         display_banner_func()
-        utils.console.print(Align.center(Panel.fit("[bold magenta]Faza 4: Web Crawling[/bold magenta]")))
+        utils.console.print(Align.center(Panel.fit("[bold magenta]Faza 4: Web Crawling & Discovery[/bold magenta]")))
         utils.console.print(Align.center(f"Obecny cel: [bold green]{config.ORIGINAL_TARGET}[/bold green]"))
         utils.console.print(Align.center(f"Tryb bezpieczny: {'[bold green]WŁĄCZONY[/bold green]' if config.SAFE_MODE else '[bold red]WYŁĄCZONY'}"))
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
         table.add_column("Key", style="bold blue", justify="center", min_width=5)
         table.add_column("Description", style="white", justify="left")
-        tool_names = ["Katana", "Hakrawler", "ParamSpider", "LinkFinder", "Gauplus"]
+        tool_names = [
+            "Katana (Aktywny crawler - jak przeglądarka)",
+            "Hakrawler (Aktywny crawler)",
+            "ParamSpider (Odkrywanie parametrów)",
+            "LinkFinder (Analiza plików JS)",
+            "Gauplus (Pasywne odkrywanie z archiwów)"
+        ]
         for i, tool_name in enumerate(tool_names):
             status_char = "[bold green]✓[/bold green]" if config.selected_phase4_tools[i] == 1 else "[bold red]✗[/bold red]"
             table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
@@ -173,6 +187,7 @@ def display_phase4_tool_selection_menu(display_banner_func):
         table.add_row("[\fb]", "Powrót do menu głównego")
         table.add_row("[\fq]", "Wyjdź")
         utils.console.print(Align.center(table))
+        utils.console.print(Align.center("[bold cyan]Rekomendacja: Włącz Katana i Gauplus, aby ominąć WAF.[/bold cyan]"))
         choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję i naciśnij Enter, aby rozpocząć[/bold cyan]", justify="center"))
         
         if choice.isdigit() and 1 <= int(choice) <= 5:
@@ -236,4 +251,3 @@ def display_phase4_settings_menu(display_banner_func):
             if new_timeout.isdigit(): config.TOOL_TIMEOUT_SECONDS, config.USER_CUSTOMIZED_TIMEOUT = int(new_timeout), True
         elif choice.lower() == 'b': break
         elif choice.lower() == 'q': sys.exit(0)
-
