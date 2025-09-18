@@ -166,7 +166,6 @@ def start_port_scan(
     if not targets_to_scan:
         return final_results
 
-    # --- POCZĄTEK NOWEJ LOGIKI ---
     nmap_scan_type = config.NMAP_SOLO_SCAN_MODE
     if nmap_enabled and not discovery_tools:
         utils.console.print(Align.center(Panel(
@@ -180,7 +179,6 @@ def start_port_scan(
             choices=["default", "full", "fast"],
             default=config.NMAP_SOLO_SCAN_MODE
         )
-    # --- KONIEC NOWEJ LOGIKI ---
 
     num_discovery_tools = naabu_enabled + masscan_enabled
     num_nmap_tasks = len(targets_to_scan) if nmap_enabled else 0
@@ -249,7 +247,6 @@ def start_port_scan(
                     if ports_to_scan_for_target:
                         cmd.extend(["-p", ",".join(map(str, ports_to_scan_for_target))])
                     else: 
-                        # Użyj wartości z interaktywnego promptu (lub z configu, jeśli nie było promptu)
                         if nmap_scan_type == 'full':
                             cmd.extend(["-p-"])
                         elif nmap_scan_type == 'fast':
@@ -343,7 +340,9 @@ def display_phase2_settings_menu(display_banner_func):
     
         choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
 
-        if choice == '1': config.SAFE_MODE = not config.SAFE_MODE
+        if choice == '1':
+            config.SAFE_MODE = not config.SAFE_MODE
+            utils.handle_safe_mode_tor_check()
         elif choice == '2':
             config.NMAP_USE_SCRIPTS = not config.NMAP_USE_SCRIPTS
             if config.NMAP_USE_SCRIPTS: config.NMAP_AGGRESSIVE_SCAN = False
@@ -367,4 +366,5 @@ def display_phase2_settings_menu(display_banner_func):
         elif choice.lower() == 'q': sys.exit(0)
         else: utils.console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
         time.sleep(0.1)
+
 

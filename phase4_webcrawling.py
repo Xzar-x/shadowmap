@@ -30,11 +30,9 @@ def _run_and_parse_crawl_tool(tool_name: str, command: List[str], target_url: st
     try:
         process = subprocess.run(command, capture_output=True, text=True, timeout=timeout, encoding='utf-8', errors='ignore')
         
-        # Ogólne parsowanie URL-i z stdout
         url_pattern = re.compile(r'https?://[^\s"\'<>]+')
         found_urls = url_pattern.findall(process.stdout)
         
-        # Specjalne parsowanie dla LinkFindera, który może zwracać ścieżki względne
         if tool_name == "LinkFinder":
             endpoint_pattern = re.compile(r"^(?!\[\+\]|\[i\]|\[!\])(?:'|\")?(/[a-zA-Z0-9_./-]+(?:\.js)?)")
             for line in process.stdout.splitlines():
@@ -47,7 +45,6 @@ def _run_and_parse_crawl_tool(tool_name: str, command: List[str], target_url: st
                     found_urls.append(f"{base_url}{path}")
         
         for url in found_urls:
-            # Czyszczenie URL-i
             url = url.strip().strip("'\"").rstrip('/')
             if url:
                 results.add(url)
@@ -84,7 +81,6 @@ def _categorize_urls(urls: List[str]) -> Dict[str, List[str]]:
         if any(url.endswith(ext) for ext in interesting_ext) or any(kw in url.lower() for kw in ['swagger', 'openapi', 'debug', 'test', 'backup', 'dump', 'admin']):
             categorized["interesting_paths"].append(url)
             
-    # Deduplikacja
     for key in categorized:
         if key != "all_urls":
             categorized[key] = sorted(list(set(categorized[key])))
@@ -136,13 +132,12 @@ def start_web_crawl(
                     if cfg["name"] in ["ParamSpider", "LinkFinder"]:
                         cmd.extend(["-i" if cfg["name"] == "LinkFinder" else "-d", url])
                     elif cfg["name"] == "Gauplus":
-                        # Gauplus działa na domenie, a nie na pełnym URL
                         domain_match = re.search(r'https?://([^/]+)', url)
                         if domain_match:
                             domain = domain_match.group(1)
                             cmd.append(domain)
                         else:
-                            continue # Pomiń, jeśli nie można wyodrębnić domeny
+                            continue
                     else: # Katana, Hakrawler
                         cmd.extend(["-u", url])
 
@@ -218,12 +213,13 @@ def display_phase4_settings_menu(display_banner_func):
         proxy_display = "[dim]Brak[/dim]"
         if config.PROXY: proxy_display = f"[bold green]{config.PROXY}[/bold green]"
 
-        table.add_row("[1]", f"Głębokość crawlera (Katana, Hakrawler): {config.CRAWL_DEPTH_P4}")
-        table.add_row("[2]", f"[{'[bold green]✓[/bold green]' if config.AUTO_FORM_FILL else '[bold red]✗[/bold red]'}] Automatyczne wypełnianie formularzy (Katana)")
-        table.add_row("[3]", f"User-Agent: {user_agent_display}")
-        table.add_row("[4]", f"Proxy: {proxy_display}")
-        table.add_row("[5]", f"Liczba wątków: {config.THREADS}")
-        table.add_row("[6]", f"Limit czasu narzędzia: {config.TOOL_TIMEOUT_SECONDS}s")
+        table.add_row("[1]", f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny")
+        table.add_row("[2]", f"Głębokość crawlera (Katana, Hakrawler): {config.CRAWL_DEPTH_P4}")
+        table.add_row("[3]", f"[{'[bold green]✓[/bold green]' if config.AUTO_FORM_FILL else '[bold red]✗[/bold red]'}] Automatyczne wypełnianie formularzy (Katana)")
+        table.add_row("[4]", f"User-Agent: {user_agent_display}")
+        table.add_row("[5]", f"Proxy: {proxy_display}")
+        table.add_row("[6]", f"Liczba wątków: {config.THREADS}")
+        table.add_row("[7]", f"Limit czasu narzędzia: {config.TOOL_TIMEOUT_SECONDS}s")
         table.add_section()
         table.add_row("[\fb]", "Powrót do menu Fazy 4")
         table.add_row("[\fq]", "Wyjdź")
@@ -232,22 +228,26 @@ def display_phase4_settings_menu(display_banner_func):
         choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
 
         if choice == '1':
+            config.SAFE_MODE = not config.SAFE_MODE
+            utils.handle_safe_mode_tor_check()
+        elif choice == '2':
             new_depth = Prompt.ask("[bold cyan]Podaj głębokość crawlera[/bold cyan]", default=str(config.CRAWL_DEPTH_P4))
             if new_depth.isdigit(): config.CRAWL_DEPTH_P4, config.USER_CUSTOMIZED_CRAWL_DEPTH_P4 = int(new_depth), True
-        elif choice == '2':
+        elif choice == '3':
             config.AUTO_FORM_FILL = not config.AUTO_FORM_FILL
             config.USER_CUSTOMIZED_AUTO_FORM_FILL = True
-        elif choice == '3':
+        elif choice == '4':
             new_ua = Prompt.ask("[bold cyan]Podaj User-Agent[/bold cyan]", default=config.CUSTOM_HEADER)
             config.CUSTOM_HEADER, config.USER_CUSTOMIZED_USER_AGENT = new_ua, bool(new_ua)
-        elif choice == '4':
+        elif choice == '5':
             new_proxy = Prompt.ask("[bold cyan]Podaj adres proxy[/bold cyan]", default=config.PROXY or "")
             config.PROXY, config.USER_CUSTOMIZED_PROXY = new_proxy, bool(new_proxy)
-        elif choice == '5':
+        elif choice == '6':
             new_threads = Prompt.ask("[bold cyan]Podaj liczbę wątków[/bold cyan]", default=str(config.THREADS))
             if new_threads.isdigit(): config.THREADS, config.USER_CUSTOMIZED_THREADS = int(new_threads), True
-        elif choice == '6':
+        elif choice == '7':
             new_timeout = Prompt.ask("[bold cyan]Podaj limit czasu (s)[/bold cyan]", default=str(config.TOOL_TIMEOUT_SECONDS))
             if new_timeout.isdigit(): config.TOOL_TIMEOUT_SECONDS, config.USER_CUSTOMIZED_TIMEOUT = int(new_timeout), True
         elif choice.lower() == 'b': break
         elif choice.lower() == 'q': sys.exit(0)
+

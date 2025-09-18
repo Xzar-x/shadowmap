@@ -217,7 +217,6 @@ def start_dir_search(
         httpx_output_file = os.path.join(config.REPORT_DIR, "httpx_results_phase3.txt")
         httpx_command = ["httpx", "-l", temp_file_path, "-silent", "-json", "-status-code"]
         
-        # Używamy _execute_tool_command z phase1_subdomain, bo jest tam już zdefiniowany
         from phase1_subdomain import _execute_tool_command
         httpx_result_file = _execute_tool_command("Httpx (P3)", httpx_command, httpx_output_file, config.TOOL_TIMEOUT_SECONDS)
         
@@ -278,8 +277,9 @@ def display_phase3_settings_menu(display_banner_func):
         if config.USER_CUSTOMIZED_WORDLIST_PHASE3: wordlist_display = f"[bold green]{config.WORDLIST_PHASE3}[/bold green]"
         elif config.SAFE_MODE: wordlist_display = f"[bold yellow]{config.SMALL_WORDLIST_PHASE3} (Safe Mode)[/bold yellow]"
 
-        table.add_row("[1]", f"Lista słów: {wordlist_display}")
-        table.add_row("[2]", f"Głębokość rekursji (Ffuf): {config.RECURSION_DEPTH_P3}")
+        table.add_row("[1]", f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny")
+        table.add_row("[2]", f"Lista słów: {wordlist_display}")
+        table.add_row("[3]", f"Głębokość rekursji (Ffuf): {config.RECURSION_DEPTH_P3}")
         table.add_section()
         table.add_row("[\fb]", "Powrót do menu Fazy 3")
         
@@ -287,13 +287,16 @@ def display_phase3_settings_menu(display_banner_func):
         choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
 
         if choice == '1':
+            config.SAFE_MODE = not config.SAFE_MODE
+            utils.handle_safe_mode_tor_check()
+        elif choice == '2':
             new_path = Prompt.ask("[bold cyan]Podaj nową ścieżkę do listy słów[/bold cyan]", default=config.WORDLIST_PHASE3)
             if os.path.isfile(new_path):
                 config.WORDLIST_PHASE3 = new_path
                 config.USER_CUSTOMIZED_WORDLIST_PHASE3 = True
             else:
                 utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"),- time.sleep(1))
-        elif choice == '2':
+        elif choice == '3':
             new_depth = Prompt.ask("[bold cyan]Podaj głębokość rekursji[/bold cyan]", default=str(config.RECURSION_DEPTH_P3))
             if new_depth.isdigit():
                 config.RECURSION_DEPTH_P3 = int(new_depth)

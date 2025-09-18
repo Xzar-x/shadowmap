@@ -27,11 +27,9 @@ import config
 console = Console()
 LOG_COLOR_MAP = {"INFO": "green", "WARN": "yellow", "ERROR": "red", "DEBUG": "blue"}
 
-# --- NOWOŚĆ: Globalne zarządzanie procesami ---
+# --- Globalne zarządzanie procesami ---
 managed_processes = []
 processes_lock = threading.Lock()
-# --- KONIEC NOWOŚCI ---
-
 
 # Import specyficzny dla systemu operacyjnego
 if sys.platform != "win32":
@@ -56,22 +54,19 @@ def is_tor_active() -> bool:
     Sprawdza, czy usługa Tor jest aktywna. Najpierw próbuje połączyć się z portem SOCKS,
     a jako fallback sprawdza status usługi systemd 'tor@default.service'.
     """
-    # Metoda 1: Sprawdzenie portu (najbardziej niezawodna)
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(1)
             s.connect(("127.0.0.1", 9050))
         return True
     except (socket.timeout, ConnectionRefusedError):
-        pass  # Jeśli port jest zamknięty, przejdź do metody 2
+        pass
     except Exception as e:
         log_and_echo(f"Błąd podczas sprawdzania portu Tora: {e}", "DEBUG")
 
-    # Metoda 2: Sprawdzenie statusu usługi systemd (fallback)
     if sys.platform == "win32":
         return False
     try:
-        # Sprawdzamy najpierw 'tor@default.service', a potem 'tor.service'
         for service_name in ["tor@default.service", "tor.service"]:
             result = subprocess.run(
                 ["systemctl", "is-active", service_name],
@@ -79,14 +74,43 @@ def is_tor_active() -> bool:
                 text=True,
                 check=False
             )
-            # 'is-active' zwraca 'active' i kod 0, jeśli usługa działa
             if result.stdout.strip() == "active":
                 return True
     except FileNotFoundError:
-        # systemctl nie jest dostępny
         return False
     
     return False
+
+def handle_safe_mode_tor_check():
+    """
+    Sprawdza status Tora, jeśli Safe Mode jest włączony, i informuje użytkownika.
+    Automatycznie konfiguruje proxy, jeśli to możliwe.
+    """
+    if not config.SAFE_MODE:
+        # Jeśli Safe Mode jest wyłączony, upewnij się, że proxy Tora jest usunięte (chyba że użytkownik je ustawił)
+        if not config.USER_CUSTOMIZED_PROXY and config.PROXY == "socks5://127.0.0.1:9050":
+            config.PROXY = None
+        return
+
+    # Jeśli Safe Mode jest włączony, wykonaj sprawdzenie
+    if is_tor_active():
+        console.print(Align.center(Panel(
+            Text("✓ Usługa Tor jest aktywna. Proxy zostanie automatycznie skonfigurowane dla wspieranych narzędzi.", justify="center"),
+            title="[bold green]Tor Aktywny[/bold green]",
+            border_style="green"
+        )))
+        if not config.USER_CUSTOMIZED_PROXY:
+            config.PROXY = "socks5://127.0.0.1:9050"
+    else:
+        console.print(Align.center(Panel(
+            Text("! Usługa Tor NIE JEST AKTYWNA.\nTryb Bezpieczny będzie kontynuowany BEZ Tora, co może zmniejszyć anonimowość.", justify="center"),
+            title="[bold red]Ostrzeżenie: Tor Nieaktywny[/bold red]",
+            border_style="red"
+        )))
+        # Upewnij się, że proxy Tora jest usunięte, jeśli usługa nie działa
+        if not config.USER_CUSTOMIZED_PROXY and config.PROXY == "socks5://127.0.0.1:9050":
+            config.PROXY = None
+    time.sleep(1.5)
 
 
 def log_and_echo(message: str, level: str = "INFO"):

@@ -55,12 +55,6 @@ def _execute_tool_command(tool_name: str, command_parts: List[str], output_file:
 def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]]:
     """
     Uruchamia skanowanie Fazy 1 w celu odkrycia subdomen i wzbogacenia ich o dodatkowe dane.
-
-    Returns:
-        Tuple[Dict[str, str], List[Dict[str, Any]], List[str]]: Krotka zawierająca:
-        - Słownik z ścieżkami do plików wyjściowych narzędzi.
-        - Listę słowników dla aktywnych URLi z metadanymi.
-        - Listę wszystkich unikalnych (ale niekoniecznie aktywnych) subdomen.
     """
     utils.console.print(Align.center(f"[bold green]Rozpoczynam Fazę 1 - Odkrywanie Subdomen dla {config.ORIGINAL_TARGET}...[/bold green]"))
 
@@ -131,7 +125,6 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
     active_urls_with_metadata = []
     with utils.console.status("[bold green]Weryfikuję subdomeny i pobieram nagłówki za pomocą HTTPX...[/bold green]"):
         httpx_output_file = os.path.join(config.REPORT_DIR, "httpx_results_phase1.txt")
-        # FIX: Dodano flagę -irh (include response header) do httpx
         httpx_command = ["httpx", "-l", unique_subdomains_file, "-silent", "-fc", "404", "-json", "-irh"]
         
         if config.SAFE_MODE:
@@ -191,7 +184,7 @@ def display_phase1_tool_selection_menu(display_banner_func):
                 table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
 
         table.add_section()
-        table.add_row("[\fs]", "[bold magenta]Zmień ustawienia Fazy 1[/bold magenta]")
+        table.add_row("[\fs]", "[bold magenta]Ustawienia Fazy 1[/bold magenta]")
         table.add_row("[\fb]", "Powrót do menu głównego")
         table.add_row("[\fq]", "Wyjdź")
 
@@ -220,83 +213,46 @@ def display_phase1_tool_selection_menu(display_banner_func):
         time.sleep(0.1)
 
 def display_phase1_settings_menu(display_banner_func):
+    """Wyświetla menu ustawień specyficznych dla Fazy 1."""
     while True:
         utils.console.clear()
         display_banner_func()
         utils.console.print(Align.center(Panel.fit("[bold cyan]Ustawienia Fazy 1[/bold cyan]")))
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
-        table.add_column("Key", style="bold blue", justify="center", min_width=5)
-        table.add_column("Description", style="white", justify="left")
 
-        # Logika wyświetlania
         wordlist_display = f"[dim]{config.WORDLIST_PHASE1}[/dim]"
-        if config.USER_CUSTOMIZED_WORDLIST_PHASE1: wordlist_display = f"[bold green]{config.WORDLIST_PHASE1} (Użytkownika)[/bold green]"
-        elif config.SAFE_MODE: wordlist_display = f"[bold yellow]{config.SMALL_WORDLIST_PHASE1} (Safe Mode)[/bold yellow]"
+        if config.USER_CUSTOMIZED_WORDLIST_PHASE1:
+            wordlist_display = f"[bold green]{config.WORDLIST_PHASE1} (Użytkownika)[/bold green]"
+        elif config.SAFE_MODE:
+            wordlist_display = f"[bold yellow]{config.SMALL_WORDLIST_PHASE1} (Safe Mode)[/bold yellow]"
         
-        user_agent_display = f"[dim white]'{config.CUSTOM_HEADER}'[/dim white]"
-        if config.USER_CUSTOMIZED_USER_AGENT and config.CUSTOM_HEADER: user_agent_display = f"[bold green]'{config.CUSTOM_HEADER}' (Użytkownika)[/bold green]"
-        elif config.SAFE_MODE and not config.USER_CUSTOMIZED_USER_AGENT: user_agent_display = f"[bold yellow]Losowy + Dodatkowe (Safe Mode)[/bold yellow]"
-        elif not config.CUSTOM_HEADER: user_agent_display = f"[dim white]Domyślny[/dim white]"
-
-        threads_display = f"[bold yellow]{config.THREADS}[/bold yellow]"
-        if config.USER_CUSTOMIZED_THREADS: threads_display = f"[bold green]{config.THREADS} (Użytkownika)[/bold green]"
-
-        timeout_display = f"[bold yellow]{config.TOOL_TIMEOUT_SECONDS}[/bold yellow]s"
-        if config.USER_CUSTOMIZED_TIMEOUT: timeout_display = f"[bold green]{config.TOOL_TIMEOUT_SECONDS}s (Użytkownika)[/bold green]"
-
         resolvers_display = f"[dim]{config.RESOLVERS_FILE}[/dim]"
-        if config.USER_CUSTOMIZED_RESOLVERS: resolvers_display = f"[bold green]{config.RESOLVERS_FILE} (Użytkownika)[/bold green]"
-        
-        proxy_display = "[dim]Brak[/dim]"
-        if config.PROXY: proxy_display = f"[bold green]{config.PROXY} (Użytkownika)[/bold green]"
+        if config.USER_CUSTOMIZED_RESOLVERS:
+            resolvers_display = f"[bold green]{config.RESOLVERS_FILE} (Użytkownika)[/bold green]"
 
-        # Budowanie tabeli
-        table.add_row("[1]", f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny (wpływa na wszystkie fazy)")
-        table.add_row("[2]", f"Lista słów (Faza 1): {wordlist_display}")
-        table.add_row("[3]", f"User-Agent (Fazy 3/4): {user_agent_display}")
-        table.add_row("[4]", f"Proxy (dla Faz 3/4): {proxy_display}")
-        table.add_row("[5]", f"Liczba wątków: {threads_display}")
-        table.add_row("[6]", f"Limit czasu narzędzia: {timeout_display}")
-        table.add_row("[7]", f"Plik resolverów: {resolvers_display}")
+        table.add_row("[1]", f"Lista słów (dla Puredns): {wordlist_display}")
+        table.add_row("[2]", f"Plik resolverów (dla Puredns): {resolvers_display}")
         table.add_section()
         table.add_row("[\fb]", "Powrót do menu Fazy 1")
-        table.add_row("[\fq]", "Wyjdź")
-        utils.console.print(Align.center(table))
 
+        utils.console.print(Align.center(table))
         choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
 
         if choice == '1':
-            config.SAFE_MODE = not config.SAFE_MODE
-            if not config.USER_CUSTOMIZED_TIMEOUT: config.TOOL_TIMEOUT_SECONDS = 1000 if config.SAFE_MODE else 1800
-            if not config.USER_CUSTOMIZED_WORDLIST_PHASE1: config.WORDLIST_PHASE1 = config.SMALL_WORDLIST_PHASE1 if config.SAFE_MODE else config.DEFAULT_WORDLIST_PHASE1
-            if config.SAFE_MODE and not config.USER_CUSTOMIZED_USER_AGENT and not config.CUSTOM_HEADER: config.CUSTOM_HEADER = utils.get_random_user_agent_header()
-            elif not config.SAFE_MODE and not config.USER_CUSTOMIZED_USER_AGENT: config.CUSTOM_HEADER = ""
+            new_path = Prompt.ask("[bold cyan]Podaj ścieżkę do listy słów[/bold cyan]", default=config.WORDLIST_PHASE1)
+            if os.path.isfile(new_path):
+                config.WORDLIST_PHASE1 = new_path
+                config.USER_CUSTOMIZED_WORDLIST_PHASE1 = True
+            else:
+                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"), time.sleep(1))
         elif choice == '2':
-            new_path = Prompt.ask("[bold cyan]Wpisz nową ścieżkę do listy słów (Faza 1)[/bold cyan]", default=config.WORDLIST_PHASE1)
-            if not new_path: config.WORDLIST_PHASE1, config.USER_CUSTOMIZED_WORDLIST_PHASE1 = config.DEFAULT_WORDLIST_PHASE1, False
-            elif os.path.isfile(new_path) and os.access(new_path, os.R_OK): config.WORDLIST_PHASE1, config.USER_CUSTOMIZED_WORDLIST_PHASE1 = new_path, True
-            else: utils.console.print(Align.center("[bold red]Ścieżka nieprawidłowa lub plik nieczytelny.[/bold red]"))
-        elif choice == '3':
-            new_ua = Prompt.ask("[bold cyan]Wpisz nowy User-Agent[/bold cyan]", default=config.CUSTOM_HEADER)
-            config.CUSTOM_HEADER, config.USER_CUSTOMIZED_USER_AGENT = new_ua, bool(new_ua)
-        elif choice == '4':
-            new_proxy = Prompt.ask("[bold cyan]Wpisz adres proxy (puste=wyłącz)[/bold cyan]", default=config.PROXY)
-            config.PROXY = new_proxy.strip() if new_proxy else None
-            config.USER_CUSTOMIZED_PROXY = bool(config.PROXY)
-        elif choice == '5':
-            new_threads_str = Prompt.ask("[bold cyan]Wpisz nową liczbę wątków[/bold cyan]", default=str(config.THREADS))
-            if new_threads_str.isdigit() and int(new_threads_str) > 0: config.THREADS, config.USER_CUSTOMIZED_THREADS = int(new_threads_str), True
-            else: utils.console.print(Align.center("[bold red]Nieprawidłowa liczba wątków.[/bold red]"))
-        elif choice == '6':
-            new_timeout_str = Prompt.ask("[bold cyan]Wpisz nowy limit czasu w sekundach[/bold cyan]", default=str(config.TOOL_TIMEOUT_SECONDS))
-            if new_timeout_str.isdigit() and int(new_timeout_str) > 0: config.TOOL_TIMEOUT_SECONDS, config.USER_CUSTOMIZED_TIMEOUT = int(new_timeout_str), True
-            else: utils.console.print(Align.center("[bold red]Nieprawidłowy limit czasu.[/bold red]"))
-        elif choice == '7':
-            new_path = Prompt.ask("[bold cyan]Wpisz nową ścieżkę do pliku resolverów[/bold cyan]", default=config.RESOLVERS_FILE)
-            if not new_path: config.RESOLVERS_FILE, config.USER_CUSTOMIZED_RESOLVERS = config.DEFAULT_RESOLVERS_FILE, False
-            elif os.path.isfile(new_path) and os.access(new_path, os.R_OK): config.RESOLVERS_FILE, config.USER_CUSTOMIZED_RESOLVERS = new_path, True
-            else: utils.console.print(Align.center("[bold red]Ścieżka nieprawidłowa lub plik nieczytelny.[/bold red]"))
-        elif choice.lower() == 'b': break
-        elif choice.lower() == 'q': sys.exit(0)
-        else: utils.console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
-        time.sleep(0.1)
+            new_path = Prompt.ask("[bold cyan]Podaj ścieżkę do pliku resolverów[/bold cyan]", default=config.RESOLVERS_FILE)
+            if os.path.isfile(new_path):
+                config.RESOLVERS_FILE = new_path
+                config.USER_CUSTOMIZED_RESOLVERS = True
+            else:
+                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"), time.sleep(1))
+        elif choice.lower() == 'b':
+            break
+
+
