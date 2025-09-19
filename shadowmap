@@ -49,22 +49,18 @@ def display_banner():
     utils.console.print(Align.center("[dim white]Made by Xzar[/dim white]\n"))
 
 def ask_scan_scope(all_results: List[str], critical_results: List[str], phase_name: str) -> Optional[List[str]]:
-    """Pyta użytkownika o zakres skanowania, jeśli znaleziono krytyczne wyniki."""
-    if not critical_results:
-        return all_results # Jeśli nie ma krytycznych, skanuj wszystko
-
     summary_text = (
         f"Znaleziono [bold green]{len(all_results)}[/bold green] wyników.\n"
-        f"W tym [bold red]{len(critical_results)}[/bold red] potencjalnie krytycznych."
+        f"W tym [bold red]{len(critical_results)}[/bold red] krytycznych."
     )
     panel = Panel(Text.from_markup(summary_text, justify="center"), border_style="cyan", title="[cyan]Podsumowanie[/cyan]")
     utils.console.print(Align.center(panel))
 
-    question = f"Jaki zakres celów przeskanować w {phase_name}?\n" \
+    question = f"Co skanować w {phase_name}?\n" \
                f"([bold]A[/bold])ll - wszystkie {len(all_results)}\n" \
-               f"([bold]C[/bold])ritical - tylko krytyczne {len(critical_results)}"
+               f"([bold]C[/bold])ritical - tylko {len(critical_results)}"
     
-    choice = utils.ask_user_decision(question, choices=["a", "c"], default="c")
+    choice = utils.ask_user_decision(question, choices=["a", "c"], default="a")
     return all_results if choice.lower() == 'a' else critical_results
 
 def display_main_menu():
@@ -117,7 +113,12 @@ def detect_waf_and_propose_safe_mode():
             utils.console.print(Align.center(Panel(Text.from_markup(f"[red]Wykryto WAF:[/red] [blue]{waf_name.group(1).strip()}[/blue]", justify="center"), title="[yellow]Wynik[/yellow]")))
             if utils.ask_user_decision("Włączyć Tryb Bezpieczny?", ["y", "n"], "y") == 'y':
                 config.SAFE_MODE = True
-                utils.handle_safe_mode_tor_check()
+                if utils.is_tor_active():
+                    utils.console.print(Align.center("[green]✓ Usługa Tor aktywna. Proxy zostanie ustawione.[/green]"))
+                    if not config.USER_CUSTOMIZED_PROXY:
+                        config.PROXY = "socks5://127.0.0.1:9050"
+                else:
+                    utils.console.print(Align.center(Panel(Text("Usługa Tor [red]NIE JEST AKTYWNA[/red].\nTryb Bezpieczny będzie kontynuowany [yellow]BEZ Tora[/yellow].", justify="center"), title="[yellow]Ostrzeżenie[/yellow]")))
         else:
             utils.console.print(Align.center(Panel(Text("Nie wykryto WAF.", justify="center"), title="[green]Wynik[/green]")))
 
@@ -161,6 +162,10 @@ def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_res
     p3_results_by_tool = p3_results.get("results_by_tool", {})
     all_subdomains_list = sorted(list(set((read_file_content(p1_files.get(t)) for t in ["Subfinder", "Assetfinder", "Findomain", "Puredns"]))))
     
+    # ZAKTUALIZOWANO: Logika generowania listy HTML dla technologii
+    tech_list = p0_data.get('technologies', [])
+    tech_html = f"<ul>{''.join(f'<li>{tech}</li>' for tech in tech_list)}</ul>" if tech_list else "<p>Brak danych</p>"
+    
     replacements = {
         "{{DOMAIN}}": config.HOSTNAME_TARGET,
         "{{OSINT_IP}}": p0_data.get('ip', 'Brak'),
@@ -170,7 +175,7 @@ def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_res
         "{{OSINT_CREATION_DATE}}": p0_data.get('creation_date', 'Brak'),
         "{{OSINT_EXPIRATION_DATE}}": p0_data.get('expiration_date', 'Brak'),
         "{{OSINT_NAME_SERVERS}}": '\n'.join(p0_data.get('name_servers', [])),
-        "{{OSINT_TECHNOLOGIES}}": '\n'.join(p0_data.get('technologies', [])),
+        "{{OSINT_TECHNOLOGIES_HTML}}": tech_html, # NOWY PLACEHOLDER
         "{{COUNT_ALL_SUBDOMAINS}}": str(len(all_subdomains_list)),
         "{{COUNT_HTTPX}}": str(len(active_urls_data)),
         "{{COUNT_OPEN_PORTS}}": str(sum(len(p) for p in p2_results.get("open_ports_by_host", {}).values())),
@@ -240,10 +245,11 @@ def main(
             scan_initiated = True
 
             if config.QUIET_MODE:
+                # ... logika trybu cichego ...
                 continue
             
             p0_data, best_target_url = phase0_osint.start_phase0_osint()
-            config.ORIGINAL_TARGET = best_target_url
+            config.ORIGINAL_TARGET = best_target_url # Aktualizacja celu
             detect_waf_and_propose_safe_mode()
             
             choice = ''
@@ -259,10 +265,12 @@ def main(
                                 choice = '2'
                             else:
                                 choice = ''
+                            continue
                         else:
                             utils.console.print(Align.center("[yellow]Nie znaleziono aktywnych subdomen. Wracam do menu głównego.[/yellow]"))
                             time.sleep(2)
                             choice = ''
+                            continue
                     else:
                         choice = ''
                 
@@ -272,77 +280,46 @@ def main(
                         time.sleep(2)
                         choice = ''
                         continue
-                    
-                    # --- POCZĄTEK POPRAWKI ---
-                    all_urls_from_p1 = [item['url'] for item in active_urls_data]
-                    critical_urls_from_p1 = utils.filter_critical_urls(all_urls_from_p1)
-                    targets_for_p2 = ask_scan_scope(all_urls_from_p1, critical_urls_from_p1, "Fazie 2")
-                    # --- KONIEC POPRAWKI ---
-
-                    if not targets_for_p2:
-                        utils.console.print(Align.center("[yellow]Nie wybrano celów do skanowania. Wracam do menu.[/yellow]"))
-                        time.sleep(2)
-                        choice = ''
-                        continue
 
                     if phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
+                         targets_for_p2 = [item['url'] for item in active_urls_data]
                          p2_results = phase2_port_scanning.start_port_scan(targets_for_p2, None, None)
                          if p2_results and p2_results.get("open_ports_by_host"):
                              if utils.ask_user_decision("Zakończono Fazę 2. Kontynuować do Fazy 3 (Wyszukiwanie Katalogów)?", ["y", "n"], "y") == 'y':
                                  choice = '3'
                              else:
                                  choice = ''
+                                 continue
                          else:
                             utils.console.print(Align.center("[yellow]Nie znaleziono otwartych portów. Wracam do menu głównego.[/yellow]"))
                             time.sleep(2)
                             choice = ''
+                            continue
                     else:
                         choice = ''
 
                 if choice == '3':
-                    targets_for_p3 = [item['url'] for item in active_urls_data] or [config.ORIGINAL_TARGET]
-                    if not targets_for_p3:
-                        utils.console.print(Align.center("[bold yellow]Brak celów do skanowania. Uruchom najpierw Fazę 1.[/bold yellow]"))
-                        time.sleep(2)
-                        choice = ''
-                        continue
-
                     if phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
+                        targets = [item['url'] for item in active_urls_data] or [config.ORIGINAL_TARGET]
+                        
                         num_tools = sum(config.selected_phase3_tools)
-                        total_tasks = len(targets_for_p3) * num_tools
+                        total_tasks = len(targets) * num_tools
                         
                         with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(), console=utils.console, transient=True) as progress:
                             task = progress.add_task("[green]Faza 3: Wyszukiwanie katalogów[/green]", total=total_tasks if total_tasks > 0 else 1)
-                            p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(targets_for_p3, progress, task)
+                            p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(targets, progress, task)
                         
-                        if p3_verified_data and utils.ask_user_decision("Zakończono Fazę 3. Kontynuować do Fazy 4 (Web Crawling)?", ["y", "n"], "y") == 'y':
+                        if utils.ask_user_decision("Zakończono Fazę 3. Kontynuować do Fazy 4 (Web Crawling)?", ["y", "n"], "y") == 'y':
                             choice = '4'
                         else:
                             choice = ''
+                            continue
                     else:
                         choice = ''
                 
                 if choice == '4':
-                    # --- POCZĄTEK POPRAWKI ---
-                    all_urls_from_p3 = [item['url'] for item in p3_verified_data]
-                    critical_urls_from_p3 = utils.filter_critical_urls(all_urls_from_p3)
-                    
-                    # Logika fallback: jeśli Faza 3 nic nie znalazła, użyj wyników z Fazy 1
-                    if not all_urls_from_p3:
-                         utils.console.print(Align.center("[yellow]Faza 3 nie znalazła zweryfikowanych URLi. Używam wyników z Fazy 1 jako celów dla Fazy 4.[/yellow]"))
-                         all_urls_from_p3 = [item['url'] for item in active_urls_data]
-                         critical_urls_from_p3 = utils.filter_critical_urls(all_urls_from_p3)
-
-                    targets_for_p4 = ask_scan_scope(all_urls_from_p3, critical_urls_from_p3, "Fazie 4")
-                    # --- KONIEC POPRAWKI ---
-
-                    if not targets_for_p4:
-                        utils.console.print(Align.center("[yellow]Nie wybrano celów do crawlera. Wracam do menu.[/yellow]"))
-                        time.sleep(2)
-                        choice = ''
-                        continue
-                        
                     if phase4_webcrawling.display_phase4_tool_selection_menu(display_banner):
+                        targets_for_p4 = [item['url'] for item in p3_verified_data] or [item['url'] for item in active_urls_data] or [config.ORIGINAL_TARGET]
                         num_tools = sum(config.selected_phase4_tools)
                         total_tasks = len(targets_for_p4) * num_tools
                         
@@ -352,7 +329,7 @@ def main(
                         
                         utils.console.print(Align.center("[bold green]Faza 4 zakończona. Wracam do menu głównego.[/bold green]"))
                         time.sleep(2)
-                    choice = ''
+                    choice = '' # Po fazie 4 zawsze wracaj do menu
 
                 if choice.lower() == 'q':
                     report_file_path = generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results)
@@ -368,5 +345,3 @@ def main(
 
 if __name__ == "__main__":
     app()
-
-

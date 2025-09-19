@@ -31,7 +31,8 @@ DRY_RUN = "-d" in sys.argv or "--dry-run" in sys.argv
 NONINTERACTIVE = "-n" in sys.argv or "--non-interactive" in sys.argv
 IS_ROOT = os.geteuid() == 0
 
-SYSTEM_DEPS = ["go", "python3", "pip3", "nmap", "masscan", "whois"]
+# ZAKTUALIZOWANO: Dodano 'whatweb'
+SYSTEM_DEPS = ["go", "python3", "pip3", "nmap", "masscan", "whois", "whatweb"]
 GO_TOOLS = {
     "subfinder": "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
     "assetfinder": "github.com/tomnomnom/assetfinder@latest",
@@ -45,7 +46,8 @@ GO_TOOLS = {
     "hakrawler": "github.com/hakluke/hakrawler@latest",
     "gauplus": "github.com/bp0lr/gauplus@latest"
 }
-PYTHON_PKGS = ["rich", "questionary", "pyfiglet", "typer", "psutil"]
+# ZAKTUALIZOWANO: Dodano 'webtech'
+PYTHON_PKGS = ["rich", "questionary", "pyfiglet", "typer", "psutil", "webtech"]
 
 def display_banner():
     f = Figlet(font='slant')
@@ -177,4 +179,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         console.print("\n[bold red]Instalacja przerwana przez użytkownika.[/bold red]")
         sys.exit(1)
-
