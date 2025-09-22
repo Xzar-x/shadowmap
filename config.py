@@ -1,14 +1,16 @@
 # /usr/local/share/shadowmap/config.py
 
 import os
-from typing import Optional, List
+from typing import List, Optional
 
 # --- Ścieżki i stałe ---
 SHARE_DIR = "/usr/local/share/shadowmap/"
 HTML_TEMPLATE_PATH = os.path.join(SHARE_DIR, "report_template.html")
 USER_AGENTS_FILE = os.path.join(SHARE_DIR, "user_agents.txt")
 
-DEFAULT_WORDLIST_PHASE1 = "/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt"
+DEFAULT_WORDLIST_PHASE1 = (
+    "/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt"
+)
 SMALL_WORDLIST_PHASE1 = os.path.join(SHARE_DIR, "subdomen_wordlist.txt")
 
 DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/common.txt"
@@ -47,21 +49,37 @@ RESOLVERS_FILE: str = DEFAULT_RESOLVERS_FILE
 NMAP_USE_SCRIPTS: bool = False
 NMAP_AGGRESSIVE_SCAN: bool = False
 NAABU_SOURCE_PORT: Optional[str] = None
-MASSCAN_RATE: int = 300 
-NMAP_SOLO_SCAN_MODE: str = "default" # 'default', 'full', 'fast'
+MASSCAN_RATE: int = 300
+NMAP_SOLO_SCAN_MODE: str = "default"  # 'default', 'full', 'fast'
 
 # --- NOWOŚĆ: Ustawienia Super Safe Mode ---
 USE_HEADLESS_BROWSER: bool = False
 WAF_CHECK_ENABLED: bool = True
-WAF_CHECK_INTERVAL_MIN: int = 30 # sekundy
-WAF_CHECK_INTERVAL_MAX: int = 60 # sekundy
+WAF_CHECK_INTERVAL_MIN: int = 30  # sekundy
+WAF_CHECK_INTERVAL_MAX: int = 60  # sekundy
 
 
 # --- Wybrane narzędzia ---
-selected_phase1_tools: List[int] = [0, 0, 0, 0] # Subfinder, Assetfinder, Findomain, Puredns
-selected_phase2_tools: List[int] = [0, 0, 0] # Nmap, Naabu, Masscan
-selected_phase3_tools: List[int] = [0, 0, 0, 0] # Ffuf, Feroxbuster, Dirsearch, Gobuster
-selected_phase4_tools: List[int] = [0, 0, 0, 0, 0] # Katana, Hakrawler, ParamSpider, LinkFinder, gauplus
+selected_phase1_tools: List[int] = [
+    0,
+    0,
+    0,
+    0,
+]  # Subfinder, Assetfinder, Findomain, Puredns
+selected_phase2_tools: List[int] = [0, 0, 0]  # Nmap, Naabu, Masscan
+selected_phase3_tools: List[int] = [
+    0,
+    0,
+    0,
+    0,
+]  # Ffuf, Feroxbuster, Dirsearch, Gobuster
+selected_phase4_tools: List[int] = [
+    0,
+    0,
+    0,
+    0,
+    0,
+]  # Katana, Hakrawler, ParamSpider, LinkFinder, gauplus
 
 # --- Flagi ręcznych zmian przez użytkownika ---
 USER_CUSTOMIZED_WORDLIST_PHASE1: bool = False
