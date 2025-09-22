@@ -12,6 +12,7 @@ from rich.align import Align
 from rich.text import Text
 from rich.table import Table
 from rich import box
+from rich.columns import Columns
 
 # NOWOŚĆ: Import biblioteki webtech
 try:
@@ -181,15 +182,30 @@ def get_webtech_info(target_url: str) -> List[str]:
     techs = []
     try:
         wt = WebTech()
-        results = wt.start_from_url(target_url, timeout=30)
+        results_obj = wt.start_from_url(target_url, timeout=30)
+        
+        results = {}
+        if isinstance(results_obj, str):
+            try:
+                results = json.loads(results_obj)
+            except json.JSONDecodeError:
+                utils.log_and_echo(f"Błąd parsowania JSON z webtech.", "WARN")
+                return []
+        elif isinstance(results_obj, dict):
+            results = results_obj
+
         for tech_info in results.get('tech', []):
-            name = tech_info.get('name')
-            version = tech_info.get('version')
-            if name:
-                tech_entry = name
-                if version:
-                    tech_entry += f" ({version})"
-                techs.append(tech_entry)
+            if isinstance(tech_info, dict):
+                name = tech_info.get('name')
+                version = tech_info.get('version')
+                if name:
+                    tech_entry = name
+                    if version:
+                        tech_entry += f" ({version})"
+                    techs.append(tech_entry)
+            elif isinstance(tech_info, str):
+                techs.append(tech_info)
+
     except Exception as e:
         utils.log_and_echo(f"Niespodziewany błąd webtech: {e}", "ERROR")
 
@@ -248,12 +264,13 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
     technologies = osint_data.get("technologies")
     if technologies and isinstance(technologies, list):
         table.add_section()
-        # Wyświetl max 15 technologii, resztę zwiń
-        if len(technologies) > 15:
-            tech_display = "\n".join(technologies[:15]) + f"\n... i {len(technologies) - 15} więcej."
-        else:
-            tech_display = "\n".join(technologies)
+        # ZMIANA: Wyświetlanie technologii w dwóch kolumnach
+        midpoint = (len(technologies) + 1) // 2
+        col1 = "\n".join(technologies[:midpoint])
+        col2 = "\n".join(technologies[midpoint:])
+        tech_display = Columns([col1, col2], equal=True, expand=True)
         table.add_row(f"Technologie ({len(technologies)} wykrytych)", tech_display)
 
     utils.console.print(table)
     return osint_data, best_target_url
+

@@ -113,12 +113,7 @@ def detect_waf_and_propose_safe_mode():
             utils.console.print(Align.center(Panel(Text.from_markup(f"[red]Wykryto WAF:[/red] [blue]{waf_name.group(1).strip()}[/blue]", justify="center"), title="[yellow]Wynik[/yellow]")))
             if utils.ask_user_decision("Włączyć Tryb Bezpieczny?", ["y", "n"], "y") == 'y':
                 config.SAFE_MODE = True
-                if utils.is_tor_active():
-                    utils.console.print(Align.center("[green]✓ Usługa Tor aktywna. Proxy zostanie ustawione.[/green]"))
-                    if not config.USER_CUSTOMIZED_PROXY:
-                        config.PROXY = "socks5://127.0.0.1:9050"
-                else:
-                    utils.console.print(Align.center(Panel(Text("Usługa Tor [red]NIE JEST AKTYWNA[/red].\nTryb Bezpieczny będzie kontynuowany [yellow]BEZ Tora[/yellow].", justify="center"), title="[yellow]Ostrzeżenie[/yellow]")))
+                utils.handle_safe_mode_tor_check() # ZMIANA: Sprawdzenie Tora od razu po włączeniu Safe Mode
         else:
             utils.console.print(Align.center(Panel(Text("Nie wykryto WAF.", justify="center"), title="[green]Wynik[/green]")))
 
@@ -151,7 +146,7 @@ def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_res
         if path and os.path.exists(path):
             try: return open(path, 'r', encoding='utf-8', errors='ignore').read()
             except Exception: return "Błąd odczytu"
-        return "Brak danych"
+        return "" # ZMIANA: Zwracaj pusty string zamiast "Brak danych"
 
     try:
         with open(config.HTML_TEMPLATE_PATH, 'r', encoding='utf-8') as f: template = f.read()
@@ -160,12 +155,27 @@ def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_res
         return None
     
     p3_results_by_tool = p3_results.get("results_by_tool", {})
-    all_subdomains_list = sorted(list(set((read_file_content(p1_files.get(t)) for t in ["Subfinder", "Assetfinder", "Findomain", "Puredns"]))))
     
-    # ZAKTUALIZOWANO: Logika generowania listy HTML dla technologii
+    # ZMIANA: Poprawiona logika zliczania subdomen
+    all_subdomains_content = "".join(read_file_content(f) for f in p1_files.values())
+    all_subdomains_list = sorted(list(set(line.strip() for line in all_subdomains_content.splitlines() if line.strip())))
+    count_all_subdomains = len(all_subdomains_list) if p1_files else 0
+
+    # ZMIANA: Logika generowania listy HTML dla technologii w 2 kolumnach
     tech_list = p0_data.get('technologies', [])
-    tech_html = f"<ul>{''.join(f'<li>{tech}</li>' for tech in tech_list)}</ul>" if tech_list else "<p>Brak danych</p>"
-    
+    tech_html = ""
+    if tech_list:
+        midpoint = (len(tech_list) + 1) // 2
+        col1 = tech_list[:midpoint]
+        col2 = tech_list[midpoint:]
+        
+        col1_html = "".join(f'<li>{tech}</li>' for tech in col1)
+        col2_html = "".join(f'<li>{tech}</li>' for tech in col2)
+        
+        tech_html = f'<div class="tech-columns"><ul>{col1_html}</ul><ul>{col2_html}</ul></div>'
+    else:
+        tech_html = "<p>Brak danych</p>"
+
     replacements = {
         "{{DOMAIN}}": config.HOSTNAME_TARGET,
         "{{OSINT_IP}}": p0_data.get('ip', 'Brak'),
@@ -175,8 +185,8 @@ def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_res
         "{{OSINT_CREATION_DATE}}": p0_data.get('creation_date', 'Brak'),
         "{{OSINT_EXPIRATION_DATE}}": p0_data.get('expiration_date', 'Brak'),
         "{{OSINT_NAME_SERVERS}}": '\n'.join(p0_data.get('name_servers', [])),
-        "{{OSINT_TECHNOLOGIES_HTML}}": tech_html, # NOWY PLACEHOLDER
-        "{{COUNT_ALL_SUBDOMAINS}}": str(len(all_subdomains_list)),
+        "{{OSINT_TECHNOLOGIES_HTML}}": tech_html,
+        "{{COUNT_ALL_SUBDOMAINS}}": str(count_all_subdomains), # ZMIANA
         "{{COUNT_HTTPX}}": str(len(active_urls_data)),
         "{{COUNT_OPEN_PORTS}}": str(sum(len(p) for p in p2_results.get("open_ports_by_host", {}).values())),
         "{{COUNT_DIR_SEARCH}}": str(len(p3_results.get("all_dirsearch_results", []))),
@@ -190,6 +200,7 @@ def generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_res
         "{{ASSETFINDER_OUTPUT}}": read_file_content(p1_files.get("Assetfinder")),
         "{{FINDOMAIN_OUTPUT}}": read_file_content(p1_files.get("Findomain")),
         "{{PUREDNS_OUTPUT}}": read_file_content(p1_files.get("Puredns")),
+        "{{ALL_SUBDOMAINS_OUTPUT}}": '\n'.join(all_subdomains_list), # ZMIANA
         "{{FFUF_OUTPUT}}": '\n'.join(p3_results_by_tool.get("Ffuf", [])),
         "{{FEROXBUSTER_OUTPUT}}": '\n'.join(p3_results_by_tool.get("Feroxbuster", [])),
         "{{DIRSEARCH_OUTPUT}}": '\n'.join(p3_results_by_tool.get("Dirsearch", [])),
@@ -345,3 +356,4 @@ def main(
 
 if __name__ == "__main__":
     app()
+
