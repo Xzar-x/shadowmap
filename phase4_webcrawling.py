@@ -107,28 +107,33 @@ def start_web_crawl(
         {"name": "Gauplus", "enabled": config.selected_phase4_tools[4], "cmd_template": ["gauplus", "-t", "50", "-random-agent"]}
     ]
 
+    # Zastosowanie ustawień z Super Safe Mode
+    if config.SAFE_MODE:
+        for cfg in tool_configs:
+            # Użyj trybu headless dla Katany
+            if cfg["name"] == "Katana" and config.USE_HEADLESS_BROWSER:
+                cfg["cmd_template"].append("-headless")
+                # W trybie headless, -aff jest często przydatne
+                if config.AUTO_FORM_FILL:
+                    cfg["cmd_template"].append("-aff")
+    
     if config.PROXY:
         for cfg in tool_configs:
-            if cfg["name"] == "Katana": cfg["cmd_template"].extend(["-proxy", config.PROXY])
-            if cfg["name"] == "Hakrawler": cfg["cmd_template"].extend(["-proxy", config.PROXY])
+            if cfg["name"] in ["Katana", "Hakrawler"]: cfg["cmd_template"].extend(["-proxy", config.PROXY])
             if cfg["name"] == "ParamSpider": cfg["cmd_template"].extend(["--proxy", config.PROXY])
-    
-    final_user_agent = config.CUSTOM_HEADER or (utils.get_random_user_agent_header() if config.SAFE_MODE else "")
-    if final_user_agent:
-        for cfg in tool_configs:
-            if cfg["name"] == "Katana": cfg["cmd_template"].extend(["-H", f"User-Agent: {final_user_agent}"])
-            if cfg["name"] == "Hakrawler": cfg["cmd_template"].extend(["-header", f"User-Agent: {final_user_agent}"])
             
-    if config.AUTO_FORM_FILL:
-        for cfg in tool_configs:
-            if cfg["name"] == "Katana": cfg["cmd_template"].append("-aff")
-
     with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
         futures = []
         for url in urls:
             for cfg in tool_configs:
                 if cfg["enabled"]:
                     cmd = list(cfg["cmd_template"])
+                    
+                    # Zastosuj rotacyjnego User-Agenta dla narzędzi, które go wspierają
+                    current_ua = utils.user_agent_rotator.get()
+                    if cfg["name"] == "Katana": cmd.extend(["-H", f"User-Agent: {current_ua}"])
+                    if cfg["name"] == "Hakrawler": cmd.extend(["-header", f"User-Agent: {current_ua}"])
+
                     if cfg["name"] in ["ParamSpider", "LinkFinder"]:
                         cmd.extend(["-i" if cfg["name"] == "LinkFinder" else "-d", url])
                     elif cfg["name"] == "Gauplus":
@@ -205,18 +210,13 @@ def display_phase4_settings_menu(display_banner_func):
         table.add_column("Key", style="bold blue", justify="center", min_width=5)
         table.add_column("Description", style="white", justify="left")
         
-        user_agent_display = f"[dim white]'{config.CUSTOM_HEADER}'[/dim white]"
-        if config.USER_CUSTOMIZED_USER_AGENT and config.CUSTOM_HEADER: user_agent_display = f"[bold green]'{config.CUSTOM_HEADER}' (Użytkownika)[/bold green]"
-        elif config.SAFE_MODE and not config.USER_CUSTOMIZED_USER_AGENT: user_agent_display = f"[bold yellow]Losowy (Safe Mode)[/bold yellow]"
-        elif not config.CUSTOM_HEADER: user_agent_display = f"[dim white]Domyślny[/dim white]"
-        
         proxy_display = "[dim]Brak[/dim]"
         if config.PROXY: proxy_display = f"[bold green]{config.PROXY}[/bold green]"
 
         table.add_row("[1]", f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny")
         table.add_row("[2]", f"Głębokość crawlera (Katana, Hakrawler): {config.CRAWL_DEPTH_P4}")
         table.add_row("[3]", f"[{'[bold green]✓[/bold green]' if config.AUTO_FORM_FILL else '[bold red]✗[/bold red]'}] Automatyczne wypełnianie formularzy (Katana)")
-        table.add_row("[4]", f"User-Agent: {user_agent_display}")
+        table.add_row("[4]", f"[{'[bold green]✓[/bold green]' if config.USE_HEADLESS_BROWSER else '[bold red]✗[/bold red]'}] Użyj przeglądarki Headless (Katana, w Safe Mode)")
         table.add_row("[5]", f"Proxy: {proxy_display}")
         table.add_row("[6]", f"Liczba wątków: {config.THREADS}")
         table.add_row("[7]", f"Limit czasu narzędzia: {config.TOOL_TIMEOUT_SECONDS}s")
@@ -237,8 +237,8 @@ def display_phase4_settings_menu(display_banner_func):
             config.AUTO_FORM_FILL = not config.AUTO_FORM_FILL
             config.USER_CUSTOMIZED_AUTO_FORM_FILL = True
         elif choice == '4':
-            new_ua = Prompt.ask("[bold cyan]Podaj User-Agent[/bold cyan]", default=config.CUSTOM_HEADER)
-            config.CUSTOM_HEADER, config.USER_CUSTOMIZED_USER_AGENT = new_ua, bool(new_ua)
+            config.USE_HEADLESS_BROWSER = not config.USE_HEADLESS_BROWSER
+            config.USER_CUSTOMIZED_USE_HEADLESS = True
         elif choice == '5':
             new_proxy = Prompt.ask("[bold cyan]Podaj adres proxy[/bold cyan]", default=config.PROXY or "")
             config.PROXY, config.USER_CUSTOMIZED_PROXY = new_proxy, bool(new_proxy)

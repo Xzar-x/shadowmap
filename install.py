@@ -46,8 +46,8 @@ GO_TOOLS = {
     "hakrawler": "github.com/hakluke/hakrawler@latest",
     "gauplus": "github.com/bp0lr/gauplus@latest"
 }
-# ZAKTUALIZOWANO: Dodano 'webtech'
-PYTHON_PKGS = ["rich", "questionary", "pyfiglet", "typer", "psutil", "webtech"]
+# ZAKTUALIZOWANO: Dodano 'webtech' i 'requests'
+PYTHON_PKGS = ["rich", "questionary", "pyfiglet", "typer", "psutil", "webtech", "requests"]
 
 def display_banner():
     f = Figlet(font='slant')

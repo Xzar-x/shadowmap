@@ -50,6 +50,13 @@ NAABU_SOURCE_PORT: Optional[str] = None
 MASSCAN_RATE: int = 300 
 NMAP_SOLO_SCAN_MODE: str = "default" # 'default', 'full', 'fast'
 
+# --- NOWOŚĆ: Ustawienia Super Safe Mode ---
+USE_HEADLESS_BROWSER: bool = False
+WAF_CHECK_ENABLED: bool = True
+WAF_CHECK_INTERVAL_MIN: int = 30 # sekundy
+WAF_CHECK_INTERVAL_MAX: int = 60 # sekundy
+
+
 # --- Wybrane narzędzia ---
 selected_phase1_tools: List[int] = [0, 0, 0, 0] # Subfinder, Assetfinder, Findomain, Puredns
 selected_phase2_tools: List[int] = [0, 0, 0] # Nmap, Naabu, Masscan
@@ -69,4 +76,4 @@ USER_CUSTOMIZED_PROXY: bool = False
 USER_CUSTOMIZED_AUTO_FORM_FILL: bool = False
 USER_CUSTOMIZED_NAABU_SOURCE_PORT: bool = False
 USER_CUSTOMIZED_MASSCAN_RATE: bool = False
-
+USER_CUSTOMIZED_USE_HEADLESS: bool = False

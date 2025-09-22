@@ -10,7 +10,7 @@ import re
 import uuid
 import requests
 from typing import List, Dict, Optional, Tuple, Set, Any
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 import tempfile
 
 from rich.console import Console
@@ -51,7 +51,7 @@ def _detect_wildcard_response(target_url: str) -> Dict[str, Any]:
     try:
         session = requests.Session()
         headers = {h.split(': ')[0]: h.split(': ')[1] for h in utils.get_random_browser_headers()}
-        headers['User-Agent'] = utils.get_random_user_agent_header()
+        headers['User-Agent'] = utils.user_agent_rotator.get()
 
         response = session.get(test_url, headers=headers, verify=False, timeout=15, allow_redirects=False)
         
@@ -125,6 +125,32 @@ def _run_and_parse_dir_tool(tool_name: str, command: List[str], target_url: str,
     
     return tool_name, sorted(list(results))
 
+def _handle_waf_block_detection(executor: ThreadPoolExecutor, futures: Dict[Future, str]):
+    """Obsługuje interakcję z użytkownikiem po wykryciu blokady WAF."""
+    utils.console.print(Align.center(Panel(
+        "[bold red]WYKRYTO BLOKADĘ WAF/IPS![/bold red]\n[yellow]Odpowiedzi serwera przestały być spójne. Skan został wstrzymany.[/yellow]",
+        title="[bold red]KRYTYCZNE OSTRZEŻENIE[/bold red]"
+    )))
+    
+    # Zatrzymanie wszystkich przyszłych zadań
+    for future in futures:
+        future.cancel()
+    executor.shutdown(wait=False, cancel_futures=True)
+
+    choice = Prompt.ask(
+        "[bold cyan]Wybierz akcję[/bold cyan]",
+        choices=["s", "i", "q"],
+        default="q",
+        console=utils.console
+    )
+    # Tłumaczenie wyboru dla jasności
+    # s = Zwiększ opóźnienia i spróbuj ponownie (niezaimplementowane w tej wersji - wymagałoby restartu pętli)
+    # i = Zignoruj i kontynuuj (niezalecane, może nic nie dać)
+    # q = Zatrzymaj fazę i wróć do menu
+    if choice == 'q':
+        return "stop"
+    return "continue" # Domyślnie kontynuujemy, jeśli nie wybrano 'q'
+
 def start_dir_search(
     urls: List[str], 
     progress_obj: Optional[Progress] = None, 
@@ -149,52 +175,77 @@ def start_dir_search(
         {"name": "Gobuster", "enabled": config.selected_phase3_tools[3], "base_cmd": ["gobuster", "dir", "--no-progress"]}
     ]
     
-    with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
-        futures = []
-        for url in urls:
-            validated_url = url if url.startswith(('http://', 'https://')) else f"https://{url}"
-            wildcard = _detect_wildcard_response(validated_url)
+    # Uruchomienie monitora WAF dla każdego unikalnego hosta
+    waf_monitors: Dict[str, utils.WafHealthMonitor] = {}
+    if config.WAF_CHECK_ENABLED and config.SAFE_MODE:
+        unique_hosts = set('/'.join(url.split('/')[:3]) for url in urls)
+        for host in unique_hosts:
+            monitor = utils.WafHealthMonitor(host)
+            monitor.start()
+            waf_monitors[host] = monitor
 
-            for cfg in tool_configs:
-                if cfg["enabled"]:
-                    cmd = list(cfg["base_cmd"])
-                    threads = "1" if config.SAFE_MODE else str(config.THREADS)
-                    
-                    if cfg["name"] == "Ffuf":
-                        cmd.extend(["-w", f"{current_wordlist}:FUZZ", "-t", threads])
-                        if config.SAFE_MODE: cmd.extend(['-p', '0.5-1.5'])
-                        cmd.extend(["-H", f"User-Agent: {utils.get_random_user_agent_header()}"])
-                        if wildcard.get('size'): cmd.extend(["-fs", str(wildcard['size'])])
-                        if wildcard.get('status'): cmd.extend(["-fc", str(wildcard['status'])])
+    try:
+        with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
+            futures_map: Dict[Future, str] = {}
+            for url in urls:
+                validated_url = url if url.startswith(('http://', 'https://')) else f"https://{url}"
+                wildcard = _detect_wildcard_response(validated_url)
+
+                for cfg in tool_configs:
+                    if cfg["enabled"]:
+                        cmd = list(cfg["base_cmd"])
+                        threads = "1" if config.SAFE_MODE else str(config.THREADS)
                         
-                    elif cfg["name"] == "Feroxbuster":
-                        cmd.extend(["-w", current_wordlist, "-t", threads])
-                        cmd.extend(["-a", utils.get_random_user_agent_header()])
-                        if wildcard.get('size'): cmd.extend(["-S", str(wildcard['size'])])
-                        if wildcard.get('status'): cmd.extend(["-C", str(wildcard['status'])])
+                        if cfg["name"] == "Ffuf":
+                            cmd.extend(["-w", f"{current_wordlist}:FUZZ", "-t", threads])
+                            if config.SAFE_MODE: cmd.extend(['-p', '0.5-2.5']) # Jitter
+                            cmd.extend(["-H", f"User-Agent: {utils.user_agent_rotator.get()}"])
+                            if wildcard.get('size'): cmd.extend(["-fs", str(wildcard['size'])])
+                            if wildcard.get('status'): cmd.extend(["-fc", str(wildcard['status'])])
+                            
+                        elif cfg["name"] == "Feroxbuster":
+                            cmd.extend(["-w", current_wordlist, "-t", threads])
+                            cmd.extend(["-a", utils.user_agent_rotator.get()])
+                            if wildcard.get('size'): cmd.extend(["-S", str(wildcard['size'])])
+                            if wildcard.get('status'): cmd.extend(["-C", str(wildcard['status'])])
 
-                    elif cfg["name"] == "Dirsearch":
-                        cmd.extend(["-w", current_wordlist, "-t", threads])
-                        if config.SAFE_MODE: cmd.extend(['--delay', '1'])
-                        if wildcard.get('status'): cmd.extend(["--exclude-status", str(wildcard['status'])])
+                        elif cfg["name"] == "Dirsearch":
+                            cmd.extend(["-w", current_wordlist, "-t", threads])
+                            if config.SAFE_MODE: cmd.extend(['--delay', '1-2.5']) # Jitter
+                            if wildcard.get('status'): cmd.extend(["--exclude-status", str(wildcard['status'])])
 
-                    elif cfg["name"] == "Gobuster":
-                        cmd.extend(["-w", current_wordlist, "-t", threads])
-                        if config.SAFE_MODE: cmd.extend(['--delay', '1000ms'])
-                        if wildcard.get('status') and wildcard.get('status') != 404:
-                            cmd.extend(["-b", str(wildcard['status'])])
+                        elif cfg["name"] == "Gobuster":
+                            cmd.extend(["-w", current_wordlist, "-t", threads])
+                            if config.SAFE_MODE: cmd.extend(['--delay', '1500ms']) # Jitter (większy stały)
+                            if wildcard.get('status') and wildcard.get('status') != 404:
+                                cmd.extend(["-b", str(wildcard['status'])])
 
-                    cmd.extend(["-u", validated_url if cfg['name'] != 'Ffuf' else f"{validated_url}/FUZZ"])
-                    futures.append(executor.submit(_run_and_parse_dir_tool, cfg["name"], cmd, validated_url, config.TOOL_TIMEOUT_SECONDS))
+                        cmd.extend(["-u", validated_url if cfg['name'] != 'Ffuf' else f"{validated_url}/FUZZ"])
+                        future = executor.submit(_run_and_parse_dir_tool, cfg["name"], cmd, validated_url, config.TOOL_TIMEOUT_SECONDS)
+                        futures_map[future] = url
 
-        for future in as_completed(futures):
-            try:
-                tool_name, tool_results = future.result()
-                results_by_tool[tool_name].extend(tool_results)
-            except Exception as e:
-                utils.log_and_echo(f"Błąd w wątku Fazy 3: {e}", "ERROR")
-            if progress_obj and main_task_id:
-                progress_obj.update(main_task_id, advance=1)
+            for future in as_completed(futures_map):
+                url_target = futures_map[future]
+                host_target = '/'.join(url_target.split('/')[:3])
+                
+                # Sprawdzenie blokady przed przetworzeniem wyniku
+                if host_target in waf_monitors and waf_monitors[host_target].is_blocked_event.is_set():
+                    action = _handle_waf_block_detection(executor, list(futures_map.keys()))
+                    if action == "stop":
+                        break # Przerwij pętlę as_completed
+
+                try:
+                    tool_name, tool_results = future.result()
+                    results_by_tool[tool_name].extend(tool_results)
+                except Exception as e:
+                    utils.log_and_echo(f"Błąd w wątku Fazy 3: {e}", "ERROR")
+                if progress_obj and main_task_id:
+                    progress_obj.update(main_task_id, advance=1)
+
+    finally:
+        # Zawsze zatrzymuj monitory po zakończeniu pracy
+        for monitor in waf_monitors.values():
+            monitor.stop()
 
     all_found_urls = set()
     for urls_list in results_by_tool.values():
@@ -280,6 +331,8 @@ def display_phase3_settings_menu(display_banner_func):
         table.add_row("[1]", f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny")
         table.add_row("[2]", f"Lista słów: {wordlist_display}")
         table.add_row("[3]", f"Głębokość rekursji (Ffuf): {config.RECURSION_DEPTH_P3}")
+        table.add_row("[4]", f"[{'[bold green]✓[/bold green]' if config.WAF_CHECK_ENABLED else '[bold red]✗[/bold red]'}] Włącz monitor blokad WAF (w Safe Mode)")
+
         table.add_section()
         table.add_row("[\fb]", "Powrót do menu Fazy 3")
         
@@ -295,12 +348,13 @@ def display_phase3_settings_menu(display_banner_func):
                 config.WORDLIST_PHASE3 = new_path
                 config.USER_CUSTOMIZED_WORDLIST_PHASE3 = True
             else:
-                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"),- time.sleep(1))
+                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"), time.sleep(1))
         elif choice == '3':
             new_depth = Prompt.ask("[bold cyan]Podaj głębokość rekursji[/bold cyan]", default=str(config.RECURSION_DEPTH_P3))
             if new_depth.isdigit():
                 config.RECURSION_DEPTH_P3 = int(new_depth)
                 config.USER_CUSTOMIZED_RECURSION_DEPTH_P3 = True
+        elif choice == '4':
+            config.WAF_CHECK_ENABLED = not config.WAF_CHECK_ENABLED
         elif choice.lower() == 'b':
             break
-
