@@ -6,11 +6,10 @@ import socket
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Optional, Set
 
 from rich.align import Align
-from rich.console import Console
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -34,7 +33,7 @@ def _run_scan_tool(
     tool_name: str, command: List[str], target: str, output_file: str, timeout: int
 ) -> Optional[str]:
     """
-    Uruchamia narzędzie do skanowania portów za pomocą Popen, zarządza procesem i zapisuje wynik do pliku.
+    Uruchamia narzędzie do skanowania portów i zapisuje wynik do pliku.
     """
     sudo_prefix = []
     if tool_name in ["Naabu", "Masscan"] and os.geteuid() != 0:
@@ -49,12 +48,8 @@ def _run_scan_tool(
     process = None
     try:
         process = subprocess.Popen(
-            full_command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="ignore",
+            full_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="ignore",
         )
 
         with utils.processes_lock:
@@ -68,8 +63,7 @@ def _run_scan_tool(
                 for line in stdout.splitlines():
                     if line.startswith("Discovered open port"):
                         parts = line.split()
-                        port_proto = parts[3]
-                        port = port_proto.split("/")[0]
+                        port = parts[3].split("/")[0]
                         ip = parts[5]
                         f.write(f"{ip}:{port}\n")
             else:
@@ -79,31 +73,25 @@ def _run_scan_tool(
                 f.write(f"\n--- STDERR ---\n{stderr}")
 
         if returncode == 0:
-            utils.console.print(
-                f"[bold green]✅ {tool_name} zakończył skanowanie dla {target}.[/bold green]"
-            )
+            msg = f"✅ {tool_name} zakończył skanowanie dla {target}."
+            utils.console.print(f"[bold green]{msg}[/bold green]")
         else:
-            utils.log_and_echo(
-                f"Narzędzie {tool_name} dla {target} zakończyło pracę z błędem (kod: {returncode}).",
-                "WARN",
-            )
+            msg = f"Narzędzie {tool_name} dla {target} zakończyło z błędem."
+            utils.log_and_echo(msg, "WARN")
 
         return output_file
 
     except subprocess.TimeoutExpired:
-        msg = (
-            f"Komenda '{tool_name}' dla {target} przekroczyła limit czasu ({timeout}s)."
-        )
+        msg = f"Komenda '{tool_name}' dla {target} przekroczyła limit czasu."
         utils.log_and_echo(msg, "WARN")
     except Exception as e:
-        msg = f"Ogólny błąd wykonania komendy '{tool_name}' dla {target}: {e}"
+        msg = f"Błąd wykonania '{tool_name}' dla {target}: {e}"
         utils.log_and_echo(msg, "ERROR")
     finally:
         if process:
             with utils.processes_lock:
                 if process in utils.managed_processes:
                     utils.managed_processes.remove(process)
-
     return None
 
 
@@ -138,8 +126,7 @@ def _parse_nmap_output_fallback(nmap_files: Dict[str, str]) -> Dict[str, List[in
             with open(file_path, "r", encoding="utf-8") as f:
                 host_ports = []
                 for line in f:
-                    match = port_pattern.match(line)
-                    if match:
+                    if match := port_pattern.match(line):
                         host_ports.append(int(match.group(1)))
                 if host_ports:
                     ports_by_host[host] = sorted(list(set(host_ports)))
@@ -148,35 +135,26 @@ def _parse_nmap_output_fallback(nmap_files: Dict[str, str]) -> Dict[str, List[in
 
 def start_port_scan(
     targets: List[str], progress_obj: Optional[Progress], main_task_id: Optional[TaskID]
-) -> Dict[str, any]:
-    final_results = {
-        "nmap_files": {},
-        "naabu_file": None,
-        "masscan_file": None,
+) -> Dict[str, Any]:
+    final_results: Dict[str, Any] = {
+        "nmap_files": {}, "naabu_file": None, "masscan_file": None,
         "open_ports_by_host": {},
     }
-    open_ports_by_host: Dict[str, List[int]] = {}
+    open_ports_by_host_set: Dict[str, Set[int]] = {}
 
     nmap_enabled = config.selected_phase2_tools[0] == 1
     naabu_enabled = config.selected_phase2_tools[1] == 1
     masscan_enabled = config.selected_phase2_tools[2] == 1
-
-    discovery_tools = []
-    if naabu_enabled:
-        discovery_tools.append("Naabu")
-    if masscan_enabled:
-        discovery_tools.append("Masscan")
+    discovery_tools = [t for t, e in zip(["Naabu", "Masscan"],
+                       [naabu_enabled, masscan_enabled]) if e]
 
     utils.console.print(
-        Align.center(
-            f"[bold green]Rozpoczynam Fazę 2 - Skanowanie Portów...[/bold green]"
-        )
+        Align.center("[bold green]Rozpoczynam Fazę 2 - Skanowanie Portów...[/bold green]")
     )
 
     unique_ips = set()
-    with utils.console.status(
-        "[bold cyan]Rozpoznawanie nazw domen na unikalne adresy IP...[/bold cyan]"
-    ):
+    status_msg = "[bold cyan]Rozpoznawanie nazw na unikalne adresy IP...[/bold cyan]"
+    with utils.console.status(status_msg):
         for url in targets:
             hostname_match = re.search(r"https?://([^/:]+)", url)
             target_host = hostname_match.group(1) if hostname_match else url
@@ -185,151 +163,88 @@ def start_port_scan(
                 unique_ips.add(target_host)
             else:
                 try:
-                    ip_address = socket.gethostbyname(target_host)
-                    unique_ips.add(ip_address)
+                    unique_ips.add(socket.gethostbyname(target_host))
                 except socket.gaierror:
-                    utils.log_and_echo(
-                        f"Nie można rozwiązać domeny {target_host} na adres IP. Pomijam.",
-                        "WARN",
-                    )
+                    utils.log_and_echo(f"Nie można rozwiązać {target_host}. Pomijam.", "WARN")
 
     targets_to_scan = sorted(list(unique_ips))
     utils.console.print(
-        Align.center(
-            f"Będę skanować [bold green]{len(targets_to_scan)}[/bold green] unikalnych adresów IP."
-        )
+        Align.center(f"Będę skanować [bold green]{len(targets_to_scan)}[/bold green] IP.")
     )
-
     if not targets_to_scan:
         return final_results
 
     nmap_scan_type = config.NMAP_SOLO_SCAN_MODE
     if nmap_enabled and not discovery_tools:
-        utils.console.print(
-            Align.center(
-                Panel(
-                    "[bold cyan]Nmap będzie działał samodzielnie.[/bold cyan]\n"
-                    "Jaki rodzaj skanowania portów chcesz przeprowadzić?",
-                    title="[yellow]Tryb Skanowania Nmap[/yellow]",
-                    border_style="yellow",
-                )
-            )
+        panel_msg = (
+            "[bold cyan]Nmap będzie działał samodzielnie.[/bold cyan]\n"
+            "Jaki rodzaj skanowania portów chcesz przeprowadzić?"
         )
+        panel = Panel(panel_msg, title="[yellow]Tryb Nmap[/yellow]", border_style="yellow")
+        utils.console.print(Align.center(panel))
         nmap_scan_type = Prompt.ask(
-            "[bold]Wybierz tryb[/bold]",
-            choices=["default", "full", "fast"],
+            "[bold]Wybierz tryb[/bold]", choices=["default", "full", "fast"],
             default=config.NMAP_SOLO_SCAN_MODE,
         )
 
-    num_discovery_tools = naabu_enabled + masscan_enabled
-    num_nmap_tasks = len(targets_to_scan) if nmap_enabled else 0
-    total_tasks = (len(targets_to_scan) * num_discovery_tools) + num_nmap_tasks
+    total_tasks = (len(targets_to_scan) * len(discovery_tools)) + \
+                  (len(targets_to_scan) if nmap_enabled else 0)
 
     with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        "•",
-        TimeElapsedColumn(),
-        console=utils.console,
-        transient=True,
+        SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
+        BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(),
+        console=utils.console, transient=True,
     ) as progress:
         phase2_task = progress.add_task(
-            "[green]Faza 2: Skanowanie portów[/green]",
-            total=total_tasks if total_tasks > 0 else 1,
+            "[green]Faza 2: Skanowanie portów[/green]", total=total_tasks or 1
         )
 
         if discovery_tools:
             if config.SAFE_MODE:
-                utils.log_and_echo(
-                    "Tryb Bezpieczny: aktywuję wolniejsze skanowanie portów.", "INFO"
-                )
-                if (
-                    "Naabu" in discovery_tools
-                    and not config.USER_CUSTOMIZED_NAABU_SOURCE_PORT
-                ):
+                utils.log_and_echo("Tryb Bezpieczny: wolniejsze skanowanie.", "INFO")
+                if "Naabu" in discovery_tools and not config.USER_CUSTOMIZED_NAABU_SOURCE_PORT:
                     config.NAABU_SOURCE_PORT = "53"
-                if (
-                    "Masscan" in discovery_tools
-                    and not config.USER_CUSTOMIZED_MASSCAN_RATE
-                ):
+                if "Masscan" in discovery_tools and not config.USER_CUSTOMIZED_MASSCAN_RATE:
                     config.MASSCAN_RATE = 100
 
-            with ThreadPoolExecutor(
-                max_workers=config.THREADS * len(discovery_tools)
-            ) as executor:
-                futures = []
-                for tool_name in discovery_tools:
+            with ThreadPoolExecutor(max_workers=config.THREADS * 2) as executor:
+                futures: List[Future] = []
+                for tool in discovery_tools:
                     for target in targets_to_scan:
-                        output_file = os.path.join(
-                            config.REPORT_DIR,
-                            f"{tool_name.lower()}_{target.replace('.', '_')}.txt",
-                        )
+                        out_file = os.path.join(
+                            config.REPORT_DIR, f"{tool.lower()}_{target.replace('.', '_')}.txt")
                         cmd = []
-                        if tool_name == "Naabu":
+                        if tool == "Naabu":
                             cmd = ["naabu", "-silent", "-p", "-"]
                             if config.NAABU_SOURCE_PORT:
-                                cmd.extend(
-                                    [
-                                        "-source-ip",
-                                        f"0.0.0.0:{config.NAABU_SOURCE_PORT}",
-                                    ]
-                                )
-                            cmd.extend(
-                                [
-                                    "-rate",
-                                    "100" if config.SAFE_MODE else "1000",
-                                    "-host",
-                                    target,
-                                ]
-                            )
-                        elif tool_name == "Masscan":
-                            cmd = [
-                                "masscan",
-                                target,
-                                "-p1-65535",
-                                "--rate",
-                                str(config.MASSCAN_RATE),
-                            ]
-
-                        futures.append(
-                            executor.submit(
-                                _run_scan_tool,
-                                tool_name,
-                                cmd,
-                                target,
-                                output_file,
-                                config.TOOL_TIMEOUT_SECONDS,
-                            )
-                        )
+                                cmd.extend(["-source-ip", f"0.0.0.0:{config.NAABU_SOURCE_PORT}"])
+                            cmd.extend(["-rate", "100" if config.SAFE_MODE else "1000", "-host", target])
+                        elif tool == "Masscan":
+                            cmd = ["masscan", target, "-p1-65535", "--rate", str(config.MASSCAN_RATE)]
+                        futures.append(executor.submit(
+                            _run_scan_tool, tool, cmd, target, out_file, config.TOOL_TIMEOUT_SECONDS
+                        ))
 
                 for future in as_completed(futures):
                     future.result()
                     progress.update(phase2_task, advance=1)
 
-            for tool_name in discovery_tools:
-                agg_file = os.path.join(
-                    config.REPORT_DIR, f"{tool_name.lower()}_aggregated_results.txt"
-                )
+            for tool in discovery_tools:
+                agg_file = os.path.join(config.REPORT_DIR, f"{tool.lower()}_aggregated.txt")
                 with open(agg_file, "w", encoding="utf-8") as agg_f:
                     for target in targets_to_scan:
-                        tool_file = os.path.join(
-                            config.REPORT_DIR,
-                            f"{tool_name.lower()}_{target.replace('.', '_')}.txt",
-                        )
+                        tool_file = os.path.join(config.REPORT_DIR, f"{tool.lower()}_{target.replace('.', '_')}.txt")
                         if os.path.exists(tool_file):
                             with open(tool_file, "r", encoding="utf-8") as f:
                                 agg_f.write(f.read())
-
                 if os.path.exists(agg_file) and os.path.getsize(agg_file) > 0:
-                    final_results[f"{tool_name.lower()}_file"] = agg_file
+                    final_results[f"{tool.lower()}_file"] = agg_file
                     ports_from_tool = _parse_host_port_output(agg_file)
                     for host, ports in ports_from_tool.items():
-                        open_ports_by_host.setdefault(host, set()).update(ports)
+                        open_ports_by_host_set.setdefault(host, set()).update(ports)
 
-        for host in open_ports_by_host:
-            open_ports_by_host[host] = sorted(list(open_ports_by_host[host]))
+        # Konwersja z set na list dla Nmap i finalnych wyników
+        open_ports_by_host = {h: sorted(list(p)) for h, p in open_ports_by_host_set.items()}
 
         if nmap_enabled:
             nmap_base_cmd = ["nmap", "-sV", "-Pn"]
@@ -340,44 +255,32 @@ def start_port_scan(
             nmap_base_cmd.extend(["-T2" if config.SAFE_MODE else "-T4"])
 
             with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
-                futures = {}
+                futures_map: Dict[Future, str] = {}
                 for target in targets_to_scan:
-                    ports_to_scan_for_target = open_ports_by_host.get(target)
-                    if discovery_tools and not ports_to_scan_for_target:
-                        utils.console.print(
-                            f"[yellow]Pomijam Nmap dla {target}, ponieważ nie znaleziono otwartych portów.[/yellow]"
-                        )
+                    ports = open_ports_by_host.get(target)
+                    if discovery_tools and not ports:
+                        utils.console.print(f"[yellow]Pomijam Nmap dla {target} (brak portów).[/yellow]")
                         progress.update(phase2_task, advance=1)
                         continue
 
                     cmd = list(nmap_base_cmd)
-                    if ports_to_scan_for_target:
-                        cmd.extend(["-p", ",".join(map(str, ports_to_scan_for_target))])
-                    else:
-                        if nmap_scan_type == "full":
-                            cmd.extend(["-p-"])
-                        elif nmap_scan_type == "fast":
-                            cmd.extend(["-F"])
+                    if ports:
+                        cmd.extend(["-p", ",".join(map(str, ports))])
+                    else:  # Nmap solo mode
+                        if nmap_scan_type == "full": cmd.extend(["-p-"])
+                        elif nmap_scan_type == "fast": cmd.extend(["-F"])
 
-                    output_file = os.path.join(
-                        config.REPORT_DIR, f"nmap_{target.replace('.', '_')}.txt"
+                    out_file = os.path.join(config.REPORT_DIR, f"nmap_{target.replace('.', '_')}.txt")
+                    cmd.extend(["-oN", out_file, target])
+                    future = executor.submit(
+                        _run_scan_tool, "Nmap", cmd, target, out_file, config.TOOL_TIMEOUT_SECONDS
                     )
-                    cmd.extend(["-oN", output_file, target])
-                    futures[
-                        executor.submit(
-                            _run_scan_tool,
-                            "Nmap",
-                            cmd,
-                            target,
-                            output_file,
-                            config.TOOL_TIMEOUT_SECONDS,
-                        )
-                    ] = target
+                    futures_map[future] = target
 
-                for future in as_completed(futures):
-                    target = futures[future]
-                    if nmap_output_file := future.result():
-                        final_results["nmap_files"][target] = nmap_output_file
+                for future in as_completed(futures_map):
+                    target = futures_map[future]
+                    if nmap_file := future.result():
+                        final_results["nmap_files"][target] = nmap_file
                     progress.update(phase2_task, advance=1)
 
     if open_ports_by_host:
@@ -396,55 +299,33 @@ def display_phase2_tool_selection_menu(display_banner_func):
         utils.console.clear()
         display_banner_func()
         utils.console.print(
-            Align.center(
-                Panel.fit("[bold magenta]Faza 2: Skanowanie Portów[/bold magenta]")
-            )
+            Align.center(Panel.fit("[bold magenta]Faza 2: Skanowanie Portów[/bold magenta]"))
         )
+        safe_mode_status = ("[bold green]WŁĄCZONY[/bold green]" if config.SAFE_MODE
+                            else "[bold red]WYŁĄCZONY[/bold red]")
         utils.console.print(
-            Align.center(
-                f"Obecny cel: [bold green]{config.ORIGINAL_TARGET}[/bold green]"
-            )
-        )
-        utils.console.print(
-            Align.center(
-                f"Tryb bezpieczny: {'[bold green]WŁĄCZONY[/bold green]' if config.SAFE_MODE else '[bold red]WYŁĄCZONY'}"
-            )
+            Align.center(f"Cel: [bold green]{config.ORIGINAL_TARGET}[/bold green] | "
+                         f"Tryb bezpieczny: {safe_mode_status}")
         )
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
-        table.add_column("Key", style="bold blue", justify="center", min_width=5)
-        table.add_column("Description", style="white", justify="left")
-        tool_names = [
-            "Nmap (szczegóły)",
-            "Naabu (szybkie odkrywanie)",
-            "Masscan (super szybkie odkrywanie)",
-        ]
+        tool_names = ["Nmap (szczegóły)", "Naabu (szybkie odkrywanie)", "Masscan (super szybkie)"]
         for i, tool_name in enumerate(tool_names):
-            status_char = (
-                "[bold green]✓[/bold green]"
-                if config.selected_phase2_tools[i] == 1
-                else "[bold red]✗[/bold red]"
-            )
-            table.add_row(f"[{i+1}]", f"{status_char} {tool_name}")
+            status = ("[bold green]✓[/bold green]" if config.selected_phase2_tools[i]
+                      else "[bold red]✗[/bold red]")
+            table.add_row(f"[{i+1}]", f"{status} {tool_name}")
         table.add_section()
         table.add_row("[\fs]", "[bold magenta]Zmień ustawienia Fazy 2[/bold magenta]")
         table.add_row("[\fb]", "Powrót do menu głównego")
         table.add_row("[\fq]", "Wyjdź")
+
         utils.console.print(Align.center(table))
-        utils.console.print(
-            Align.center(
-                "[bold cyan]Rekomendacja: Włącz Nmap + Naabu + Masscan dla najlepszych wyników.[/bold cyan]"
-            )
-        )
+        utils.console.print(Align.center("[bold cyan]Rekomendacja: Włącz Nmap + Naabu dla najlepszych wyników.[/bold cyan]"))
         choice = utils.get_single_char_input_with_prompt(
-            Text.from_markup(
-                "[bold cyan]Wybierz opcję i naciśnij Enter, aby rozpocząć[/bold cyan]",
-                justify="center",
-            )
+            Text.from_markup("[bold cyan]Wybierz opcję i naciśnij Enter[/bold cyan]", justify="center")
         )
 
         if choice.isdigit() and 1 <= int(choice) <= 3:
-            idx = int(choice) - 1
-            config.selected_phase2_tools[idx] = 1 - config.selected_phase2_tools[idx]
+            config.selected_phase2_tools[int(choice) - 1] ^= 1
         elif choice.lower() == "s":
             display_phase2_settings_menu(display_banner_func)
         elif choice.lower() == "q":
@@ -455,63 +336,44 @@ def display_phase2_tool_selection_menu(display_banner_func):
             if any(config.selected_phase2_tools):
                 return True
             else:
-                utils.console.print(
-                    Align.center(
-                        "[bold yellow]Proszę wybrać co najmniej jedno narzędzie.[/bold yellow]"
-                    )
-                )
+                utils.console.print(Align.center("[bold yellow]Wybierz co najmniej jedno narzędzie.[/bold yellow]"))
         else:
-            utils.console.print(
-                Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]")
-            )
+            utils.console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
         time.sleep(0.1)
 
 
 def display_phase2_settings_menu(display_banner_func):
-    nmap_solo_mode_map = {
-        "default": "Top 1000 (Domyślnie)",
-        "full": "Wszystkie Porty (1-65535)",
+    nmap_solo_map = {
+        "default": "Top 1000 (Domyślnie)", "full": "Wszystkie Porty (1-65535)",
         "fast": "Szybkie Skanowanie (-F, Top 100)",
     }
-
     while True:
         utils.console.clear()
         display_banner_func()
-        utils.console.print(
-            Align.center(Panel.fit("[bold cyan]Ustawienia Fazy 2[/bold cyan]"))
-        )
+        utils.console.print(Align.center(Panel.fit("[bold cyan]Ustawienia Fazy 2[/bold cyan]")))
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
-        table.add_column("Key", style="bold blue", justify="center", min_width=5)
-        table.add_column("Description", style="white", justify="left")
 
-        masscan_rate_display = f"[bold yellow]{config.MASSCAN_RATE} pps[/bold yellow]"
-        if config.USER_CUSTOMIZED_MASSCAN_RATE:
-            masscan_rate_display = (
-                f"[bold green]{config.MASSCAN_RATE} pps (Użytkownika)[/bold green]"
-            )
-        elif config.SAFE_MODE:
-            masscan_rate_display = f"[bold red]100 pps (Safe Mode)[/bold red]"
+        masscan_rate = (f"[bold green]{config.MASSCAN_RATE} pps (Użytkownika)[/bold green]"
+                        if config.USER_CUSTOMIZED_MASSCAN_RATE
+                        else f"[bold red]100 pps (Safe Mode)[/bold red]"
+                        if config.SAFE_MODE
+                        else f"[bold yellow]{config.MASSCAN_RATE} pps[/bold yellow]")
 
-        nmap_solo_display = f"[bold yellow]{nmap_solo_mode_map[config.NMAP_SOLO_SCAN_MODE]}[/bold yellow]"
+        nmap_solo_display = f"[bold yellow]{nmap_solo_map[config.NMAP_SOLO_SCAN_MODE]}[/bold yellow]"
 
-        table.add_row(
-            "[1]",
-            f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny (wolniejsze skanowanie)",
-        )
+        safe_mode_status = ("[bold green]✓[/bold green]" if config.SAFE_MODE else "[bold red]✗[/bold red]")
+        nmap_scripts_status = ("[bold green]✓[/bold green]" if config.NMAP_USE_SCRIPTS else "[bold red]✗[/bold red]")
+        nmap_agg_status = ("[bold green]✓[/bold green]" if config.NMAP_AGGRESSIVE_SCAN else "[bold red]✗[/bold red]")
+
+        table.add_row("[1]", f"[{safe_mode_status}] Tryb bezpieczny (wolniejsze skanowanie)")
         table.add_section()
         table.add_row("[bold]Nmap[/bold]", "")
-        table.add_row(
-            "[2]",
-            f"[{'[bold green]✓[/bold green]' if config.NMAP_USE_SCRIPTS else '[bold red]✗[/bold red]'}] Skanowanie skryptów (-sC)",
-        )
-        table.add_row(
-            "[3]",
-            f"[{'[bold green]✓[/bold green]' if config.NMAP_AGGRESSIVE_SCAN else '[bold red]✗[/bold red]'}] Skan agresywny (-A)",
-        )
+        table.add_row("[2]", f"[{nmap_scripts_status}] Skanowanie skryptów (-sC)")
+        table.add_row("[3]", f"[{nmap_agg_status}] Skan agresywny (-A)")
         table.add_row("[4]", f"Zakres portów (gdy sam): {nmap_solo_display}")
         table.add_section()
         table.add_row("[bold]Masscan[/bold]", "")
-        table.add_row("[5]", f"Szybkość skanowania (--rate): {masscan_rate_display}")
+        table.add_row("[5]", f"Szybkość skanowania (--rate): {masscan_rate}")
         table.add_section()
         table.add_row("[\fb]", "Powrót do menu Fazy 2")
         table.add_row("[\fq]", "Wyjdź")
@@ -526,37 +388,26 @@ def display_phase2_settings_menu(display_banner_func):
             utils.handle_safe_mode_tor_check()
         elif choice == "2":
             config.NMAP_USE_SCRIPTS = not config.NMAP_USE_SCRIPTS
-            if config.NMAP_USE_SCRIPTS:
-                config.NMAP_AGGRESSIVE_SCAN = False
+            if config.NMAP_USE_SCRIPTS: config.NMAP_AGGRESSIVE_SCAN = False
         elif choice == "3":
             config.NMAP_AGGRESSIVE_SCAN = not config.NMAP_AGGRESSIVE_SCAN
-            if config.NMAP_AGGRESSIVE_SCAN:
-                config.NMAP_USE_SCRIPTS = False
+            if config.NMAP_AGGRESSIVE_SCAN: config.NMAP_USE_SCRIPTS = False
         elif choice == "4":
             new_mode = Prompt.ask(
-                "[bold cyan]Wybierz tryb skanowania Nmap (gdy działa sam)[/bold cyan]",
-                choices=["default", "full", "fast"],
-                default=config.NMAP_SOLO_SCAN_MODE,
+                "[bold cyan]Wybierz tryb Nmap[/bold cyan]",
+                choices=["default", "full", "fast"], default=config.NMAP_SOLO_SCAN_MODE
             )
             config.NMAP_SOLO_SCAN_MODE = new_mode
         elif choice == "5":
-            new_rate_str = Prompt.ask(
-                "[bold cyan]Podaj szybkość Masscan (pakiety/s)[/bold cyan]\n[bold yellow]UWAGA: Wysokie wartości (>1000) mogą zawiesić domowy router![/bold yellow]",
-                default=str(config.MASSCAN_RATE),
+            new_rate = Prompt.ask(
+                "[bold cyan]Podaj szybkość Masscan (pakiety/s)[/bold cyan]\n"
+                "[bold yellow]UWAGA: Wysokie wartości mogą zawiesić router![/bold yellow]",
+                default=str(config.MASSCAN_RATE)
             )
-            if new_rate_str.isdigit() and int(new_rate_str) > 0:
-                config.MASSCAN_RATE = int(new_rate_str)
+            if new_rate.isdigit() and int(new_rate) > 0:
+                config.MASSCAN_RATE = int(new_rate)
                 config.USER_CUSTOMIZED_MASSCAN_RATE = True
             else:
-                utils.console.print(
-                    Align.center("[bold red]Nieprawidłowa wartość.[/bold red]")
-                )
-        elif choice.lower() == "b":
-            break
-        elif choice.lower() == "q":
-            sys.exit(0)
-        else:
-            utils.console.print(
-                Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]")
-            )
-        time.sleep(0.1)
+                utils.console.print(Align.center("[bold red]Nieprawidłowa wartość.[/bold red]"))
+        elif choice.lower() == "b": break
+        elif choice.lower() == "q": sys.exit(0)

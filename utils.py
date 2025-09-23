@@ -1,24 +1,21 @@
 # /usr/local/share/shadowmap/utils.py
 
 import hashlib
-import json
 import logging
 import os
 import random
-import re
 import socket
 import subprocess
 import sys
 import tempfile
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from rich.align import Align
 from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
-from rich.prompt import Prompt
 from rich.text import Text
 
 # NOWOŚĆ: Import 'requests' do monitora WAF
@@ -38,7 +35,7 @@ console = Console()
 LOG_COLOR_MAP = {"INFO": "green", "WARN": "yellow", "ERROR": "red", "DEBUG": "blue"}
 
 # --- Globalne zarządzanie procesami ---
-managed_processes = []
+managed_processes: List[subprocess.Popen] = []
 processes_lock = threading.Lock()
 
 # Import specyficzny dla systemu operacyjnego
@@ -80,7 +77,9 @@ class UserAgentRotator:
     def _load_user_agents(self, file_path: str) -> List[str]:
         if not os.path.exists(file_path):
             return [
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/115.0.0.0 Safari/537.36"
             ]
         with open(file_path, "r", encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip()]
@@ -130,8 +129,7 @@ class WafHealthMonitor:
         positive_res = self._make_request(self.target_url + "/")
         if not positive_res:
             log_and_echo(
-                "Health Check: Nie udało się połączyć z celem, aby ustalić linię bazową.",
-                "WARN",
+                "Health Check: Nie udało się połączyć z celem.", "WARN"
             )
             return False
 
@@ -140,8 +138,7 @@ class WafHealthMonitor:
         negative_res = self._make_request(f"{self.target_url}/{random_path}")
         if not negative_res:
             log_and_echo(
-                "Health Check: Nie udało się wykonać drugiego zapytania do linii bazowej.",
-                "WARN",
+                "Health Check: Nie udało się wykonać drugiego zapytania.", "WARN"
             )
             return False
 
@@ -155,7 +152,7 @@ class WafHealthMonitor:
                 "hash": hashlib.md5(negative_res.content).hexdigest(),
             },
         }
-        log_and_echo(f"Health Check: Linia bazowa ustalona: {self.baseline}", "DEBUG")
+        log_and_echo(f"Health Check: Linia bazowa: {self.baseline}", "DEBUG")
         return True
 
     def _check_against_baseline(self):
@@ -164,26 +161,22 @@ class WafHealthMonitor:
         if not current_positive:
             return
 
-        random_path = "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=12))
-        current_negative = self._make_request(f"{self.target_url}/{random_path}")
-        if not current_negative:
-            return
-
-        # Prosta logika detekcji: jeśli kod statusu dla strony głównej się zmienił, to jest to sygnał
+        # Prosta logika detekcji: zmiana kodu statusu
         if current_positive.status_code != self.baseline["positive"]["status"]:
             log_and_echo(
-                f"Health Check: WYKRYTO BLOKADĘ! Status strony głównej zmienił się z {self.baseline['positive']['status']} na {current_positive.status_code}",
-                "WARN",
+                f"Health Check: WYKRYTO BLOKADĘ! Status zmienił się z "
+                f"{self.baseline['positive']['status']} na "
+                f"{current_positive.status_code}", "WARN",
             )
             self.is_blocked_event.set()
 
-        # Bardziej zaawansowane: hash się zmienił, ale status jest ten sam (np. 200 OK ze stroną blokady)
+        # Bardziej zaawansowane: zmiana hasha przy tym samym statusie
         elif (
             hashlib.md5(current_positive.content).hexdigest()
             != self.baseline["positive"]["hash"]
         ):
             log_and_echo(
-                f"Health Check: WYKRYTO BLOKADĘ! Hash strony głównej uległ zmianie przy statusie {current_positive.status_code}",
+                "Health Check: WYKRYTO BLOKADĘ! Hash strony głównej uległ zmianie.",
                 "WARN",
             )
             self.is_blocked_event.set()
@@ -195,7 +188,7 @@ class WafHealthMonitor:
             if self.is_blocked_event.is_set():
                 break
 
-            # NOWOŚĆ: Użycie jittera do losowego opóźnienia
+            # Użycie jittera do losowego opóźnienia
             sleep_time = random.uniform(
                 config.WAF_CHECK_INTERVAL_MIN, config.WAF_CHECK_INTERVAL_MAX
             )
@@ -237,33 +230,28 @@ def handle_safe_mode_tor_check():
         return
 
     if is_tor_active():
-        console.print(
-            Align.center(
-                Panel(
-                    Text(
-                        "✓ Usługa Tor jest aktywna. Proxy zostanie automatycznie skonfigurowane dla wspieranych narzędzi.",
-                        justify="center",
-                    ),
-                    title="[bold green]Tor Aktywny[/bold green]",
-                    border_style="green",
-                )
-            )
+        msg = (
+            "✓ Usługa Tor jest aktywna. Proxy zostanie automatycznie "
+            "skonfigurowane dla wspieranych narzędzi."
         )
+        panel = Panel(
+            Text(msg, justify="center"),
+            title="[bold green]Tor Aktywny[/bold green]", border_style="green"
+        )
+        console.print(Align.center(panel))
         if not config.USER_CUSTOMIZED_PROXY:
             config.PROXY = "socks5://127.0.0.1:9050"
     else:
-        console.print(
-            Align.center(
-                Panel(
-                    Text(
-                        "! Usługa Tor NIE JEST AKTYWNA.\nTryb Bezpieczny będzie kontynuowany BEZ Tora, co może zmniejszyć anonimowość.",
-                        justify="center",
-                    ),
-                    title="[bold red]Ostrzeżenie: Tor Nieaktywny[/bold red]",
-                    border_style="red",
-                )
-            )
+        msg = (
+            "! Usługa Tor NIE JEST AKTYWNA.\nTryb Bezpieczny będzie "
+            "kontynuowany BEZ Tora, co może zmniejszyć anonimowość."
         )
+        panel = Panel(
+            Text(msg, justify="center"),
+            title="[bold red]Ostrzeżenie: Tor Nieaktywny[/bold red]",
+            border_style="red",
+        )
+        console.print(Align.center(panel))
         console.print(
             Align.center(
                 Text.from_markup(
@@ -292,39 +280,11 @@ def log_and_echo(message: str, level: str = "INFO"):
 
 def filter_critical_urls(urls: List[str]) -> List[str]:
     critical_keywords = [
-        "admin",
-        "login",
-        "logon",
-        "signin",
-        "auth",
-        "panel",
-        "dashboard",
-        "config",
-        "backup",
-        "dump",
-        "sql",
-        "db",
-        "database",
-        "api",
-        "graphql",
-        "debug",
-        "trace",
-        "test",
-        "dev",
-        "staging",
-        ".git",
-        ".env",
-        ".docker",
-        "credentials",
-        "password",
-        "secret",
-        "token",
-        "key",
-        "jwt",
-        "oauth",
-        "phpinfo",
-        "status",
-        "metrics",
+        "admin", "login", "logon", "signin", "auth", "panel", "dashboard",
+        "config", "backup", "dump", "sql", "db", "database", "api",
+        "graphql", "debug", "trace", "test", "dev", "staging", ".git",
+        ".env", ".docker", "credentials", "password", "secret", "token",
+        "key", "jwt", "oauth", "phpinfo", "status", "metrics",
     ]
     return [
         url
@@ -344,10 +304,9 @@ def apply_exclusions(domains: List[str], exclusions: List[str]) -> List[str]:
                 if domain.endswith(pattern[2:]):
                     is_excluded = True
                     break
-            else:
-                if domain == pattern:
-                    is_excluded = True
-                    break
+            elif domain == pattern:
+                is_excluded = True
+                break
         if not is_excluded:
             filtered_domains.append(domain)
     return filtered_domains
@@ -376,7 +335,10 @@ def ask_user_decision(question: str, choices: List[str], default: str) -> str:
     )
     console.print(Align.center(panel))
     choice_str = "/".join(f"[bold]{c.upper()}[/bold]" for c in choices)
-    prompt_str = f"\n[cyan]Wybierz opcję ({choice_str})[/cyan] [dim]({default.upper()}=Enter)[/dim]: "
+    prompt_str = (
+        f"\n[cyan]Wybierz opcję ({choice_str})[/cyan] "
+        f"[dim]({default.upper()}=Enter)[/dim]: "
+    )
     console.print(Align.center(prompt_str), end="")
     sys.stdout.flush()
     while True:
@@ -400,37 +362,30 @@ def shuffle_wordlist(input_path: str, report_dir: str) -> Optional[str]:
             lines = [line for line in f if line.strip()]
         random.shuffle(lines)
         temp_file = tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            delete=False,
-            dir=report_dir,
-            prefix="shuffled_wordlist_",
-            suffix=".txt",
+            mode="w", encoding="utf-8", delete=False, dir=report_dir,
+            prefix="shuffled_wordlist_", suffix=".txt",
         )
         temp_file.writelines(lines)
         temp_file.close()
         return temp_file.name
     except Exception as e:
-        log_and_echo(f"Nie udało się potasować listy słów '{input_path}': {e}", "ERROR")
+        log_and_echo(f"Nie udało się potasować listy '{input_path}': {e}", "ERROR")
         return None
 
 
 def get_random_browser_headers() -> List[str]:
-    ACCEPT_HEADERS = ["text/html", "application/json", "text/plain", "*/*"]
-    ACCEPT_LANGUAGE_HEADERS = ["en-US", "en-GB", "de", "pl"]
-    REFERER_HEADERS = [
-        "https://www.google.com/",
-        "https://www.bing.com/",
-        "https://duckduckgo.com/",
-        "",
-    ]
+    accept = ["text/html", "application/json", "text/plain", "*/*"]
+    lang = ["en-US", "en-GB", "de", "pl"]
+    referer = ["https://www.google.com/", "https://www.bing.com/", ""]
+    session_id = ''.join(random.choices('abcdef0123456789', k=32))
     headers = [
-        f"Accept: {random.choice(ACCEPT_HEADERS)}",
-        f"Accept-Language: {random.choice(ACCEPT_LANGUAGE_HEADERS)}",
-        f"Referer: {random.choice(REFERER_HEADERS)}",
+        f"Accept: {random.choice(accept)}",
+        f"Accept-Language: {random.choice(lang)}",
+        f"Referer: {random.choice(referer)}",
         "Upgrade-Insecure-Requests: 1",
         "DNT: 1",
         "Cache-Control: max-age=0",
-        f"Cookie: sessionid={''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=32))}",
+        f"Cookie: sessionid={session_id}",
     ]
     return headers
+

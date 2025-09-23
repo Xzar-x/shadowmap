@@ -5,14 +5,13 @@ import re
 import socket
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from rich import box
 from rich.align import Align
 from rich.columns import Columns
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 # NOWOŚĆ: Import biblioteki webtech
 try:
@@ -26,7 +25,7 @@ import utils
 
 def get_best_target_url(target: str) -> str:
     """
-    Sprawdza dostępność celu na porcie 443 (HTTPS) i 80 (HTTP) za pomocą gniazd (sockets)
+    Sprawdza dostępność celu na porcie 443 (HTTPS) i 80 (HTTP)
     i zwraca najlepszy URL (preferując HTTPS).
     """
     utils.console.print(
@@ -39,7 +38,8 @@ def get_best_target_url(target: str) -> str:
         https_url = f"https://{target}"
         utils.console.print(
             Align.center(
-                f"[bold green]✓ Port 443 (HTTPS) jest otwarty. Używam: {https_url}[/bold green]"
+                f"[bold green]✓ Port 443 (HTTPS) jest otwarty. "
+                f"Używam: {https_url}[/bold green]"
             )
         )
         return https_url
@@ -52,7 +52,8 @@ def get_best_target_url(target: str) -> str:
         http_url = f"http://{target}"
         utils.console.print(
             Align.center(
-                f"[bold yellow]! Port 443 zamknięty. Port 80 (HTTP) jest otwarty. Używam: {http_url}[/bold yellow]"
+                f"[bold yellow]! Port 443 zamknięty. Port 80 (HTTP) jest otwarty. "
+                f"Używam: {http_url}[/bold yellow]"
             )
         )
         return http_url
@@ -62,7 +63,8 @@ def get_best_target_url(target: str) -> str:
     default_url = f"http://{config.HOSTNAME_TARGET}"
     utils.console.print(
         Align.center(
-            f"[bold red]! Nie udało się połączyć ani z portem 80, ani 443. Używam fallback: {default_url}[/bold red]"
+            f"[bold red]! Nie udało się połączyć ani z portem 80, ani 443. "
+            f"Używam fallback: {default_url}[/bold red]"
         )
     )
     return default_url
@@ -79,10 +81,7 @@ def get_whois_info(domain: str) -> Dict[str, Any]:
         command = ["whois", domain]
         process = subprocess.run(command, capture_output=True, text=True, timeout=60)
 
-        if (
-            process.returncode != 0
-            and "No whois server is known for this kind of object" not in process.stderr
-        ):
+        if process.returncode != 0 and "No whois server" not in process.stderr:
             utils.log_and_echo(
                 f"Błąd podczas wykonywania komendy whois: {process.stderr}", "WARN"
             )
@@ -123,15 +122,8 @@ def get_http_info(target: str) -> Dict[str, Any]:
 
     try:
         command = [
-            "httpx",
-            "-u",
-            target,
-            "-silent",
-            "-json",
-            "-ip",
-            "-asn",
-            "-cdn",
-            "-tech-detect",
+            "httpx", "-u", target, "-silent", "-json",
+            "-ip", "-asn", "-cdn", "-tech-detect",
         ]
         process = subprocess.run(command, capture_output=True, text=True, timeout=60)
 
@@ -139,21 +131,17 @@ def get_http_info(target: str) -> Dict[str, Any]:
             for line in process.stdout.strip().split("\n"):
                 try:
                     httpx_data = json.loads(line)
-                    results["asn_details"] = (
-                        f"AS{httpx_data.get('asn', {}).get('as_number')} ({httpx_data.get('asn', {}).get('as_name')})"
-                    )
+                    as_num = httpx_data.get('asn', {}).get('as_number')
+                    as_name = httpx_data.get('asn', {}).get('as_name')
+                    results["asn_details"] = f"AS{as_num} ({as_name})"
                     results["cdn_name"] = httpx_data.get("cdn_name")
-                    results["technologies"] = httpx_data.get(
-                        "tech", []
-                    )  # Zawsze zwracaj listę
+                    results["technologies"] = httpx_data.get("tech", [])
 
                     ip_address = httpx_data.get("ip")
                     if not ip_address:
                         try:
-                            hostname_to_resolve = httpx_data.get(
-                                "host", config.CLEAN_DOMAIN_TARGET
-                            )
-                            ip_address = socket.gethostbyname(hostname_to_resolve)
+                            hostname = httpx_data.get("host", config.CLEAN_DOMAIN_TARGET)
+                            ip_address = socket.gethostbyname(hostname)
                         except socket.gaierror:
                             ip_address = "Nie udało się rozwiązać"
                     results["ip"] = ip_address
@@ -194,9 +182,8 @@ def get_whatweb_info(target_url: str) -> List[str]:
                         techs.append(plugin.replace("-", " ").title())
                         if "version" in details and details["version"]:
                             # Dodaj wersję do poprzedniego elementu
-                            techs[-1] = (
-                                f"{techs[-1]} ({', '.join(map(str, details['version']))})"
-                            )
+                            versions = ', '.join(map(str, details['version']))
+                            techs[-1] = f"{techs[-1]} ({versions})"
             except json.JSONDecodeError:
                 continue
     except FileNotFoundError:
@@ -231,7 +218,7 @@ def get_webtech_info(target_url: str) -> List[str]:
             try:
                 results = json.loads(results_obj)
             except json.JSONDecodeError:
-                utils.log_and_echo(f"Błąd parsowania JSON z webtech.", "WARN")
+                utils.log_and_echo("Błąd parsowania JSON z webtech.", "WARN")
                 return []
         elif isinstance(results_obj, dict):
             results = results_obj
@@ -261,7 +248,8 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
     utils.console.print(
         Align.center(
             Panel.fit(
-                f"[bold cyan]Faza 0: Zwiad Pasywny (OSINT) dla {config.ORIGINAL_TARGET}[/bold cyan]"
+                "[bold cyan]Faza 0: Zwiad Pasywny (OSINT) "
+                f"dla {config.ORIGINAL_TARGET}[/bold cyan]"
             )
         )
     )
@@ -316,7 +304,7 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
     technologies = osint_data.get("technologies")
     if technologies and isinstance(technologies, list):
         table.add_section()
-        # ZMIANA: Wyświetlanie technologii w dwóch kolumnach
+        # Wyświetlanie technologii w dwóch kolumnach
         midpoint = (len(technologies) + 1) // 2
         col1 = "\n".join(technologies[:midpoint])
         col2 = "\n".join(technologies[midpoint:])
@@ -325,3 +313,4 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
 
     utils.console.print(table)
     return osint_data, best_target_url
+
