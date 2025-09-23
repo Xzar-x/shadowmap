@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import re
 import subprocess
 import sys
@@ -36,6 +37,18 @@ def _run_and_parse_crawl_tool(
             command, capture_output=True, text=True, timeout=timeout,
             encoding="utf-8", errors="ignore",
         )
+
+        # Zapisz surowy wynik do pliku w odpowiednim katalogu fazy
+        phase4_dir = os.path.join(config.REPORT_DIR, "faza4_webcrawling")
+        sanitized_target = re.sub(r'https?://', '', target_url).replace('/', '_').replace(':', '_')
+        raw_output_file = os.path.join(phase4_dir, f"{tool_name.lower()}_{sanitized_target}.txt")
+        
+        with open(raw_output_file, 'w', encoding='utf-8') as f:
+            f.write(f"--- Raw output for {tool_name} on {target_url} ---\n\n")
+            f.write(process.stdout)
+            if process.stderr:
+                f.write("\n\n--- STDERR ---\n\n")
+                f.write(process.stderr)
 
         url_pattern = re.compile(r'https?://[^\s"\'<>]+')
         found_urls = url_pattern.findall(process.stdout)
@@ -294,3 +307,4 @@ def display_phase4_settings_menu(display_banner_func):
                 config.USER_CUSTOMIZED_TIMEOUT = True
         elif choice.lower() == "b": break
         elif choice.lower() == "q": sys.exit(0)
+

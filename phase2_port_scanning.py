@@ -58,19 +58,27 @@ def _run_scan_tool(
         stdout, stderr = process.communicate(timeout=timeout)
         returncode = process.returncode
 
-        with open(output_file, "w", encoding="utf-8") as f:
-            if tool_name == "Masscan":
-                for line in stdout.splitlines():
-                    if line.startswith("Discovered open port"):
-                        parts = line.split()
-                        port = parts[3].split("/")[0]
-                        ip = parts[5]
-                        f.write(f"{ip}:{port}\n")
-            else:
-                f.write(stdout)
+        # Nmap zapisuje swój wynik bezpośrednio przez -oN, więc nie musimy pisać stdout.
+        # Dla innych narzędzi przechwytujemy i zapisujemy stdout.
+        if tool_name != "Nmap":
+            with open(output_file, "w", encoding="utf-8") as f:
+                if tool_name == "Masscan":
+                    for line in stdout.splitlines():
+                        if line.startswith("Discovered open port"):
+                            parts = line.split()
+                            port = parts[3].split("/")[0]
+                            ip = parts[5]
+                            f.write(f"{ip}:{port}\n")
+                else:
+                    f.write(stdout)
 
-            if stderr:
+                if stderr:
+                    f.write(f"\n--- STDERR ---\n{stderr}")
+        # Dla Nmap plik jest już utworzony. Opcjonalnie możemy dopisać stderr.
+        elif stderr:
+             with open(output_file, "a", encoding="utf-8") as f:
                 f.write(f"\n--- STDERR ---\n{stderr}")
+
 
         if returncode == 0:
             msg = f"✅ {tool_name} zakończył skanowanie dla {target}."
@@ -190,6 +198,8 @@ def start_port_scan(
     total_tasks = (len(targets_to_scan) * len(discovery_tools)) + \
                   (len(targets_to_scan) if nmap_enabled else 0)
 
+    phase2_dir = os.path.join(config.REPORT_DIR, "faza2_port_scanning")
+
     with Progress(
         SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
         BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(),
@@ -212,7 +222,7 @@ def start_port_scan(
                 for tool in discovery_tools:
                     for target in targets_to_scan:
                         out_file = os.path.join(
-                            config.REPORT_DIR, f"{tool.lower()}_{target.replace('.', '_')}.txt")
+                            phase2_dir, f"{tool.lower()}_{target.replace('.', '_')}.txt")
                         cmd = []
                         if tool == "Naabu":
                             cmd = ["naabu", "-silent", "-p", "-"]
@@ -233,7 +243,7 @@ def start_port_scan(
                 agg_file = os.path.join(config.REPORT_DIR, f"{tool.lower()}_aggregated.txt")
                 with open(agg_file, "w", encoding="utf-8") as agg_f:
                     for target in targets_to_scan:
-                        tool_file = os.path.join(config.REPORT_DIR, f"{tool.lower()}_{target.replace('.', '_')}.txt")
+                        tool_file = os.path.join(phase2_dir, f"{tool.lower()}_{target.replace('.', '_')}.txt")
                         if os.path.exists(tool_file):
                             with open(tool_file, "r", encoding="utf-8") as f:
                                 agg_f.write(f.read())
@@ -270,7 +280,7 @@ def start_port_scan(
                         if nmap_scan_type == "full": cmd.extend(["-p-"])
                         elif nmap_scan_type == "fast": cmd.extend(["-F"])
 
-                    out_file = os.path.join(config.REPORT_DIR, f"nmap_{target.replace('.', '_')}.txt")
+                    out_file = os.path.join(phase2_dir, f"nmap_{target.replace('.', '_')}.txt")
                     cmd.extend(["-oN", out_file, target])
                     future = executor.submit(
                         _run_scan_tool, "Nmap", cmd, target, out_file, config.TOOL_TIMEOUT_SECONDS
@@ -411,3 +421,4 @@ def display_phase2_settings_menu(display_banner_func):
                 utils.console.print(Align.center("[bold red]Nieprawidłowa wartość.[/bold red]"))
         elif choice.lower() == "b": break
         elif choice.lower() == "q": sys.exit(0)
+

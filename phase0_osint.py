@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import os
 import re
 import socket
 import subprocess
@@ -80,14 +81,22 @@ def get_whois_info(domain: str) -> Dict[str, Any]:
     try:
         command = ["whois", domain]
         process = subprocess.run(command, capture_output=True, text=True, timeout=60)
+        output = process.stdout
+
+        # Zapisz surowy wynik do pliku
+        phase0_dir = os.path.join(config.REPORT_DIR, "faza0_osint")
+        with open(os.path.join(phase0_dir, "whois_raw.txt"), "w", encoding="utf-8") as f:
+            f.write(f"--- WHOIS for {domain} ---\n")
+            f.write(output)
+            if process.stderr:
+                f.write("\n--- STDERR ---\n")
+                f.write(process.stderr)
 
         if process.returncode != 0 and "No whois server" not in process.stderr:
             utils.log_and_echo(
                 f"Błąd podczas wykonywania komendy whois: {process.stderr}", "WARN"
             )
             return {"Error": "Could not retrieve WHOIS data."}
-
-        output = process.stdout
 
         patterns = {
             "registrar": r"Registrar:\s*(.*)",
@@ -126,6 +135,16 @@ def get_http_info(target: str) -> Dict[str, Any]:
             "-ip", "-asn", "-cdn", "-tech-detect",
         ]
         process = subprocess.run(command, capture_output=True, text=True, timeout=60)
+        
+        # Zapisz surowy wynik do pliku
+        phase0_dir = os.path.join(config.REPORT_DIR, "faza0_osint")
+        with open(os.path.join(phase0_dir, "httpx_osint_raw.txt"), "w", encoding="utf-8") as f:
+            f.write(f"--- httpx OSINT for {target} ---\n")
+            f.write(process.stdout)
+            if process.stderr:
+                f.write("\n--- STDERR ---\n")
+                f.write(process.stderr)
+
 
         if process.stdout:
             for line in process.stdout.strip().split("\n"):
@@ -173,6 +192,15 @@ def get_whatweb_info(target_url: str) -> List[str]:
     try:
         command = ["whatweb", "--no-error", "--log-json=-", target_url]
         process = subprocess.run(command, capture_output=True, text=True, timeout=120)
+
+        # Zapisz surowy wynik
+        phase0_dir = os.path.join(config.REPORT_DIR, "faza0_osint")
+        with open(os.path.join(phase0_dir, "whatweb_raw.txt"), "w", encoding="utf-8") as f:
+            f.write(f"--- whatweb for {target_url} ---\n")
+            f.write(process.stdout)
+            if process.stderr:
+                f.write("\n--- STDERR ---\n")
+                f.write(process.stderr)
 
         for line in process.stdout.strip().split("\n"):
             try:

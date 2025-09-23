@@ -275,6 +275,15 @@ def main(
                 config.OUTPUT_BASE_DIR, f"report_{config.HOSTNAME_TARGET}_{report_time}"
             )
             os.makedirs(config.REPORT_DIR, exist_ok=True)
+
+            # Utwórz podkatalogi dla surowych wyników narzędzi
+            phase_dirs = [
+                "faza0_osint", "faza1_subdomain_scanning", "faza2_port_scanning",
+                "faza3_dirsearch", "faza4_webcrawling"
+            ]
+            for phase_dir in phase_dirs:
+                os.makedirs(os.path.join(config.REPORT_DIR, phase_dir), exist_ok=True)
+            
             scan_initiated = True
 
             if config.QUIET_MODE:
@@ -362,3 +371,4 @@ def main(
 
 if __name__ == "__main__":
     app()
+

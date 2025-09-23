@@ -113,6 +113,8 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                 current_wordlist_p1 = shuffled_path
                 config.TEMP_FILES_TO_CLEAN.append(shuffled_path)
 
+        phase1_dir = os.path.join(config.REPORT_DIR, "faza1_subdomain_scanning")
+
         puredns_base_cmd = [
             "puredns", "bruteforce", current_wordlist_p1,
             config.CLEAN_DOMAIN_TARGET, "--resolvers", config.RESOLVERS_FILE,
@@ -140,12 +142,11 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                 ]:
                     continue
                 output_path = os.path.join(
-                    config.REPORT_DIR, f"{tool_cfg['name'].lower()}_results.txt"
+                    phase1_dir, f"{tool_cfg['name'].lower()}_results.txt"
                 )
                 tasks_to_run.append(
                     (tool_cfg["name"], tool_cfg["cmd_template"], output_path)
                 )
-                config.TEMP_FILES_TO_CLEAN.append(output_path)
 
         if not tasks_to_run:
             utils.console.print(
@@ -361,3 +362,4 @@ def display_phase1_settings_menu(display_banner_func):
                 time.sleep(1)
         elif choice.lower() == "b":
             break
+

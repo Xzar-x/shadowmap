@@ -52,11 +52,14 @@ NAABU_SOURCE_PORT: Optional[str] = None
 MASSCAN_RATE: int = 300
 NMAP_SOLO_SCAN_MODE: str = "default"  # 'default', 'full', 'fast'
 
-# --- NOWOŚĆ: Ustawienia Super Safe Mode ---
+# --- Ustawienia Super Safe Mode ---
 USE_HEADLESS_BROWSER: bool = False
 WAF_CHECK_ENABLED: bool = True
-WAF_CHECK_INTERVAL_MIN: int = 30  # sekundy
-WAF_CHECK_INTERVAL_MAX: int = 60  # sekundy
+# ZMIANA: Rozdzielenie interwałów dla trybu normalnego i bezpiecznego
+WAF_CHECK_INTERVAL_MIN_NORMAL: int = 5  # sekundy (częstsze sprawdzanie w trybie normalnym)
+WAF_CHECK_INTERVAL_MAX_NORMAL: int = 15 # sekundy
+WAF_CHECK_INTERVAL_MIN_SAFE: int = 30  # sekundy (rzadsze sprawdzanie w trybie bezpiecznym)
+WAF_CHECK_INTERVAL_MAX_SAFE: int = 60  # sekundy
 
 
 # --- Wybrane narzędzia ---
