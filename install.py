@@ -199,9 +199,10 @@ def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
 
     run_command(
-        ["cp", os.path.join(base_dir, "shadowmap"), BIN_DIR],
-        "Kopiowanie głównego skryptu", sudo=True
-    )
+    ["cp", os.path.join(base_dir, "shadowmap.py"), os.path.join(BIN_DIR, "shadowmap")],
+    "Kopiowanie głównego skryptu",
+    sudo=True
+)
     run_command(
         ["chmod", "+x", os.path.join(BIN_DIR, "shadowmap")],
         "Nadawanie uprawnień wykonywalnych", sudo=True
