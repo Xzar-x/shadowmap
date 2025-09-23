@@ -341,4 +341,3 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
 
     utils.console.print(table)
     return osint_data, best_target_url
-

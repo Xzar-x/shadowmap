@@ -334,7 +334,13 @@ def main(
                                       BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(),
                                       console=utils.console, transient=True) as progress:
                             task = progress.add_task("[green]Faza 3[/green]", total=total_tasks or 1)
-                            p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(targets, progress, task)
+                            # ZMIANA: Przekazanie wykrytych technologii do Fazy 3
+                            p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(
+                                targets,
+                                p0_data.get("technologies", []),
+                                progress,
+                                task
+                            )
                         if utils.ask_user_decision("Kontynuować do Fazy 4?", ["y", "n"], "y") == "y":
                             choice = "4"
                             continue
@@ -371,4 +377,3 @@ def main(
 
 if __name__ == "__main__":
     app()
-

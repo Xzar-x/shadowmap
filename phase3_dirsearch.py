@@ -45,6 +45,35 @@ DIRSEARCH_RESULT_PATTERN = re.compile(
 GENERIC_URL_PATTERN = re.compile(r"(https?://[^\s/$.?#].[^\s]*)")
 
 
+def _select_wordlist_based_on_tech(detected_technologies: List[str]) -> str:
+    """
+    Wybiera specjalistyczną listę słów na podstawie wykrytych technologii.
+    """
+    if not detected_technologies:
+        return config.WORDLIST_PHASE3
+
+    utils.console.print(Align.center("[bold cyan]Analizuję technologie pod kątem wyboru listy słów...[/bold cyan]"))
+
+    for tech in detected_technologies:
+        # Normalizuj nazwę technologii, np. "WordPress 6.4" -> "wordpress"
+        tech_lower = tech.split(" ")[0].lower()
+        
+        if tech_lower in config.TECH_SPECIFIC_WORDLISTS:
+            wordlist_path = config.TECH_SPECIFIC_WORDLISTS[tech_lower]
+            if os.path.exists(wordlist_path):
+                msg = f"Wykryto '{tech}'. Używam dedykowanej listy słów: [bold green]{os.path.basename(wordlist_path)}[/bold green]"
+                utils.log_and_echo(msg, "INFO")
+                utils.console.print(Align.center(msg))
+                return wordlist_path
+            else:
+                msg = f"Wykryto '{tech}', ale dedykowana lista słów [bold red]{wordlist_path}[/bold red] nie istnieje. Używam domyślnej."
+                utils.log_and_echo(msg, "WARN")
+                utils.console.print(Align.center(msg))
+
+    utils.console.print(Align.center("[bold yellow]Nie znaleziono dedykowanej listy słów. Używam domyślnej.[/bold yellow]"))
+    return config.WORDLIST_PHASE3
+
+
 def _detect_wildcard_response(target_url: str) -> Dict[str, Any]:
     wildcard_params = {}
     random_path = f"{uuid.uuid4().hex[:8]}-{uuid.uuid4().hex[:8]}"
@@ -216,6 +245,7 @@ def _handle_waf_block_detection(
 
 def start_dir_search(
     urls: List[str],
+    technologies: List[str],
     progress_obj: Optional[Progress] = None,
     main_task_id: Optional[TaskID] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
@@ -226,15 +256,24 @@ def start_dir_search(
         "Dirsearch": [],
         "Gobuster": [],
     }
+    
+    # ZMIANA: Logika wyboru listy słów
+    if config.USER_CUSTOMIZED_WORDLIST_PHASE3:
+        current_wordlist = config.WORDLIST_PHASE3
+        utils.console.print(Align.center(f"[yellow]Używam listy słów zdefiniowanej przez użytkownika: {current_wordlist}[/yellow]"))
+    else:
+        current_wordlist = _select_wordlist_based_on_tech(technologies)
 
-    current_wordlist = config.WORDLIST_PHASE3
-    if config.SAFE_MODE and not config.USER_CUSTOMIZED_WORDLIST_PHASE3:
-        shuffled_path = utils.shuffle_wordlist(
-            config.SMALL_WORDLIST_PHASE3, config.REPORT_DIR
-        )
-        current_wordlist = shuffled_path or config.SMALL_WORDLIST_PHASE3
+    if config.SAFE_MODE:
+        # Jeśli w trybie bezpiecznym, użyj mniejszej listy, chyba że wybrano dedykowaną
+        if current_wordlist == config.DEFAULT_WORDLIST_PHASE3:
+             current_wordlist = config.SMALL_WORDLIST_PHASE3
+        # Zawsze tasuj listę w trybie bezpiecznym
+        shuffled_path = utils.shuffle_wordlist(current_wordlist, config.REPORT_DIR)
         if shuffled_path:
+            current_wordlist = shuffled_path
             config.TEMP_FILES_TO_CLEAN.append(current_wordlist)
+
 
     tool_configs = [
         {
@@ -575,4 +614,3 @@ def display_phase3_settings_menu(display_banner_func):
             config.WAF_CHECK_ENABLED = not config.WAF_CHECK_ENABLED
         elif choice.lower() == "b":
             break
-
