@@ -265,15 +265,15 @@ def display_phase1_tool_selection_menu(display_banner_func):
             status = ("[bold green]✓[/bold green]" if config.selected_phase1_tools[i]
                       else "[bold red]✗[/bold red]")
             if config.TARGET_IS_IP and i < 3:
-                table.add_row(f"[{i+1}]",
+                table.add_row(f"[bold cyan][{i+1}][/bold cyan]",
                               f"[dim]{status}[/dim] [dim]{tool_name} (pominięto dla IP)[/dim]")
             else:
-                table.add_row(f"[{i+1}]", f"{status} {tool_name}")
+                table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
 
         table.add_section()
-        table.add_row("[\fs]", "[bold magenta]Ustawienia Fazy 1[/bold magenta]")
-        table.add_row("[\fb]", "Powrót do menu głównego")
-        table.add_row("[\fq]", "Wyjdź")
+        table.add_row("[bold cyan][s][/bold cyan]", "[bold magenta]Ustawienia Fazy 1[/bold magenta]")
+        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu głównego")
+        table.add_row("[bold cyan][q][/bold cyan]", "Wyjdź")
 
         utils.console.print(Align.center(table))
         prompt_txt = Text.from_markup(
@@ -328,10 +328,10 @@ def display_phase1_settings_menu(display_banner_func):
         if config.USER_CUSTOMIZED_RESOLVERS:
             resolvers_display = (f"[bold green]{config.RESOLVERS_FILE} (Użytkownika)[/bold green]")
 
-        table.add_row("[1]", f"Lista słów (Puredns): {wordlist_display}")
-        table.add_row("[2]", f"Plik resolverów (Puredns): {resolvers_display}")
+        table.add_row("[bold cyan][1][/bold cyan]", f"Lista słów (Puredns): {wordlist_display}")
+        table.add_row("[bold cyan][2][/bold cyan]", f"Plik resolverów (Puredns): {resolvers_display}")
         table.add_section()
-        table.add_row("[\fb]", "Powrót do menu Fazy 1")
+        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu Fazy 1")
 
         utils.console.print(Align.center(table))
         choice = utils.get_single_char_input_with_prompt(
@@ -362,4 +362,3 @@ def display_phase1_settings_menu(display_banner_func):
                 time.sleep(1)
         elif choice.lower() == "b":
             break
-

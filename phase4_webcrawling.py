@@ -218,11 +218,11 @@ def display_phase4_tool_selection_menu(display_banner_func):
         for i, tool_name in enumerate(tool_names):
             status = ("[bold green]✓[/bold green]" if config.selected_phase4_tools[i]
                       else "[bold red]✗[/bold red]")
-            table.add_row(f"[{i+1}]", f"{status} {tool_name}")
+            table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
         table.add_section()
-        table.add_row("[\fs]", "[bold magenta]Zmień ustawienia Fazy 4[/bold magenta]")
-        table.add_row("[\fb]", "Powrót do menu głównego")
-        table.add_row("[\fq]", "Wyjdź")
+        table.add_row("[bold cyan][s][/bold cyan]", "[bold magenta]Zmień ustawienia Fazy 4[/bold magenta]")
+        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu głównego")
+        table.add_row("[bold cyan][q][/bold cyan]", "Wyjdź")
         utils.console.print(Align.center(table))
         utils.console.print(
             Align.center("[bold cyan]Rekomendacja: Włącz Katana i Gauplus.[/bold cyan]")
@@ -261,16 +261,16 @@ def display_phase4_settings_menu(display_banner_func):
         aff_status = ("[bold green]✓[/bold green]" if config.AUTO_FORM_FILL else "[bold red]✗[/bold red]")
         headless_status = ("[bold green]✓[/bold green]" if config.USE_HEADLESS_BROWSER else "[bold red]✗[/bold red]")
 
-        table.add_row("[1]", f"[{safe_status}] Tryb bezpieczny")
-        table.add_row("[2]", f"Głębokość crawlera (Katana, Hakrawler): {config.CRAWL_DEPTH_P4}")
-        table.add_row("[3]", f"[{aff_status}] Automatyczne wypełnianie formularzy (Katana)")
-        table.add_row("[4]", f"[{headless_status}] Użyj przeglądarki Headless (Katana, Safe Mode)")
-        table.add_row("[5]", f"Proxy: {proxy_display}")
-        table.add_row("[6]", f"Liczba wątków: {config.THREADS}")
-        table.add_row("[7]", f"Limit czasu narzędzia: {config.TOOL_TIMEOUT_SECONDS}s")
+        table.add_row("[bold cyan][1][/bold cyan]", f"[{safe_status}] Tryb bezpieczny")
+        table.add_row("[bold cyan][2][/bold cyan]", f"Głębokość crawlera (Katana, Hakrawler): {config.CRAWL_DEPTH_P4}")
+        table.add_row("[bold cyan][3][/bold cyan]", f"[{aff_status}] Automatyczne wypełnianie formularzy (Katana)")
+        table.add_row("[bold cyan][4][/bold cyan]", f"[{headless_status}] Użyj przeglądarki Headless (Katana, Safe Mode)")
+        table.add_row("[bold cyan][5][/bold cyan]", f"Proxy: {proxy_display}")
+        table.add_row("[bold cyan][6][/bold cyan]", f"Liczba wątków: {config.THREADS}")
+        table.add_row("[bold cyan][7][/bold cyan]", f"Limit czasu narzędzia: {config.TOOL_TIMEOUT_SECONDS}s")
         table.add_section()
-        table.add_row("[\fb]", "Powrót do menu Fazy 4")
-        table.add_row("[\fq]", "Wyjdź")
+        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu Fazy 4")
+        table.add_row("[bold cyan][q][/bold cyan]", "Wyjdź")
         utils.console.print(Align.center(table))
 
         choice = utils.get_single_char_input_with_prompt(
@@ -307,4 +307,3 @@ def display_phase4_settings_menu(display_banner_func):
                 config.USER_CUSTOMIZED_TIMEOUT = True
         elif choice.lower() == "b": break
         elif choice.lower() == "q": sys.exit(0)
-

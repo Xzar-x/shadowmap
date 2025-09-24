@@ -42,9 +42,23 @@ except ImportError as e:
     print(f"BŁĄD: Nie można zaimportować modułów. Uruchom install.py. Błąd: {e}")
     sys.exit(1)
 
+# --- Definicja aplikacji Typer ---
 app = typer.Typer(
     add_completion=False,
-    help="ShadowMap: Zautomatyzowany zestaw narzędzi do rekonesansu.",
+    rich_markup_mode="rich",
+    context_settings={"help_option_names": ["-h", "--help"]},
+    help="""
+    ShadowMap: Zautomatyzowany zestaw narzędzi do rekonesansu.
+
+    Narzędzie przeprowadza skanowanie w wielu fazach:
+    - Faza 0: OSINT (WHOIS, technologie, IP, etc.)
+    - Faza 1: Odkrywanie subdomen
+    - Faza 2: Skanowanie portów
+    - Faza 3: Wyszukiwanie katalogów i plików
+    - Faza 4: Web crawling i odkrywanie linków
+
+    Wyniki są agregowane i prezentowane w interaktywnym raporcie HTML.
+    """,
 )
 
 
@@ -63,7 +77,7 @@ def ask_scan_scope(
 ) -> List[str]:
     summary_text = (
         f"Znaleziono [bold green]{len(all_results)}[/bold green] wyników.\n"
-        f"W tym [bold red]{len(critical_results)}[/bold red] krytycznych."
+        f"W tym [bold red]{len(critical_results)}[/bold red] potencjalnie krytycznych."
     )
     panel = Panel(
         Text.from_markup(summary_text, justify="center"),
@@ -72,13 +86,13 @@ def ask_scan_scope(
     utils.console.print(Align.center(panel))
 
     question = (
-        f"Co skanować w {phase_name}?\n"
-        f"([bold]A[/bold])ll - wszystkie {len(all_results)}\n"
-        f"([bold]C[/bold])ritical - tylko {len(critical_results)}"
+        f"Jaki zakres celów skanować w {phase_name}?\n"
+        f"([bold]A[/bold])ll - wszystkie [bold green]{len(all_results)}[/bold green]\n"
+        f"([bold]C[/bold])ritical - tylko [bold red]{len(critical_results)}[/bold red]"
     )
 
-    choice = utils.ask_user_decision(question, choices=["a", "c"], default="a")
-    return all_results if choice.lower() == "a" else critical_results
+    choice = utils.ask_user_decision(question, choices=["a", "c"], default="c")
+    return critical_results if choice.lower() == "c" else all_results
 
 
 def display_main_menu() -> str:
@@ -90,12 +104,12 @@ def display_main_menu() -> str:
     )
 
     table = Table(show_header=False, show_edge=False, padding=(0, 2))
-    table.add_row("[1]", "Faza 1: Odkrywanie Subdomen")
-    table.add_row("[2]", "Faza 2: Skanowanie Portów")
-    table.add_row("[3]", "Faza 3: Wyszukiwanie Katalogów")
-    table.add_row("[4]", "Faza 4: Web Crawling")
+    table.add_row("[bold cyan][1][/bold cyan]", "Faza 1: Odkrywanie Subdomen")
+    table.add_row("[bold cyan][2][/bold cyan]", "Faza 2: Skanowanie Portów")
+    table.add_row("[bold cyan][3][/bold cyan]", "Faza 3: Wyszukiwanie Katalogów")
+    table.add_row("[bold cyan][4][/bold cyan]", "Faza 4: Web Crawling")
     table.add_section()
-    table.add_row("[\fq]", "Zapisz raport i Wyjdź")
+    table.add_row("[bold cyan][q][/bold cyan]", "Zapisz raport i Wyjdź")
     utils.console.print(Align.center(table))
 
     return utils.get_single_char_input_with_prompt(
@@ -243,8 +257,49 @@ def cleanup_temp_files():
 
 @app.command()
 def main(
-    target: Optional[str] = typer.Argument(None, help="Domena lub IP."),
-    target_list: Optional[Path] = typer.Option(None, "-l", help="Plik z listą celów."),
+    target: Optional[str] = typer.Argument(
+        None, help="Domena lub adres IP do skanowania."
+    ),
+    target_list: Optional[Path] = typer.Option(
+        None,
+        "-l",
+        "--target-list",
+        help="Plik zawierający listę celów do skanowania (jeden na linię).",
+        rich_help_panel="Input",
+    ),
+    output_dir: Path = typer.Option(
+        ".",
+        "-o",
+        "--output-dir",
+        help="Katalog, w którym zostaną zapisane raporty.",
+        rich_help_panel="Output",
+    ),
+    exclude: Optional[List[str]] = typer.Option(
+        None,
+        "-e",
+        "--exclude",
+        help="Wyklucz subdomeny ze skanowania (np. '-e test.example.com -e *.dev.example.com').",
+        rich_help_panel="Tuning",
+    ),
+    safe_mode: bool = typer.Option(
+        False,
+        "--safe-mode",
+        help="Włącz tryb bezpieczny (wolniejsze, mniej agresywne skanowanie, rotacja User-Agentów).",
+        rich_help_panel="Tuning",
+    ),
+    proxy: Optional[str] = typer.Option(
+        None,
+        "--proxy",
+        help="Użyj proxy dla wspieranych narzędzi (np. 'socks5://127.0.0.1:9050').",
+        rich_help_panel="Tuning",
+    ),
+    quiet_mode: bool = typer.Option(
+        False,
+        "-q",
+        "--quiet",
+        help="Tryb cichy, minimalizuje output (przydatne przy wielu celach).",
+        rich_help_panel="Output",
+    ),
 ):
     targets_to_scan = []
     if target_list and target_list.is_file():
@@ -258,16 +313,17 @@ def main(
         utils.console.print("[red]Błąd: Podaj cel lub listę celów.[/red]")
         raise typer.Exit()
 
+    config.QUIET_MODE = quiet_mode
+    config.SAFE_MODE = safe_mode
+    config.PROXY = proxy
+    config.EXCLUSION_PATTERNS = exclude or []
+    config.OUTPUT_BASE_DIR = str(output_dir)
+
     scan_initiated = False
     try:
         for current_target in targets_to_scan:
-            p0_data: Dict[str, Any] = {}
-            p1_files: Dict[str, str] = {}
-            active_urls_data: List[Dict[str, Any]] = []
-            p2_results: Dict[str, Any] = {}
-            p3_results: Dict[str, Any] = {}
-            p3_verified_data: List[Dict[str, Any]] = []
-            p4_results: Dict[str, Any] = {}
+            p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results = {}, {}, [], {}, {}, [], {}
+            targets_for_phase2_3, targets_for_phase4 = [], []
 
             parse_target_input(current_target)
             report_time = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -275,96 +331,107 @@ def main(
                 config.OUTPUT_BASE_DIR, f"report_{config.HOSTNAME_TARGET}_{report_time}"
             )
             os.makedirs(config.REPORT_DIR, exist_ok=True)
-
-            # Utwórz podkatalogi dla surowych wyników narzędzi
-            phase_dirs = [
-                "faza0_osint", "faza1_subdomain_scanning", "faza2_port_scanning",
-                "faza3_dirsearch", "faza4_webcrawling"
-            ]
-            for phase_dir in phase_dirs:
+            for phase_dir in ["faza0_osint", "faza1_subdomain_scanning", "faza2_port_scanning", "faza3_dirsearch", "faza4_webcrawling"]:
                 os.makedirs(os.path.join(config.REPORT_DIR, phase_dir), exist_ok=True)
             
             scan_initiated = True
 
             if config.QUIET_MODE:
-                # TODO: Implement full non-interactive scan logic
                 continue
 
             p0_data, best_target_url = phase0_osint.start_phase0_osint()
-            config.ORIGINAL_TARGET = best_target_url  # Aktualizacja celu
-            detect_waf_and_propose_safe_mode()
+            config.ORIGINAL_TARGET = best_target_url
+            if not config.SAFE_MODE:
+                detect_waf_and_propose_safe_mode()
 
             choice = ""
             while True:
                 if not choice: choice = display_main_menu()
+                
                 if choice == "1":
                     if phase1_subdomain.display_phase1_tool_selection_menu(display_banner):
                         p1_files, active_urls_data, _ = phase1_subdomain.start_phase1_scan()
                         if active_urls_data:
-                            if utils.ask_user_decision("Kontynuować do Fazy 2?", ["y", "n"], "y") == "y":
+                            if utils.ask_user_decision("Znaleziono aktywne subdomeny. Kontynuować do Fazy 2?", ["y", "n"], "y") == "y":
+                                all_p1_urls = [item["url"] for item in active_urls_data]
+                                critical_p1_urls = utils.filter_critical_urls(all_p1_urls)
+                                
+                                if critical_p1_urls:
+                                    targets_for_phase2_3 = ask_scan_scope(all_p1_urls, critical_p1_urls, "Fazy 2 i 3")
+                                else:
+                                    utils.console.print(Align.center("[yellow]Nie znaleziono krytycznych subdomen. Skanowane będą wszystkie aktywne.[/yellow]"))
+                                    targets_for_phase2_3 = all_p1_urls
                                 choice = "2"
                                 continue
                         else:
-                            utils.console.print(Align.center("[yellow]Brak aktywnych subdomen.[/yellow]"))
+                            utils.console.print(Align.center("[yellow]Brak aktywnych subdomen do dalszego skanowania.[/yellow]"))
                             time.sleep(2)
                     choice = ""
+
                 elif choice == "2":
-                    if not active_urls_data:
+                    if not targets_for_phase2_3:
                         utils.console.print(Align.center("[bold yellow]Najpierw uruchom Fazę 1.[/bold yellow]"))
                         time.sleep(2)
-                        choice = ""
-                        continue
-                    if phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
-                        targets = [item["url"] for item in active_urls_data]
-                        p2_results = phase2_port_scanning.start_port_scan(targets, None, None)
+                    elif phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
+                        p2_results = phase2_port_scanning.start_port_scan(targets_for_phase2_3, None, None)
                         if p2_results.get("open_ports_by_host"):
-                            if utils.ask_user_decision("Kontynuować do Fazy 3?", ["y", "n"], "y") == "y":
+                            if utils.ask_user_decision("Znaleziono otwarte porty. Kontynuować do Fazy 3?", ["y", "n"], "y") == "y":
                                 choice = "3"
                                 continue
                         else:
-                            utils.console.print(Align.center("[yellow]Brak otwartych portów.[/yellow]"))
+                            utils.console.print(Align.center("[yellow]Nie znaleziono otwartych portów.[/yellow]"))
                             time.sleep(2)
                     choice = ""
+
                 elif choice == "3":
-                    if phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
-                        targets = [item["url"] for item in active_urls_data] or [config.ORIGINAL_TARGET]
+                    if not targets_for_phase2_3:
+                         utils.console.print(Align.center("[bold yellow]Najpierw uruchom Fazę 1.[/bold yellow]"))
+                         time.sleep(2)
+                    elif phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
                         num_tools = sum(config.selected_phase3_tools)
-                        total_tasks = len(targets) * num_tools
+                        total_tasks = len(targets_for_phase2_3) * num_tools
                         with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
                                       BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(),
                                       console=utils.console, transient=True) as progress:
                             task = progress.add_task("[green]Faza 3[/green]", total=total_tasks or 1)
-                            # ZMIANA: Przekazanie wykrytych technologii do Fazy 3
                             p3_results, p3_verified_data = phase3_dirsearch.start_dir_search(
-                                targets,
-                                p0_data.get("technologies", []),
-                                progress,
-                                task
+                                targets_for_phase2_3, p0_data.get("technologies", []), progress, task
                             )
-                        if utils.ask_user_decision("Kontynuować do Fazy 4?", ["y", "n"], "y") == "y":
+
+                        if utils.ask_user_decision("Zakończono Fazę 3. Kontynuować do Fazy 4?", ["y", "n"], "y") == "y":
+                            if p3_verified_data:
+                                all_p3_urls = [item["url"] for item in p3_verified_data]
+                                critical_p3_urls = utils.filter_critical_urls(all_p3_urls)
+                                if critical_p3_urls:
+                                    targets_for_phase4 = ask_scan_scope(all_p3_urls, critical_p3_urls, "Fazy 4")
+                                else:
+                                    utils.console.print(Align.center("[yellow]Nie znaleziono krytycznych ścieżek. Używam wszystkich zweryfikowanych.[/yellow]"))
+                                    targets_for_phase4 = all_p3_urls
+                            else:
+                                utils.console.print(Align.center("[yellow]Brak wyników z Fazy 3. Używam celów z Fazy 1.[/yellow]"))
+                                targets_for_phase4 = targets_for_phase2_3
                             choice = "4"
                             continue
                     choice = ""
+
                 elif choice == "4":
-                    if phase4_webcrawling.display_phase4_tool_selection_menu(display_banner):
-                        targets = ([item["url"] for item in p3_verified_data] or
-                                   [item["url"] for item in active_urls_data] or
-                                   [config.ORIGINAL_TARGET])
+                    if not targets_for_phase4:
+                        utils.console.print(Align.center("[bold yellow]Najpierw uruchom Fazę 1 lub 3.[/bold yellow]"))
+                        time.sleep(2)
+                    elif phase4_webcrawling.display_phase4_tool_selection_menu(display_banner):
                         num_tools = sum(config.selected_phase4_tools)
-                        total_tasks = len(targets) * num_tools
+                        total_tasks = len(targets_for_phase4) * num_tools
                         with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
                                       BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(),
                                       console=utils.console, transient=True) as progress:
                             task = progress.add_task("[green]Faza 4[/green]", total=total_tasks or 1)
-                            p4_results = phase4_webcrawling.start_web_crawl(targets, progress, task)
+                            p4_results = phase4_webcrawling.start_web_crawl(targets_for_phase4, progress, task)
                         utils.console.print(Align.center("[bold green]Faza 4 zakończona.[/bold green]"))
                         time.sleep(2)
                     choice = ""
+                
                 elif choice.lower() == "q":
-                    if report_path := generate_html_report(
-                        p0_data, p1_files, active_urls_data, p2_results,
-                        p3_results, p3_verified_data, p4_results
-                    ):
+                    if report_path := generate_html_report(p0_data, p1_files, active_urls_data, p2_results, p3_results, p3_verified_data, p4_results):
                         open_html_report(report_path)
                     break
 
@@ -377,3 +444,4 @@ def main(
 
 if __name__ == "__main__":
     app()
+

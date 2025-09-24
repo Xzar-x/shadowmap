@@ -37,7 +37,7 @@ ansi_escape_pattern = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 DIRSEARCH_RESULT_PATTERN = re.compile(
     r"^\[\d{2}:\d{2}:\d{2}\]\s+"
     r"(\d{3})\s+"
-    r"(?:-\s*\d+B\s*-\s*)?"
+    r"(?:-\s*(\d+)(B|KB|MB)\s*-\s*)?" # ZMIANA: Przechwytywanie rozmiaru
     r"(https?://\S+)"
     r"(?:\s*->\s*(https?://\S+))?"
     r"(?:.*$|$)"
@@ -55,7 +55,6 @@ def _select_wordlist_based_on_tech(detected_technologies: List[str]) -> str:
     utils.console.print(Align.center("[bold cyan]Analizuję technologie pod kątem wyboru listy słów...[/bold cyan]"))
 
     for tech in detected_technologies:
-        # Normalizuj nazwę technologii, np. "WordPress 6.4" -> "wordpress"
         tech_lower = tech.split(" ")[0].lower()
         
         if tech_lower in config.TECH_SPECIFIC_WORDLISTS:
@@ -139,7 +138,8 @@ def _parse_tool_output_line(
     elif tool_name == "Dirsearch":
         match = DIRSEARCH_RESULT_PATTERN.match(cleaned_line)
         if match:
-            full_url = match.group(3) or match.group(2)
+            # ZMIANA: Preferuj URL przekierowania, jeśli istnieje
+            full_url = match.group(5) or match.group(4)
     elif tool_name in ["Ffuf", "Gobuster"]:
         parts = cleaned_line.split()
         path = parts[0].strip()
@@ -175,7 +175,6 @@ def _run_and_parse_dir_tool(
             errors="ignore",
         )
         
-        # Zapisz surowy wynik do pliku w odpowiednim katalogu fazy
         phase3_dir = os.path.join(config.REPORT_DIR, "faza3_dirsearch")
         sanitized_target = re.sub(r'https?://', '', target_url).replace('/', '_').replace(':', '_')
         raw_output_file = os.path.join(phase3_dir, f"{tool_name.lower()}_{sanitized_target}.txt")
@@ -223,7 +222,6 @@ def _handle_waf_block_detection(
         )
     )
 
-    # Zatrzymanie wszystkich przyszłych zadań
     for future in futures:
         future.cancel()
     executor.shutdown(wait=False, cancel_futures=True)
@@ -234,13 +232,9 @@ def _handle_waf_block_detection(
         default="q",
         console=utils.console,
     )
-    # Tłumaczenie wyboru dla jasności
-    # s = Zwiększ opóźnienia i spróbuj ponownie (niezaimplementowane w tej wersji - wymagałoby restartu pętli)
-    # i = Zignoruj i kontynuuj (niezalecane, może nic nie dać)
-    # q = Zatrzymaj fazę i wróć do menu
     if choice == "q":
         return "stop"
-    return "continue"  # Domyślnie kontynuujemy, jeśli nie wybrano 'q'
+    return "continue"
 
 
 def start_dir_search(
@@ -251,13 +245,9 @@ def start_dir_search(
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
 
     results_by_tool: Dict[str, List[str]] = {
-        "Ffuf": [],
-        "Feroxbuster": [],
-        "Dirsearch": [],
-        "Gobuster": [],
+        "Ffuf": [], "Feroxbuster": [], "Dirsearch": [], "Gobuster": [],
     }
     
-    # ZMIANA: Logika wyboru listy słów
     if config.USER_CUSTOMIZED_WORDLIST_PHASE3:
         current_wordlist = config.WORDLIST_PHASE3
         utils.console.print(Align.center(f"[yellow]Używam listy słów zdefiniowanej przez użytkownika: {current_wordlist}[/yellow]"))
@@ -265,60 +255,27 @@ def start_dir_search(
         current_wordlist = _select_wordlist_based_on_tech(technologies)
 
     if config.SAFE_MODE:
-        # Jeśli w trybie bezpiecznym, użyj mniejszej listy, chyba że wybrano dedykowaną
         if current_wordlist == config.DEFAULT_WORDLIST_PHASE3:
              current_wordlist = config.SMALL_WORDLIST_PHASE3
-        # Zawsze tasuj listę w trybie bezpiecznym
         shuffled_path = utils.shuffle_wordlist(current_wordlist, config.REPORT_DIR)
         if shuffled_path:
             current_wordlist = shuffled_path
             config.TEMP_FILES_TO_CLEAN.append(current_wordlist)
 
-
     tool_configs = [
-        {
-            "name": "Ffuf",
-            "enabled": config.selected_phase3_tools[0],
-            "base_cmd": [
-                "ffuf",
-                "-recursion",
-                "-recursion-depth",
-                str(config.RECURSION_DEPTH_P3),
-            ],
-        },
-        {
-            "name": "Feroxbuster",
-            "enabled": config.selected_phase3_tools[1],
-            "base_cmd": ["feroxbuster", "--no-state"],
-        },
-        {
-            "name": "Dirsearch",
-            "enabled": config.selected_phase3_tools[2],
-            "base_cmd": ["dirsearch", "--full-url"],
-        },
-        {
-            "name": "Gobuster",
-            "enabled": config.selected_phase3_tools[3],
-            "base_cmd": ["gobuster", "dir", "--no-progress"],
-        },
+        {"name": "Ffuf", "enabled": config.selected_phase3_tools[0], "base_cmd": [
+            "ffuf", "-recursion", "-recursion-depth", str(config.RECURSION_DEPTH_P3)]},
+        {"name": "Feroxbuster", "enabled": config.selected_phase3_tools[1], "base_cmd": ["feroxbuster", "--no-state"]},
+        {"name": "Dirsearch", "enabled": config.selected_phase3_tools[2], "base_cmd": ["dirsearch", "--full-url"]},
+        {"name": "Gobuster", "enabled": config.selected_phase3_tools[3], "base_cmd": ["gobuster", "dir", "--no-progress"]},
     ]
 
-    # Logika uruchamiania monitora WAF
     waf_monitors: Dict[str, utils.WafHealthMonitor] = {}
     if config.WAF_CHECK_ENABLED:
-        # Wybierz odpowiednie interwały w zależności od trybu
-        if config.SAFE_MODE:
-            min_interval = config.WAF_CHECK_INTERVAL_MIN_SAFE
-            max_interval = config.WAF_CHECK_INTERVAL_MAX_SAFE
-            utils.log_and_echo(f"Monitor WAF aktywny w trybie bezpiecznym (interwał: {min_interval}-{max_interval}s)", "INFO")
-        else:
-            min_interval = config.WAF_CHECK_INTERVAL_MIN_NORMAL
-            max_interval = config.WAF_CHECK_INTERVAL_MAX_NORMAL
-            utils.log_and_echo(f"Monitor WAF aktywny w trybie normalnym (interwał: {min_interval}-{max_interval}s)", "INFO")
-
+        min_interval, max_interval = (config.WAF_CHECK_INTERVAL_MIN_SAFE, config.WAF_CHECK_INTERVAL_MAX_SAFE) if config.SAFE_MODE else (config.WAF_CHECK_INTERVAL_MIN_NORMAL, config.WAF_CHECK_INTERVAL_MAX_NORMAL)
+        utils.log_and_echo(f"Monitor WAF aktywny (interwał: {min_interval}-{max_interval}s)", "INFO")
         unique_hosts = set("/".join(url.split("/")[:3]) for url in urls)
         for host in unique_hosts:
-            # Przekaż interwały do konstruktora
             monitor = utils.WafHealthMonitor(host, interval_min=min_interval, interval_max=max_interval)
             monitor.start()
             waf_monitors[host] = monitor
@@ -327,9 +284,7 @@ def start_dir_search(
         with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
             futures_map: Dict[Future, str] = {}
             for url in urls:
-                validated_url = (
-                    url if url.startswith(("http://", "https://")) else f"https://{url}"
-                )
+                validated_url = url if url.startswith(("http://", "https://")) else f"https://{url}"
                 wildcard = _detect_wildcard_response(validated_url)
 
                 for cfg in tool_configs:
@@ -338,78 +293,49 @@ def start_dir_search(
                         threads = "1" if config.SAFE_MODE else str(config.THREADS)
 
                         if cfg["name"] == "Ffuf":
-                            cmd.extend(
-                                ["-w", f"{current_wordlist}:FUZZ", "-t", threads]
-                            )
-                            if config.SAFE_MODE:
-                                cmd.extend(["-p", "0.5-2.5"])  # Jitter
-                            cmd.extend(
-                                ["-H", f"User-Agent: {utils.user_agent_rotator.get()}"]
-                            )
-                            if wildcard.get("size"):
-                                cmd.extend(["-fs", str(wildcard["size"])])
-                            if wildcard.get("status"):
-                                cmd.extend(["-fc", str(wildcard["status"])])
+                            cmd.extend(["-w", f"{current_wordlist}:FUZZ", "-t", threads])
+                            if config.SAFE_MODE: cmd.extend(["-p", "0.5-2.5"])
+                            cmd.extend(["-H", f"User-Agent: {utils.user_agent_rotator.get()}"])
+                            if wildcard.get("size"): cmd.extend(["-fs", str(wildcard["size"])])
+                            if wildcard.get("status"): cmd.extend(["-fc", str(wildcard["status"])])
 
                         elif cfg["name"] == "Feroxbuster":
                             cmd.extend(["-w", current_wordlist, "-t", threads])
                             cmd.extend(["-a", utils.user_agent_rotator.get()])
-                            if wildcard.get("size"):
+                            if not config.FEROXBUSTER_SMART_FILTER:
+                                cmd.append("--dont-filter")
+                            elif wildcard.get("size"):
                                 cmd.extend(["-S", str(wildcard["size"])])
                             if wildcard.get("status"):
                                 cmd.extend(["-C", str(wildcard["status"])])
 
                         elif cfg["name"] == "Dirsearch":
                             cmd.extend(["-w", current_wordlist, "-t", threads])
-                            if config.SAFE_MODE:
-                                cmd.extend(["--delay", "1-2.5"])  # Jitter
-                            if wildcard.get("status"):
-                                cmd.extend(
-                                    ["--exclude-status", str(wildcard["status"])]
-                                )
+                            if config.SAFE_MODE: cmd.extend(["--delay", "1-2.5"])
+                            if not config.DIRSEARCH_SMART_FILTER:
+                                cmd.append("--exclude-sizes=0B")
+                            elif wildcard.get("status"):
+                                cmd.extend(["--exclude-status", str(wildcard["status"])])
+                                if wildcard.get("size"):
+                                     cmd.extend(["--exclude-lengths", str(wildcard["size"])])
 
                         elif cfg["name"] == "Gobuster":
-                            cmd.extend(["-w", current_wordlist, "-t", threads])
-                            if config.SAFE_MODE:
-                                cmd.extend(
-                                    ["--delay", "1500ms"]
-                                )  # Jitter (większy stały)
+                            cmd.extend(["-w", current_wordlist, "-t", threads, "-k"]) # ZMIANA: Dodano -k
+                            if config.SAFE_MODE: cmd.extend(["--delay", "1500ms"])
                             if wildcard.get("status") and wildcard.get("status") != 404:
                                 cmd.extend(["-b", str(wildcard["status"])])
 
-                        cmd.extend(
-                            [
-                                "-u",
-                                (
-                                    validated_url
-                                    if cfg["name"] != "Ffuf"
-                                    else f"{validated_url}/FUZZ"
-                                ),
-                            ]
-                        )
-                        future = executor.submit(
-                            _run_and_parse_dir_tool,
-                            cfg["name"],
-                            cmd,
-                            validated_url,
-                            config.TOOL_TIMEOUT_SECONDS,
-                        )
+                        cmd.extend(["-u", validated_url if cfg["name"] != "Ffuf" else f"{validated_url}/FUZZ"])
+                        future = executor.submit(_run_and_parse_dir_tool, cfg["name"], cmd, validated_url, config.TOOL_TIMEOUT_SECONDS)
                         futures_map[future] = url
 
             for future in as_completed(futures_map):
                 url_target = futures_map[future]
                 host_target = "/".join(url_target.split("/")[:3])
 
-                # Sprawdzenie blokady przed przetworzeniem wyniku
-                if (
-                    host_target in waf_monitors
-                    and waf_monitors[host_target].is_blocked_event.is_set()
-                ):
-                    action = _handle_waf_block_detection(
-                        executor, list(futures_map.keys())
-                    )
-                    if action == "stop":
-                        break  # Przerwij pętlę as_completed
+                if host_target in waf_monitors and waf_monitors[host_target].is_blocked_event.is_set():
+                    if _handle_waf_block_detection(executor, list(futures_map.keys())) == "stop":
+                        break
 
                 try:
                     tool_name, tool_results = future.result()
@@ -420,7 +346,6 @@ def start_dir_search(
                     progress_obj.update(main_task_id, advance=1)
 
     finally:
-        # Zawsze zatrzymuj monitory po zakończeniu pracy
         for monitor in waf_monitors.values():
             monitor.stop()
 
@@ -435,34 +360,17 @@ def start_dir_search(
 
     verified_data = []
     if all_found_urls:
-        utils.console.print(
-            Align.center(
-                "[bold cyan]Weryfikuję znalezione URL-e (HTTPX)...[/bold cyan]"
-            )
-        )
-
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, dir=config.REPORT_DIR, suffix=".txt", prefix="p3_"
-        ) as temp_f:
+        utils.console.print(Align.center("[bold cyan]Weryfikuję znalezione URL-e (HTTPX)...[/bold cyan]"))
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, dir=config.REPORT_DIR, suffix=".txt", prefix="p3_") as temp_f:
             temp_f.write("\n".join(all_found_urls))
             temp_file_path = temp_f.name
         config.TEMP_FILES_TO_CLEAN.append(temp_file_path)
 
         httpx_output_file = os.path.join(config.REPORT_DIR, "httpx_results_phase3.txt")
-        httpx_command = [
-            "httpx",
-            "-l",
-            temp_file_path,
-            "-silent",
-            "-json",
-            "-status-code",
-        ]
+        httpx_command = ["httpx", "-l", temp_file_path, "-silent", "-json", "-status-code"]
 
         from phase1_subdomain import _execute_tool_command
-
-        httpx_result_file = _execute_tool_command(
-            "Httpx (P3)", httpx_command, httpx_output_file, config.TOOL_TIMEOUT_SECONDS
-        )
+        httpx_result_file = _execute_tool_command("Httpx (P3)", httpx_command, httpx_output_file, config.TOOL_TIMEOUT_SECONDS)
 
         if httpx_result_file and os.path.exists(httpx_result_file):
             with open(httpx_result_file, "r", encoding="utf-8") as f:
@@ -470,16 +378,11 @@ def start_dir_search(
                     try:
                         data = json.loads(line)
                         if "url" in data and "status_code" in data:
-                            verified_data.append(
-                                {"url": data["url"], "status_code": data["status_code"]}
-                            )
+                            verified_data.append({"url": data["url"], "status_code": data["status_code"]})
                     except json.JSONDecodeError:
                         continue
 
-    utils.log_and_echo(
-        f"Ukończono fazę 3. Znaleziono {len(all_found_urls)} URLi. Zweryfikowano {len(verified_data)}.",
-        "INFO",
-    )
+    utils.log_and_echo(f"Ukończono fazę 3. Znaleziono {len(all_found_urls)} URLi. Zweryfikowano {len(verified_data)}.", "INFO")
     return final_results, verified_data
 
 
@@ -487,66 +390,34 @@ def display_phase3_tool_selection_menu(display_banner_func):
     while True:
         utils.console.clear()
         display_banner_func()
-        utils.console.print(
-            Align.center(
-                Panel.fit("[bold magenta]Faza 3: Wyszukiwanie Katalogów[/bold magenta]")
-            )
-        )
-        utils.console.print(
-            Align.center(
-                f"Obecny cel: [bold green]{config.ORIGINAL_TARGET}[/bold green]"
-            )
-        )
-        utils.console.print(
-            Align.center(
-                f"Tryb bezpieczny: {'[bold green]WŁĄCZONY[/bold green]' if config.SAFE_MODE else '[bold red]WYŁĄCZONY'}"
-            )
-        )
+        utils.console.print(Align.center(Panel.fit("[bold magenta]Faza 3: Wyszukiwanie Katalogów[/bold magenta]")))
+        utils.console.print(Align.center(f"Obecny cel: [bold green]{config.ORIGINAL_TARGET}[/bold green]"))
+        utils.console.print(Align.center(f"Tryb bezpieczny: {'[bold green]WŁĄCZONY[/bold green]' if config.SAFE_MODE else '[bold red]WYŁĄCZONY'}"))
 
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
         tool_names = ["Ffuf", "Feroxbuster", "Dirsearch", "Gobuster"]
         for i, tool_name in enumerate(tool_names):
-            status = (
-                "[bold green]✓[/bold green]"
-                if config.selected_phase3_tools[i]
-                else "[bold red]✗[/bold red]"
-            )
-            table.add_row(f"[{i+1}]", f"{status} {tool_name}")
+            status = "[bold green]✓[/bold green]" if config.selected_phase3_tools[i] else "[bold red]✗[/bold red]"
+            table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
 
         table.add_section()
-        table.add_row("[\fs]", "[bold magenta]Ustawienia Fazy 3[/bold magenta]")
-        table.add_row("[\fb]", "Powrót do menu")
-        table.add_row("[\fq]", "Wyjdź")
+        table.add_row("[bold cyan][s][/bold cyan]", "[bold magenta]Ustawienia Fazy 3[/bold magenta]")
+        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu")
+        table.add_row("[bold cyan][q][/bold cyan]", "Wyjdź")
 
         utils.console.print(Align.center(table))
-        choice = utils.get_single_char_input_with_prompt(
-            Text.from_markup(
-                "[bold cyan]Wybierz opcję i naciśnij Enter[/bold cyan]",
-                justify="center",
-            )
-        )
+        choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję i naciśnij Enter[/bold cyan]", justify="center"))
 
         if choice.isdigit() and 1 <= int(choice) <= 4:
             config.selected_phase3_tools[int(choice) - 1] ^= 1
         elif choice.lower() == "s":
             display_phase3_settings_menu(display_banner_func)
-        elif choice.lower() == "q":
-            sys.exit(0)
-        elif choice.lower() == "b":
-            return False
+        elif choice.lower() == "q": sys.exit(0)
+        elif choice.lower() == "b": return False
         elif choice == "\r":
-            if any(config.selected_phase3_tools):
-                return True
-            else:
-                utils.console.print(
-                    Align.center(
-                        "[bold yellow]Wybierz co najmniej jedno narzędzie.[/bold yellow]"
-                    )
-                )
-        else:
-            utils.console.print(
-                Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]")
-            )
+            if any(config.selected_phase3_tools): return True
+            else: utils.console.print(Align.center("[bold yellow]Wybierz co najmniej jedno narzędzie.[/bold yellow]"))
+        else: utils.console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
         time.sleep(0.1)
 
 
@@ -554,63 +425,50 @@ def display_phase3_settings_menu(display_banner_func):
     while True:
         utils.console.clear()
         display_banner_func()
-        utils.console.print(
-            Align.center(Panel.fit("[bold cyan]Ustawienia Fazy 3[/bold cyan]"))
-        )
+        utils.console.print(Align.center(Panel.fit("[bold cyan]Ustawienia Fazy 3[/bold cyan]")))
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
 
         wordlist_display = f"[dim]{config.WORDLIST_PHASE3}[/dim]"
-        if config.USER_CUSTOMIZED_WORDLIST_PHASE3:
-            wordlist_display = f"[bold green]{config.WORDLIST_PHASE3}[/bold green]"
-        elif config.SAFE_MODE:
-            wordlist_display = (
-                f"[bold yellow]{config.SMALL_WORDLIST_PHASE3} (Safe Mode)[/bold yellow]"
-            )
+        if config.USER_CUSTOMIZED_WORDLIST_PHASE3: wordlist_display = f"[bold green]{config.WORDLIST_PHASE3}[/bold green]"
+        elif config.SAFE_MODE: wordlist_display = f"[bold yellow]{config.SMALL_WORDLIST_PHASE3} (Safe Mode)[/bold yellow]"
 
-        table.add_row(
-            "[1]",
-            f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny",
-        )
-        table.add_row("[2]", f"Lista słów: {wordlist_display}")
-        table.add_row("[3]", f"Głębokość rekursji (Ffuf): {config.RECURSION_DEPTH_P3}")
-        table.add_row(
-            "[4]",
-            f"[{'[bold green]✓[/bold green]' if config.WAF_CHECK_ENABLED else '[bold red]✗[/bold red]'}] Włącz monitor blokad WAF (wszystkie tryby)",
-        )
+        dirsearch_filter_status = "[bold green]✓[/bold green]" if config.DIRSEARCH_SMART_FILTER else "[bold red]✗[/bold red]"
+        ferox_filter_status = "[bold green]✓[/bold green]" if config.FEROXBUSTER_SMART_FILTER else "[bold red]✗[/bold red]"
+
+        table.add_row("[bold cyan][1][/bold cyan]", f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny")
+        table.add_row("[bold cyan][2][/bold cyan]", f"Lista słów: {wordlist_display}")
+        table.add_row("[bold cyan][3][/bold cyan]", f"Głębokość rekursji (Ffuf): {config.RECURSION_DEPTH_P3}")
+        table.add_row("[bold cyan][4][/bold cyan]", f"[{dirsearch_filter_status}] Inteligentne filtrowanie Dirsearch")
+        table.add_row("[bold cyan][5][/bold cyan]", f"[{ferox_filter_status}] Inteligentne filtrowanie Feroxbuster")
+        table.add_row("[bold cyan][6][/bold cyan]", f"[{'[bold green]✓[/bold green]' if config.WAF_CHECK_ENABLED else '[bold red]✗[/bold red]'}] Monitor blokad WAF")
 
         table.add_section()
-        table.add_row("[\fb]", "Powrót do menu Fazy 3")
+        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu Fazy 3")
 
         utils.console.print(Align.center(table))
-        choice = utils.get_single_char_input_with_prompt(
-            Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center")
-        )
+        choice = utils.get_single_char_input_with_prompt(Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center"))
 
         if choice == "1":
             config.SAFE_MODE = not config.SAFE_MODE
             utils.handle_safe_mode_tor_check()
         elif choice == "2":
-            new_path = Prompt.ask(
-                "[bold cyan]Podaj nową ścieżkę do listy słów[/bold cyan]",
-                default=config.WORDLIST_PHASE3,
-            )
+            new_path = Prompt.ask("[bold cyan]Podaj nową ścieżkę do listy słów[/bold cyan]", default=config.WORDLIST_PHASE3)
             if os.path.isfile(new_path):
                 config.WORDLIST_PHASE3 = new_path
                 config.USER_CUSTOMIZED_WORDLIST_PHASE3 = True
             else:
-                utils.console.print(
-                    Align.center("[bold red]Plik nie istnieje.[/bold red]"),
-                    time.sleep(1),
-                )
+                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"), time.sleep(1))
         elif choice == "3":
-            new_depth = Prompt.ask(
-                "[bold cyan]Podaj głębokość rekursji[/bold cyan]",
-                default=str(config.RECURSION_DEPTH_P3),
-            )
+            new_depth = Prompt.ask("[bold cyan]Podaj głębokość rekursji[/bold cyan]", default=str(config.RECURSION_DEPTH_P3))
             if new_depth.isdigit():
                 config.RECURSION_DEPTH_P3 = int(new_depth)
                 config.USER_CUSTOMIZED_RECURSION_DEPTH_P3 = True
         elif choice == "4":
+            config.DIRSEARCH_SMART_FILTER = not config.DIRSEARCH_SMART_FILTER
+        elif choice == "5":
+            config.FEROXBUSTER_SMART_FILTER = not config.FEROXBUSTER_SMART_FILTER
+        elif choice == "6":
             config.WAF_CHECK_ENABLED = not config.WAF_CHECK_ENABLED
         elif choice.lower() == "b":
             break
+

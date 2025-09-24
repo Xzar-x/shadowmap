@@ -225,10 +225,11 @@ def start_port_scan(
                             phase2_dir, f"{tool.lower()}_{target.replace('.', '_')}.txt")
                         cmd = []
                         if tool == "Naabu":
-                            cmd = ["naabu", "-silent", "-p", "-"]
+                            # ZMIANA: Dodano optymalizacje i konfigurowalną szybkość
+                            cmd = ["naabu", "-silent", "-p", "-", "-warm-up-time", "0", "-retries", "1"]
                             if config.NAABU_SOURCE_PORT:
                                 cmd.extend(["-source-ip", f"0.0.0.0:{config.NAABU_SOURCE_PORT}"])
-                            cmd.extend(["-rate", "100" if config.SAFE_MODE else "1000", "-host", target])
+                            cmd.extend(["-rate", "100" if config.SAFE_MODE else str(config.NAABU_RATE), "-host", target])
                         elif tool == "Masscan":
                             cmd = ["masscan", target, "-p1-65535", "--rate", str(config.MASSCAN_RATE)]
                         futures.append(executor.submit(
@@ -322,11 +323,11 @@ def display_phase2_tool_selection_menu(display_banner_func):
         for i, tool_name in enumerate(tool_names):
             status = ("[bold green]✓[/bold green]" if config.selected_phase2_tools[i]
                       else "[bold red]✗[/bold red]")
-            table.add_row(f"[{i+1}]", f"{status} {tool_name}")
+            table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
         table.add_section()
-        table.add_row("[\fs]", "[bold magenta]Zmień ustawienia Fazy 2[/bold magenta]")
-        table.add_row("[\fb]", "Powrót do menu głównego")
-        table.add_row("[\fq]", "Wyjdź")
+        table.add_row("[bold cyan][s][/bold cyan]", "[bold magenta]Zmień ustawienia Fazy 2[/bold magenta]")
+        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu głównego")
+        table.add_row("[bold cyan][q][/bold cyan]", "Wyjdź")
 
         utils.console.print(Align.center(table))
         utils.console.print(Align.center("[bold cyan]Rekomendacja: Włącz Nmap + Naabu dla najlepszych wyników.[/bold cyan]"))
@@ -368,6 +369,13 @@ def display_phase2_settings_menu(display_banner_func):
                         else f"[bold red]100 pps (Safe Mode)[/bold red]"
                         if config.SAFE_MODE
                         else f"[bold yellow]{config.MASSCAN_RATE} pps[/bold yellow]")
+        
+        # ZMIANA: Dodano wyświetlanie szybkości Naabu
+        naabu_rate = (f"[bold green]{config.NAABU_RATE} pps (Użytkownika)[/bold green]"
+                        if config.USER_CUSTOMIZED_NAABU_RATE
+                        else f"[bold red]100 pps (Safe Mode)[/bold red]"
+                        if config.SAFE_MODE
+                        else f"[bold yellow]{config.NAABU_RATE} pps[/bold yellow]")
 
         nmap_solo_display = f"[bold yellow]{nmap_solo_map[config.NMAP_SOLO_SCAN_MODE]}[/bold yellow]"
 
@@ -375,18 +383,22 @@ def display_phase2_settings_menu(display_banner_func):
         nmap_scripts_status = ("[bold green]✓[/bold green]" if config.NMAP_USE_SCRIPTS else "[bold red]✗[/bold red]")
         nmap_agg_status = ("[bold green]✓[/bold green]" if config.NMAP_AGGRESSIVE_SCAN else "[bold red]✗[/bold red]")
 
-        table.add_row("[1]", f"[{safe_mode_status}] Tryb bezpieczny (wolniejsze skanowanie)")
+        table.add_row("[bold cyan][1][/bold cyan]", f"[{safe_mode_status}] Tryb bezpieczny (wolniejsze skanowanie)")
         table.add_section()
         table.add_row("[bold]Nmap[/bold]", "")
-        table.add_row("[2]", f"[{nmap_scripts_status}] Skanowanie skryptów (-sC)")
-        table.add_row("[3]", f"[{nmap_agg_status}] Skan agresywny (-A)")
-        table.add_row("[4]", f"Zakres portów (gdy sam): {nmap_solo_display}")
+        table.add_row("[bold cyan][2][/bold cyan]", f"[{nmap_scripts_status}] Skanowanie skryptów (-sC)")
+        table.add_row("[bold cyan][3][/bold cyan]", f"[{nmap_agg_status}] Skan agresywny (-A)")
+        table.add_row("[bold cyan][4][/bold cyan]", f"Zakres portów (gdy sam): {nmap_solo_display}")
+        table.add_section()
+        # ZMIANA: Dodano sekcję Naabu
+        table.add_row("[bold]Naabu[/bold]", "")
+        table.add_row("[bold cyan][5][/bold cyan]", f"Szybkość skanowania (rate): {naabu_rate}")
         table.add_section()
         table.add_row("[bold]Masscan[/bold]", "")
-        table.add_row("[5]", f"Szybkość skanowania (--rate): {masscan_rate}")
+        table.add_row("[bold cyan][6][/bold cyan]", f"Szybkość skanowania (--rate): {masscan_rate}")
         table.add_section()
-        table.add_row("[\fb]", "Powrót do menu Fazy 2")
-        table.add_row("[\fq]", "Wyjdź")
+        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu Fazy 2")
+        table.add_row("[bold cyan][q][/bold cyan]", "Wyjdź")
         utils.console.print(Align.center(table))
 
         choice = utils.get_single_char_input_with_prompt(
@@ -408,7 +420,18 @@ def display_phase2_settings_menu(display_banner_func):
                 choices=["default", "full", "fast"], default=config.NMAP_SOLO_SCAN_MODE
             )
             config.NMAP_SOLO_SCAN_MODE = new_mode
+        # ZMIANA: Obsługa nowej opcji dla Naabu
         elif choice == "5":
+            new_rate = Prompt.ask(
+                "[bold cyan]Podaj szybkość Naabu (pakiety/s)[/bold cyan]",
+                default=str(config.NAABU_RATE)
+            )
+            if new_rate.isdigit() and int(new_rate) > 0:
+                config.NAABU_RATE = int(new_rate)
+                config.USER_CUSTOMIZED_NAABU_RATE = True
+            else:
+                utils.console.print(Align.center("[bold red]Nieprawidłowa wartość.[/bold red]"))
+        elif choice == "6":
             new_rate = Prompt.ask(
                 "[bold cyan]Podaj szybkość Masscan (pakiety/s)[/bold cyan]\n"
                 "[bold yellow]UWAGA: Wysokie wartości mogą zawiesić router![/bold yellow]",

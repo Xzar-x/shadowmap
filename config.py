@@ -66,6 +66,8 @@ NMAP_USE_SCRIPTS: bool = False
 NMAP_AGGRESSIVE_SCAN: bool = False
 NAABU_SOURCE_PORT: Optional[str] = None
 MASSCAN_RATE: int = 300
+# ZMIANA: Dodano szybkość dla Naabu
+NAABU_RATE: int = 1000
 NMAP_SOLO_SCAN_MODE: str = "default"  # 'default', 'full', 'fast'
 
 # --- Ustawienia Super Safe Mode ---
@@ -113,4 +115,6 @@ USER_CUSTOMIZED_PROXY: bool = False
 USER_CUSTOMIZED_AUTO_FORM_FILL: bool = False
 USER_CUSTOMIZED_NAABU_SOURCE_PORT: bool = False
 USER_CUSTOMIZED_MASSCAN_RATE: bool = False
+# ZMIANA: Dodano flagę dla szybkości Naabu
+USER_CUSTOMIZED_NAABU_RATE: bool = False
 USER_CUSTOMIZED_USE_HEADLESS: bool = False
