@@ -109,7 +109,7 @@ def display_main_menu() -> str:
     table.add_row("[bold cyan][3][/bold cyan]", "Faza 3: Wyszukiwanie Katalogów")
     table.add_row("[bold cyan][4][/bold cyan]", "Faza 4: Web Crawling")
     table.add_section()
-    table.add_row("[bold cyan][q][/bold cyan]", "Zapisz raport i Wyjdź")
+    table.add_row("[bold cyan][\fq][/bold cyan]", "Zapisz raport i Wyjdź")
     utils.console.print(Align.center(table))
 
     return utils.get_single_char_input_with_prompt(
