@@ -30,8 +30,7 @@ DRY_RUN = "-d" in sys.argv or "--dry-run" in sys.argv
 NONINTERACTIVE = "-n" in sys.argv or "--non-interactive" in sys.argv
 IS_ROOT = os.geteuid() == 0
 
-# ZAKTUALIZOWANO: Dodano 'whatweb'
-SYSTEM_DEPS = ["go", "python3", "pip3", "nmap", "masscan", "whois", "whatweb"]
+SYSTEM_DEPS = ["go", "python3", "pip3", "nmap", "masscan", "whois", "whatweb", "exploitdb"]
 GO_TOOLS = {
     "subfinder": "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
     "assetfinder": "github.com/tomnomnom/assetfinder@latest",
@@ -45,7 +44,6 @@ GO_TOOLS = {
     "hakrawler": "github.com/hakluke/hakrawler@latest",
     "gauplus": "github.com/bp0lr/gauplus@latest",
 }
-# ZAKTUALIZOWANO: Dodano 'webtech' i 'requests'
 PYTHON_PKGS = [
     "rich", "questionary", "pyfiglet", "typer",
     "psutil", "webtech", "requests",
@@ -113,8 +111,8 @@ def check_dependencies():
     missing_system, missing_go = [], []
 
     system_table = Table(
-        title="Zależności Systemowe i Python", box=box.ROUNDED,
-        show_header=True, header_style="bold magenta"
+        title="Zależności Systemowe", box=box.ROUNDED,
+        show_header=True, header_style="bold magenta", title_justify="left"
     )
     system_table.add_column("Narzędzie", style="cyan")
     system_table.add_column("Status", justify="center")
@@ -128,7 +126,7 @@ def check_dependencies():
 
     go_table = Table(
         title="Narzędzia Rekonesansu (Go)", box=box.ROUNDED,
-        show_header=True, header_style="bold magenta"
+        show_header=True, header_style="bold magenta", title_justify="left"
     )
     go_table.add_column("Narzędzie", style="cyan")
     go_table.add_column("Status", justify="center")
@@ -140,7 +138,10 @@ def check_dependencies():
             go_table.add_row(tool, "[bold red]✗ BRAK[/bold red]")
             missing_go.append(tool)
 
-    console.print(Align.center(Columns([system_table, go_table], expand=True)))
+    # ZMIANA: Usunięcie Panelu i użycie Align.center do wyśrodkowania kolumn
+    grid = Columns([system_table, go_table], align="center", expand=True)
+    console.print(Align.center(grid))
+    
     return missing_system, missing_go
 
 

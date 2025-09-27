@@ -65,7 +65,7 @@
             flex-wrap: wrap; 
             margin-bottom: 10px; 
             border-bottom: 2px solid #333;
-            justify-content: center; /* ZMIANA: Wyśrodkowanie zakładek */
+            justify-content: center;
         }
         .main-tab-button {
             padding: 12px 20px;
@@ -74,14 +74,14 @@
             border: 1px solid #444;
             border-bottom: none;
             border-radius: 8px 8px 0 0;
-            margin: 0 4px 0 4px; /* ZMIANA: Równy margines */
+            margin: 0 4px 0 4px;
             color: #e0e0e0;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             font-size: 1em;
             font-weight: bold;
             position: relative;
             overflow: hidden;
-            flex-shrink: 0; /* Zapobiega kurczeniu się przycisków */
+            flex-shrink: 0;
         }
         .main-tab-button::before {
             content: '';
@@ -230,7 +230,6 @@
         .port-status.filtered { background-color: #ffc107; color: black; }
         .port-status.closed { background-color: #dc3545; color: white; }
         
-        /* NOWE STYLE DLA LISTY TECHNOLOGII */
         .tech-container {
             background: linear-gradient(135deg, #111 0%, #1a1a1a 100%);
             color: #e0e0e0; padding: 15px; border-radius: 8px; margin-top: 5px;
@@ -241,6 +240,51 @@
         .tech-columns li { padding-bottom: 5px; }
         .tech-columns li:last-child { padding-bottom: 0; }
         .tech-container p { margin: 0; font-style: italic; color: #999; }
+        
+        /* NOWE STYLE DLA SEKCJI EXPLOITÓW */
+        .exploit-container details {
+            background-color: rgba(255, 77, 77, 0.05);
+            border: 1px solid rgba(255, 77, 77, 0.3);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            transition: background-color 0.3s;
+        }
+        .exploit-container details[open] {
+            background-color: rgba(255, 77, 77, 0.1);
+        }
+        .exploit-container summary {
+            padding: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #ff8a8a;
+            outline: none;
+        }
+        .exploit-container summary::-webkit-details-marker {
+            color: #ff8a8a;
+        }
+        .exploit-list {
+            list-style-type: none;
+            padding: 0 10px 10px 10px;
+            margin: 0;
+        }
+        .exploit-list li {
+            padding: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .exploit-list a {
+            color: #e0e0e0;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .exploit-list a:hover {
+            color: #00d4ff;
+            text-decoration: underline;
+        }
+        .exploit-id {
+            font-weight: bold;
+            color: #ffc107;
+            margin-right: 10px;
+        }
         /* KONIEC NOWYCH STYLI */
 
         @media (max-width: 768px) {
@@ -290,6 +334,7 @@
             <div class="osint-item"><strong>Data Wygaśnięcia:</strong> {{OSINT_EXPIRATION_DATE}}</div>
             <div class="osint-item"><strong>Serwery Nazw (NS):</strong> <pre class="output" style="margin-top: 5px;">{{OSINT_NAME_SERVERS}}</pre></div>
             <div class="osint-item"><strong>Technologie (strona główna):</strong> <div class="tech-container">{{OSINT_TECHNOLOGIES_HTML}}</div></div>
+            <div class="osint-item"><strong>Potencjalne Exploity (Searchsploit):</strong><div class="exploit-container">{{SEARCHSPLOIT_RESULTS_HTML}}</div></div>
         </div>
 
         <div id="phase1" class="tab-content">
@@ -610,4 +655,3 @@
     </script>
 </body>
 </html>
-

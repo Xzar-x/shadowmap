@@ -37,7 +37,7 @@ ansi_escape_pattern = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 DIRSEARCH_RESULT_PATTERN = re.compile(
     r"^\[\d{2}:\d{2}:\d{2}\]\s+"
     r"(\d{3})\s+"
-    r"(?:-\s*(\d+)(B|KB|MB)\s*-\s*)?" # ZMIANA: Przechwytywanie rozmiaru
+    r"(?:-\s*(\d+)(B|KB|MB)\s*-\s*)?" 
     r"(https?://\S+)"
     r"(?:\s*->\s*(https?://\S+))?"
     r"(?:.*$|$)"
@@ -138,7 +138,6 @@ def _parse_tool_output_line(
     elif tool_name == "Dirsearch":
         match = DIRSEARCH_RESULT_PATTERN.match(cleaned_line)
         if match:
-            # ZMIANA: Preferuj URL przekierowania, jeśli istnieje
             full_url = match.group(5) or match.group(4)
     elif tool_name in ["Ffuf", "Gobuster"]:
         parts = cleaned_line.split()
@@ -260,11 +259,10 @@ def start_dir_search(
         shuffled_path = utils.shuffle_wordlist(current_wordlist, config.REPORT_DIR)
         if shuffled_path:
             current_wordlist = shuffled_path
-            config.TEMP_FILES_TO_CLEAN.append(current_wordlist)
+            config.TEMP_FILES_TO_CLEAN.append(shuffled_path)
 
     tool_configs = [
-        {"name": "Ffuf", "enabled": config.selected_phase3_tools[0], "base_cmd": [
-            "ffuf", "-recursion", "-recursion-depth", str(config.RECURSION_DEPTH_P3)]},
+        {"name": "Ffuf", "enabled": config.selected_phase3_tools[0], "base_cmd": ["ffuf"]},
         {"name": "Feroxbuster", "enabled": config.selected_phase3_tools[1], "base_cmd": ["feroxbuster", "--no-state"]},
         {"name": "Dirsearch", "enabled": config.selected_phase3_tools[2], "base_cmd": ["dirsearch", "--full-url"]},
         {"name": "Gobuster", "enabled": config.selected_phase3_tools[3], "base_cmd": ["gobuster", "dir", "--no-progress"]},
@@ -294,6 +292,8 @@ def start_dir_search(
 
                         if cfg["name"] == "Ffuf":
                             cmd.extend(["-w", f"{current_wordlist}:FUZZ", "-t", threads])
+                            if config.RECURSION_DEPTH_P3 > 0:
+                                cmd.extend(["-recursion", "-recursion-depth", str(config.RECURSION_DEPTH_P3)])
                             if config.SAFE_MODE: cmd.extend(["-p", "0.5-2.5"])
                             cmd.extend(["-H", f"User-Agent: {utils.user_agent_rotator.get()}"])
                             if wildcard.get("size"): cmd.extend(["-fs", str(wildcard["size"])])
@@ -301,6 +301,10 @@ def start_dir_search(
 
                         elif cfg["name"] == "Feroxbuster":
                             cmd.extend(["-w", current_wordlist, "-t", threads])
+                            if config.RECURSION_DEPTH_P3 > 0:
+                                cmd.extend(["--depth", str(config.RECURSION_DEPTH_P3)])
+                            else:
+                                cmd.append("--no-recursion")
                             cmd.extend(["-a", utils.user_agent_rotator.get()])
                             if not config.FEROXBUSTER_SMART_FILTER:
                                 cmd.append("--dont-filter")
@@ -311,6 +315,8 @@ def start_dir_search(
 
                         elif cfg["name"] == "Dirsearch":
                             cmd.extend(["-w", current_wordlist, "-t", threads])
+                            if config.RECURSION_DEPTH_P3 > 0:
+                                cmd.extend(["--recursive", "--max-recursion-depth", str(config.RECURSION_DEPTH_P3)])
                             if config.SAFE_MODE: cmd.extend(["--delay", "1-2.5"])
                             if not config.DIRSEARCH_SMART_FILTER:
                                 cmd.append("--exclude-sizes=0B")
@@ -320,7 +326,7 @@ def start_dir_search(
                                      cmd.extend(["--exclude-lengths", str(wildcard["size"])])
 
                         elif cfg["name"] == "Gobuster":
-                            cmd.extend(["-w", current_wordlist, "-t", threads, "-k"]) # ZMIANA: Dodano -k
+                            cmd.extend(["-w", current_wordlist, "-t", threads, "-k"])
                             if config.SAFE_MODE: cmd.extend(["--delay", "1500ms"])
                             if wildcard.get("status") and wildcard.get("status") != 404:
                                 cmd.extend(["-b", str(wildcard["status"])])
@@ -437,7 +443,7 @@ def display_phase3_settings_menu(display_banner_func):
 
         table.add_row("[bold cyan][1][/bold cyan]", f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny")
         table.add_row("[bold cyan][2][/bold cyan]", f"Lista słów: {wordlist_display}")
-        table.add_row("[bold cyan][3][/bold cyan]", f"Głębokość rekursji (Ffuf): {config.RECURSION_DEPTH_P3}")
+        table.add_row("[bold cyan][3][/bold cyan]", f"Głębokość rekursji (Ffuf/Ferox/Dirsearch): {config.RECURSION_DEPTH_P3}")
         table.add_row("[bold cyan][4][/bold cyan]", f"[{dirsearch_filter_status}] Inteligentne filtrowanie Dirsearch")
         table.add_row("[bold cyan][5][/bold cyan]", f"[{ferox_filter_status}] Inteligentne filtrowanie Feroxbuster")
         table.add_row("[bold cyan][6][/bold cyan]", f"[{'[bold green]✓[/bold green]' if config.WAF_CHECK_ENABLED else '[bold red]✗[/bold red]'}] Monitor blokad WAF")

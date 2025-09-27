@@ -16,7 +16,6 @@ SMALL_WORDLIST_PHASE1 = os.path.join(SHARE_DIR, "subdomen_wordlist.txt")
 DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/common.txt"
 SMALL_WORDLIST_PHASE3 = os.path.join(SHARE_DIR, "dir_wordlist.txt")
 
-# NOWOŚĆ: Ścieżki do specjalistycznych list słów dla Fazy 3
 WORDPRESS_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt"
 JOOMLA_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/joomla.fuzz.txt"
 DRUPAL_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/drupal.fuzz.txt"
@@ -24,7 +23,6 @@ TOMCAT_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/tomcat.txt"
 
 DEFAULT_RESOLVERS_FILE = os.path.join(SHARE_DIR, "resolvers.txt")
 
-# NOWOŚĆ: Mapowanie technologii na listy słów
 TECH_SPECIFIC_WORDLISTS: Dict[str, str] = {
     "wordpress": WORDPRESS_WORDLIST,
     "joomla": JOOMLA_WORDLIST,
@@ -45,7 +43,7 @@ CUSTOM_HEADER: str = ""
 PROXY: Optional[str] = None
 EXCLUSION_PATTERNS: List[str] = []
 
-# --- Stan celu (będzie nadpisywany w pętli dla wielu celów) ---
+# --- Stan celu ---
 ORIGINAL_TARGET: str = ""
 HOSTNAME_TARGET: str = ""
 CLEAN_DOMAIN_TARGET: str = ""
@@ -61,46 +59,35 @@ WORDLIST_PHASE1: str = DEFAULT_WORDLIST_PHASE1
 WORDLIST_PHASE3: str = DEFAULT_WORDLIST_PHASE3
 RESOLVERS_FILE: str = DEFAULT_RESOLVERS_FILE
 
+# --- Ustawienia Fazy 1 ---
+PUREDNS_RATE_LIMIT: int = 1000
+
 # --- Ustawienia Fazy 2 ---
 NMAP_USE_SCRIPTS: bool = False
 NMAP_AGGRESSIVE_SCAN: bool = False
 NAABU_SOURCE_PORT: Optional[str] = None
 MASSCAN_RATE: int = 300
-# ZMIANA: Dodano szybkość dla Naabu
 NAABU_RATE: int = 1000
-NMAP_SOLO_SCAN_MODE: str = "default"  # 'default', 'full', 'fast'
+NMAP_SOLO_SCAN_MODE: str = "default"
+
+# --- Ustawienia Fazy 3 ---
+DIRSEARCH_SMART_FILTER: bool = True
+FEROXBUSTER_SMART_FILTER: bool = True
 
 # --- Ustawienia Super Safe Mode ---
 USE_HEADLESS_BROWSER: bool = False
 WAF_CHECK_ENABLED: bool = True
-# ZMIANA: Rozdzielenie interwałów dla trybu normalnego i bezpiecznego
-WAF_CHECK_INTERVAL_MIN_NORMAL: int = 5  # sekundy (częstsze sprawdzanie w trybie normalnym)
-WAF_CHECK_INTERVAL_MAX_NORMAL: int = 15 # sekundy
-WAF_CHECK_INTERVAL_MIN_SAFE: int = 30  # sekundy (rzadsze sprawdzanie w trybie bezpiecznym)
-WAF_CHECK_INTERVAL_MAX_SAFE: int = 60  # sekundy
+WAF_CHECK_INTERVAL_MIN_NORMAL: int = 5
+WAF_CHECK_INTERVAL_MAX_NORMAL: int = 15
+WAF_CHECK_INTERVAL_MIN_SAFE: int = 30
+WAF_CHECK_INTERVAL_MAX_SAFE: int = 60
 
 
 # --- Wybrane narzędzia ---
-selected_phase1_tools: List[int] = [
-    0,
-    0,
-    0,
-    0,
-]  # Subfinder, Assetfinder, Findomain, Puredns
-selected_phase2_tools: List[int] = [0, 0, 0]  # Nmap, Naabu, Masscan
-selected_phase3_tools: List[int] = [
-    0,
-    0,
-    0,
-    0,
-]  # Ffuf, Feroxbuster, Dirsearch, Gobuster
-selected_phase4_tools: List[int] = [
-    0,
-    0,
-    0,
-    0,
-    0,
-]  # Katana, Hakrawler, ParamSpider, LinkFinder, gauplus
+selected_phase1_tools: List[int] = [0, 0, 0, 0]
+selected_phase2_tools: List[int] = [0, 0, 0]
+selected_phase3_tools: List[int] = [0, 0, 0, 0]
+selected_phase4_tools: List[int] = [0, 0, 0, 0, 0]
 
 # --- Flagi ręcznych zmian przez użytkownika ---
 USER_CUSTOMIZED_WORDLIST_PHASE1: bool = False
@@ -115,6 +102,7 @@ USER_CUSTOMIZED_PROXY: bool = False
 USER_CUSTOMIZED_AUTO_FORM_FILL: bool = False
 USER_CUSTOMIZED_NAABU_SOURCE_PORT: bool = False
 USER_CUSTOMIZED_MASSCAN_RATE: bool = False
-# ZMIANA: Dodano flagę dla szybkości Naabu
 USER_CUSTOMIZED_NAABU_RATE: bool = False
 USER_CUSTOMIZED_USE_HEADLESS: bool = False
+USER_CUSTOMIZED_PUREDNS_RATE_LIMIT: bool = False
+

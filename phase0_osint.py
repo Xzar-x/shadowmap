@@ -14,11 +14,10 @@ from rich.columns import Columns
 from rich.panel import Panel
 from rich.table import Table
 
-# NOWOŚĆ: Import biblioteki webtech
 try:
     from webtech import WebTech
 except ImportError:
-    WebTech = None  # Zapewnij działanie, nawet jeśli import zawiedzie
+    WebTech = None
 
 import config
 import utils
@@ -83,7 +82,6 @@ def get_whois_info(domain: str) -> Dict[str, Any]:
         process = subprocess.run(command, capture_output=True, text=True, timeout=60)
         output = process.stdout
 
-        # Zapisz surowy wynik do pliku
         phase0_dir = os.path.join(config.REPORT_DIR, "faza0_osint")
         with open(os.path.join(phase0_dir, "whois_raw.txt"), "w", encoding="utf-8") as f:
             f.write(f"--- WHOIS for {domain} ---\n")
@@ -136,7 +134,6 @@ def get_http_info(target: str) -> Dict[str, Any]:
         ]
         process = subprocess.run(command, capture_output=True, text=True, timeout=60)
         
-        # Zapisz surowy wynik do pliku
         phase0_dir = os.path.join(config.REPORT_DIR, "faza0_osint")
         with open(os.path.join(phase0_dir, "httpx_osint_raw.txt"), "w", encoding="utf-8") as f:
             f.write(f"--- httpx OSINT for {target} ---\n")
@@ -193,7 +190,6 @@ def get_whatweb_info(target_url: str) -> List[str]:
         command = ["whatweb", "--no-error", "--log-json=-", target_url]
         process = subprocess.run(command, capture_output=True, text=True, timeout=120)
 
-        # Zapisz surowy wynik
         phase0_dir = os.path.join(config.REPORT_DIR, "faza0_osint")
         with open(os.path.join(phase0_dir, "whatweb_raw.txt"), "w", encoding="utf-8") as f:
             f.write(f"--- whatweb for {target_url} ---\n")
@@ -209,7 +205,6 @@ def get_whatweb_info(target_url: str) -> List[str]:
                     for plugin, details in data["plugins"].items():
                         techs.append(plugin.replace("-", " ").title())
                         if "version" in details and details["version"]:
-                            # Dodaj wersję do poprzedniego elementu
                             versions = ', '.join(map(str, details['version']))
                             techs[-1] = f"{techs[-1]} ({versions})"
             except json.JSONDecodeError:
@@ -269,6 +264,62 @@ def get_webtech_info(target_url: str) -> List[str]:
     return sorted(list(set(techs)))
 
 
+def get_searchsploit_info(technologies: List[str]) -> Dict[str, List[Dict[str, str]]]:
+    """
+    Używa searchsploit do znalezienia potencjalnych exploitów dla wykrytych technologii.
+    """
+    results: Dict[str, List[Dict[str, str]]] = {}
+    phase0_dir = os.path.join(config.REPORT_DIR, "faza0_osint")
+    raw_output_path = os.path.join(phase0_dir, "searchsploit_raw.txt")
+    
+    with open(raw_output_path, "w", encoding="utf-8") as raw_f:
+        for tech in technologies:
+            try:
+                search_terms = re.findall(r'[\w.-]+', tech)
+                if not search_terms:
+                    continue
+
+                command = ["searchsploit", "--json"] + search_terms
+                process = subprocess.run(
+                    command, capture_output=True, text=True, timeout=60
+                )
+
+                raw_f.write(f"--- searchsploit for: {' '.join(search_terms)} ---\n")
+                raw_f.write(process.stdout)
+                if process.stderr:
+                    raw_f.write(f"\n--- STDERR ---\n{process.stderr}\n")
+
+                if process.stdout:
+                    data = json.loads(process.stdout)
+                    exploits = data.get("RESULTS_EXPLOIT")
+                    if exploits:
+                        if tech not in results:
+                            results[tech] = []
+                        
+                        existing_ids = {e['id'] for e in results[tech]}
+                        for exploit in exploits:
+                            if exploit.get('EDB-ID') and exploit['EDB-ID'] not in existing_ids:
+                                results[tech].append({
+                                    "title": exploit.get("Title", "N/A"),
+                                    "path": exploit.get("Path", "N/A"),
+                                    "id": exploit.get("EDB-ID", "N/A"),
+                                })
+                                existing_ids.add(exploit['EDB-ID'])
+
+            except FileNotFoundError:
+                return {"Error": "The 'searchsploit' command is not installed."}
+            except subprocess.TimeoutExpired:
+                utils.log_and_echo(f"Searchsploit dla '{tech}' przekroczył limit czasu.", "WARN")
+                continue
+            except json.JSONDecodeError:
+                utils.log_and_echo(f"Błąd parsowania JSON z searchsploit dla '{tech}'.", "WARN")
+                continue
+            except Exception as e:
+                utils.log_and_echo(f"Niespodziewany błąd searchsploit: {e}", "ERROR")
+                continue
+    return results
+
+
 def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
     """
     Orkiestruje zbieranie informacji w Fazie 0 i zwraca wyniki oraz najlepszy URL.
@@ -282,28 +333,34 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
         )
     )
 
-    best_target_url = get_best_target_url(config.HOSTNAME_TARGET)
-
     osint_data: Dict[str, Any] = {}
-    with ThreadPoolExecutor() as executor:
-        future_http = executor.submit(get_http_info, best_target_url)
-        future_whois = executor.submit(get_whois_info, config.CLEAN_DOMAIN_TARGET)
-        future_whatweb = executor.submit(get_whatweb_info, best_target_url)
-        future_webtech = executor.submit(get_webtech_info, best_target_url)
+    with utils.console.status("[bold green]Przeprowadzam zwiad pasywny (OSINT)...[/bold green]", spinner="dots") as status:
+        best_target_url = get_best_target_url(config.HOSTNAME_TARGET)
 
-        http_results = future_http.result()
-        whois_results = future_whois.result()
-        whatweb_results = future_whatweb.result()
-        webtech_results = future_webtech.result()
+        status.update("[bold green]Zbieram informacje WHOIS, HTTP i o technologiach...[/bold green]")
+        with ThreadPoolExecutor() as executor:
+            future_http = executor.submit(get_http_info, best_target_url)
+            future_whois = executor.submit(get_whois_info, config.CLEAN_DOMAIN_TARGET)
+            future_whatweb = executor.submit(get_whatweb_info, best_target_url)
+            future_webtech = executor.submit(get_webtech_info, best_target_url)
 
-        osint_data.update(http_results)
-        osint_data.update(whois_results)
+            http_results = future_http.result()
+            whois_results = future_whois.result()
+            whatweb_results = future_whatweb.result()
+            webtech_results = future_webtech.result()
 
-        # Scalanie technologii z 3 źródeł: httpx, whatweb, webtech
-        all_techs = set(osint_data.get("technologies", []))
-        all_techs.update(whatweb_results)
-        all_techs.update(webtech_results)
-        osint_data["technologies"] = sorted(list(all_techs))
+            osint_data.update(http_results)
+            osint_data.update(whois_results)
+
+            all_techs = set(osint_data.get("technologies", []))
+            all_techs.update(whatweb_results)
+            all_techs.update(webtech_results)
+            osint_data["technologies"] = sorted(list(all_techs))
+
+        if osint_data.get("technologies"):
+            status.update("[bold green]Szukam publicznych exploitów (Searchsploit)...[/bold green]")
+            searchsploit_results = get_searchsploit_info(osint_data["technologies"])
+            osint_data["searchsploit_results"] = searchsploit_results
 
     table = Table(
         show_header=True, header_style="bold magenta", box=box.ROUNDED, expand=True
@@ -319,25 +376,33 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
         table.add_section()
         table.add_row("Rejestrator Domeny", osint_data.get("registrar", "Brak danych"))
         table.add_row("Data Utworzenia", osint_data.get("creation_date", "Brak danych"))
-        table.add_row(
-            "Data Wygaśnięcia", osint_data.get("expiration_date", "Brak danych")
-        )
-
+        table.add_row("Data Wygaśnięcia", osint_data.get("expiration_date", "Brak danych"))
         name_servers = osint_data.get("name_servers")
-        if name_servers and isinstance(name_servers, list):
-            table.add_row("Serwery Nazw (NS)", "\n".join(name_servers))
-        else:
-            table.add_row("Serwery Nazw (NS)", "Brak danych")
+        table.add_row("Serwery Nazw (NS)", "\n".join(name_servers) if name_servers else "Brak danych")
 
     technologies = osint_data.get("technologies")
-    if technologies and isinstance(technologies, list):
+    if technologies:
         table.add_section()
-        # Wyświetlanie technologii w dwóch kolumnach
         midpoint = (len(technologies) + 1) // 2
         col1 = "\n".join(technologies[:midpoint])
         col2 = "\n".join(technologies[midpoint:])
         tech_display = Columns([col1, col2], equal=True, expand=True)
         table.add_row(f"Technologie ({len(technologies)} wykrytych)", tech_display)
+
+    exploits = osint_data.get("searchsploit_results")
+    if exploits and "Error" not in exploits:
+        table.add_section()
+        exploits_summary = []
+        total_exploits = 0
+        for tech, exploit_list in exploits.items():
+            count = len(exploit_list)
+            if count > 0:
+                total_exploits += count
+                exploits_summary.append(f"[yellow]{tech}[/yellow]: [bold red]{count}[/bold red] exploitów")
+        if total_exploits > 0:
+            table.add_row(f"Znalezione Exploity ({total_exploits})", "\n".join(exploits_summary))
+        else:
+            table.add_row("Znalezione Exploity", "[green]Brak znanych exploitów[/green]")
 
     utils.console.print(table)
     return osint_data, best_target_url

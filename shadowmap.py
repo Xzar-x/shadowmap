@@ -109,7 +109,7 @@ def display_main_menu() -> str:
     table.add_row("[bold cyan][3][/bold cyan]", "Faza 3: Wyszukiwanie Katalogów")
     table.add_row("[bold cyan][4][/bold cyan]", "Faza 4: Web Crawling")
     table.add_section()
-    table.add_row("[bold cyan][\fq][/bold cyan]", "Zapisz raport i Wyjdź")
+    table.add_row("[bold cyan][q][/bold cyan]", "Zapisz raport i Wyjdź")
     utils.console.print(Align.center(table))
 
     return utils.get_single_char_input_with_prompt(
@@ -211,6 +211,22 @@ def generate_html_report(
         tech_html = f'<div class="tech-columns"><ul>{col1}</ul><ul>{col2}</ul></div>'
     else:
         tech_html = "<p>Brak danych</p>"
+        
+    searchsploit_html = "<p>Brak danych lub nie znaleziono exploitów.</p>"
+    if sploit_data := p0_data.get("searchsploit_results"):
+        if "Error" not in sploit_data and any(sploit_data.values()):
+            html_parts = []
+            for tech, exploits in sploit_data.items():
+                if exploits:
+                    exploit_items = "".join(
+                        f'<li><a href="https://www.exploit-db.com/exploits/{e["id"]}" target="_blank"><span class="exploit-id">EDB-ID: {e["id"]}</span>{e["title"]}</a></li>'
+                        for e in exploits
+                    )
+                    html_parts.append(
+                        f'<details><summary>{tech} ({len(exploits)})</summary><ul class="exploit-list">{exploit_items}</ul></details>'
+                    )
+            if html_parts:
+                searchsploit_html = "".join(html_parts)
 
     replacements = {
         "{{DOMAIN}}": config.HOSTNAME_TARGET,
@@ -220,6 +236,7 @@ def generate_html_report(
         "{{OSINT_EXPIRATION_DATE}}": p0_data.get("expiration_date"),
         "{{OSINT_NAME_SERVERS}}": "\n".join(p0_data.get("name_servers", [])),
         "{{OSINT_TECHNOLOGIES_HTML}}": tech_html,
+        "{{SEARCHSPLOIT_RESULTS_HTML}}": searchsploit_html,
         "{{COUNT_ALL_SUBDOMAINS}}": len(all_subdomains_list),
         "{{COUNT_HTTPX}}": len(active_urls_data), "{{COUNT_OPEN_PORTS}}": open_ports_count,
         "{{COUNT_DIR_SEARCH}}": len(p3_results.get("all_dirsearch_results", [])),
@@ -352,15 +369,10 @@ def main(
                     if phase1_subdomain.display_phase1_tool_selection_menu(display_banner):
                         p1_files, active_urls_data, _ = phase1_subdomain.start_phase1_scan()
                         if active_urls_data:
+                            all_p1_urls = [item["url"] for item in active_urls_data]
+                            critical_p1_urls = utils.filter_critical_urls(all_p1_urls)
+                            targets_for_phase2_3 = ask_scan_scope(all_p1_urls, critical_p1_urls, "Fazy 2 i 3")
                             if utils.ask_user_decision("Znaleziono aktywne subdomeny. Kontynuować do Fazy 2?", ["y", "n"], "y") == "y":
-                                all_p1_urls = [item["url"] for item in active_urls_data]
-                                critical_p1_urls = utils.filter_critical_urls(all_p1_urls)
-                                
-                                if critical_p1_urls:
-                                    targets_for_phase2_3 = ask_scan_scope(all_p1_urls, critical_p1_urls, "Fazy 2 i 3")
-                                else:
-                                    utils.console.print(Align.center("[yellow]Nie znaleziono krytycznych subdomen. Skanowane będą wszystkie aktywne.[/yellow]"))
-                                    targets_for_phase2_3 = all_p1_urls
                                 choice = "2"
                                 continue
                         else:
@@ -370,9 +382,10 @@ def main(
 
                 elif choice == "2":
                     if not targets_for_phase2_3:
-                        utils.console.print(Align.center("[bold yellow]Najpierw uruchom Fazę 1.[/bold yellow]"))
-                        time.sleep(2)
-                    elif phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
+                        utils.console.print(Align.center("[yellow]Brak celów z Fazy 1. Używam głównego celu do skanowania portów.[/yellow]"))
+                        targets_for_phase2_3 = [best_target_url]
+                    
+                    if phase2_port_scanning.display_phase2_tool_selection_menu(display_banner):
                         p2_results = phase2_port_scanning.start_port_scan(targets_for_phase2_3, None, None)
                         if p2_results.get("open_ports_by_host"):
                             if utils.ask_user_decision("Znaleziono otwarte porty. Kontynuować do Fazy 3?", ["y", "n"], "y") == "y":
@@ -385,10 +398,11 @@ def main(
 
                 elif choice == "3":
                     if not targets_for_phase2_3:
-                         utils.console.print(Align.center("[bold yellow]Najpierw uruchom Fazę 1.[/bold yellow]"))
-                         time.sleep(2)
-                    elif phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
-                        num_tools = sum(config.selected_phase3_tools)
+                        utils.console.print(Align.center("[yellow]Brak celów z Fazy 1. Używam głównego celu do wyszukiwania katalogów.[/yellow]"))
+                        targets_for_phase2_3 = [best_target_url]
+
+                    if phase3_dirsearch.display_phase3_tool_selection_menu(display_banner):
+                        num_tools = sum(1 for x in config.selected_phase3_tools if x)
                         total_tasks = len(targets_for_phase2_3) * num_tools
                         with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
                                       BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(),
@@ -398,28 +412,30 @@ def main(
                                 targets_for_phase2_3, p0_data.get("technologies", []), progress, task
                             )
 
+                        if p3_verified_data:
+                            all_p3_urls = [item["url"] for item in p3_verified_data]
+                            critical_p3_urls = utils.filter_critical_urls(all_p3_urls)
+                            targets_for_phase4 = ask_scan_scope(all_p3_urls, critical_p3_urls, "Fazy 4")
+                        else:
+                            utils.console.print(Align.center("[yellow]Brak zweryfikowanych wyników z Fazy 3. Używam celów z Fazy 1/głównego celu.[/yellow]"))
+                            targets_for_phase4 = targets_for_phase2_3
+
                         if utils.ask_user_decision("Zakończono Fazę 3. Kontynuować do Fazy 4?", ["y", "n"], "y") == "y":
-                            if p3_verified_data:
-                                all_p3_urls = [item["url"] for item in p3_verified_data]
-                                critical_p3_urls = utils.filter_critical_urls(all_p3_urls)
-                                if critical_p3_urls:
-                                    targets_for_phase4 = ask_scan_scope(all_p3_urls, critical_p3_urls, "Fazy 4")
-                                else:
-                                    utils.console.print(Align.center("[yellow]Nie znaleziono krytycznych ścieżek. Używam wszystkich zweryfikowanych.[/yellow]"))
-                                    targets_for_phase4 = all_p3_urls
-                            else:
-                                utils.console.print(Align.center("[yellow]Brak wyników z Fazy 3. Używam celów z Fazy 1.[/yellow]"))
-                                targets_for_phase4 = targets_for_phase2_3
                             choice = "4"
                             continue
                     choice = ""
 
                 elif choice == "4":
                     if not targets_for_phase4:
-                        utils.console.print(Align.center("[bold yellow]Najpierw uruchom Fazę 1 lub 3.[/bold yellow]"))
-                        time.sleep(2)
-                    elif phase4_webcrawling.display_phase4_tool_selection_menu(display_banner):
-                        num_tools = sum(config.selected_phase4_tools)
+                        base_targets = p3_verified_data or active_urls_data
+                        if not base_targets:
+                            utils.console.print(Align.center("[yellow]Brak celów z poprzednich faz. Używam głównego celu do web crawlingu.[/yellow]"))
+                            targets_for_phase4 = [best_target_url]
+                        else:
+                            targets_for_phase4 = [item["url"] for item in base_targets] if isinstance(base_targets[0], dict) else base_targets
+
+                    if phase4_webcrawling.display_phase4_tool_selection_menu(display_banner):
+                        num_tools = sum(1 for x in config.selected_phase4_tools if x)
                         total_tasks = len(targets_for_phase4) * num_tools
                         with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"),
                                       BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(),
@@ -444,4 +460,3 @@ def main(
 
 if __name__ == "__main__":
     app()
-
