@@ -275,7 +275,8 @@ def get_searchsploit_info(technologies: List[str]) -> Dict[str, List[Dict[str, s
     with open(raw_output_path, "w", encoding="utf-8") as raw_f:
         for tech in technologies:
             try:
-                search_terms = re.findall(r'[\w.-]+', tech)
+                # Wyszukuj po nazwie technologii bez wersji
+                search_terms = re.findall(r'[\w.-]+', tech.split('(')[0].strip())
                 if not search_terms:
                     continue
 
@@ -355,10 +356,17 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
             all_techs = set(osint_data.get("technologies", []))
             all_techs.update(whatweb_results)
             all_techs.update(webtech_results)
-            osint_data["technologies"] = sorted(list(all_techs))
+            
+            # ZMIANA: Filtrowanie technologii na podstawie listy blokowanych
+            filtered_techs = {
+                tech for tech in all_techs 
+                if tech.split('(')[0].strip().lower() not in config.OSINT_TECH_BLOCKLIST
+            }
+            osint_data["technologies"] = sorted(list(filtered_techs))
 
         if osint_data.get("technologies"):
             status.update("[bold green]Szukam publicznych exploitów (Searchsploit)...[/bold green]")
+            # ZMIANA: Przekazanie odfiltrowanej listy do searchsploit
             searchsploit_results = get_searchsploit_info(osint_data["technologies"])
             osint_data["searchsploit_results"] = searchsploit_results
 

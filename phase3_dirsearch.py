@@ -151,7 +151,17 @@ def _parse_tool_output_line(
         generic_match = GENERIC_URL_PATTERN.search(cleaned_line)
         if generic_match:
             full_url = generic_match.group(1)
-
+            
+    if full_url:
+        try:
+            path_part = full_url.split("?")[0].split("#")[0]
+            if "." in path_part:
+                extension = path_part.split(".")[-1].lower()
+                if extension in config.IGNORED_EXTENSIONS:
+                    return None
+        except Exception:
+            pass
+            
     return full_url.strip().rstrip("/") if full_url else None
 
 
@@ -316,7 +326,7 @@ def start_dir_search(
                         elif cfg["name"] == "Dirsearch":
                             cmd.extend(["-w", current_wordlist, "-t", threads])
                             if config.RECURSION_DEPTH_P3 > 0:
-                                cmd.extend(["--recursive", "--max-recursion-depth", str(config.RECURSION_DEPTH_P3)])
+                                cmd.extend(["-r", "--max-recursion-depth", str(config.RECURSION_DEPTH_P3)])
                             if config.SAFE_MODE: cmd.extend(["--delay", "1-2.5"])
                             if not config.DIRSEARCH_SMART_FILTER:
                                 cmd.append("--exclude-sizes=0B")
@@ -348,7 +358,8 @@ def start_dir_search(
                     results_by_tool[tool_name].extend(tool_results)
                 except Exception as e:
                     utils.log_and_echo(f"Błąd w wątku Fazy 3: {e}", "ERROR")
-                if progress_obj and main_task_id:
+                
+                if progress_obj and main_task_id is not None:
                     progress_obj.update(main_task_id, advance=1)
 
     finally:
@@ -440,6 +451,13 @@ def display_phase3_settings_menu(display_banner_func):
 
         dirsearch_filter_status = "[bold green]✓[/bold green]" if config.DIRSEARCH_SMART_FILTER else "[bold red]✗[/bold red]"
         ferox_filter_status = "[bold green]✓[/bold green]" if config.FEROXBUSTER_SMART_FILTER else "[bold red]✗[/bold red]"
+        
+        ignored_ext_display = ", ".join(config.IGNORED_EXTENSIONS)
+        if config.USER_CUSTOMIZED_IGNORED_EXTENSIONS:
+            ignored_ext_display = f"[bold green]{ignored_ext_display}[/bold green]"
+        else:
+            ignored_ext_display = f"[dim]{ignored_ext_display}[/dim]"
+
 
         table.add_row("[bold cyan][1][/bold cyan]", f"[{'[bold green]✓[/bold green]' if config.SAFE_MODE else '[bold red]✗[/bold red]'}] Tryb bezpieczny")
         table.add_row("[bold cyan][2][/bold cyan]", f"Lista słów: {wordlist_display}")
@@ -447,6 +465,8 @@ def display_phase3_settings_menu(display_banner_func):
         table.add_row("[bold cyan][4][/bold cyan]", f"[{dirsearch_filter_status}] Inteligentne filtrowanie Dirsearch")
         table.add_row("[bold cyan][5][/bold cyan]", f"[{ferox_filter_status}] Inteligentne filtrowanie Feroxbuster")
         table.add_row("[bold cyan][6][/bold cyan]", f"[{'[bold green]✓[/bold green]' if config.WAF_CHECK_ENABLED else '[bold red]✗[/bold red]'}] Monitor blokad WAF")
+        table.add_row("[bold cyan][7][/bold cyan]", f"Ignorowane rozszerzenia: {ignored_ext_display}")
+
 
         table.add_section()
         table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu Fazy 3")
@@ -475,6 +495,14 @@ def display_phase3_settings_menu(display_banner_func):
             config.FEROXBUSTER_SMART_FILTER = not config.FEROXBUSTER_SMART_FILTER
         elif choice == "6":
             config.WAF_CHECK_ENABLED = not config.WAF_CHECK_ENABLED
+        elif choice == "7":
+            current_ext_str = ",".join(config.IGNORED_EXTENSIONS)
+            new_ext_str = Prompt.ask(
+                "[bold cyan]Podaj ignorowane rozszerzenia (oddzielone przecinkami)[/bold cyan]",
+                default=current_ext_str
+            )
+            config.IGNORED_EXTENSIONS = [ext.strip().lower() for ext in new_ext_str.split(",") if ext.strip()]
+            config.USER_CUSTOMIZED_IGNORED_EXTENSIONS = True
         elif choice.lower() == "b":
             break
 

@@ -85,6 +85,16 @@ def ask_scan_scope(
     )
     utils.console.print(Align.center(panel))
 
+    # ZMIANA: Sprawdzenie, czy istnieją cele krytyczne
+    if not critical_results:
+        utils.console.print(
+            Align.center(
+                "[yellow]Nie znaleziono celów krytycznych. Kontynuuję ze wszystkimi znalezionymi celami.[/yellow]"
+            )
+        )
+        time.sleep(1)
+        return all_results
+
     question = (
         f"Jaki zakres celów skanować w {phase_name}?\n"
         f"([bold]A[/bold])ll - wszystkie [bold green]{len(all_results)}[/bold green]\n"

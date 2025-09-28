@@ -100,25 +100,26 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
         )
 
         current_wordlist_p1 = config.WORDLIST_PHASE1
-        if config.SAFE_MODE:
-            if not config.USER_CUSTOMIZED_WORDLIST_PHASE1:
-                current_wordlist_p1 = config.SMALL_WORDLIST_PHASE1
-            if not config.USER_CUSTOMIZED_USER_AGENT and not config.CUSTOM_HEADER:
-                config.CUSTOM_HEADER = utils.get_random_user_agent_header()
-
-            shuffled_path = utils.shuffle_wordlist(
-                current_wordlist_p1, config.REPORT_DIR
-            )
-            if shuffled_path:
-                current_wordlist_p1 = shuffled_path
-                config.TEMP_FILES_TO_CLEAN.append(shuffled_path)
+        if config.SAFE_MODE and not config.USER_CUSTOMIZED_WORDLIST_PHASE1:
+            current_wordlist_p1 = config.SMALL_WORDLIST_PHASE1
+        
+        shuffled_path = utils.shuffle_wordlist(current_wordlist_p1, config.REPORT_DIR)
+        if shuffled_path:
+            current_wordlist_p1 = shuffled_path
+            config.TEMP_FILES_TO_CLEAN.append(shuffled_path)
 
         phase1_dir = os.path.join(config.REPORT_DIR, "faza1_subdomain_scanning")
+        
+        puredns_rate = config.PUREDNS_RATE_LIMIT
+        if config.SAFE_MODE and not config.USER_CUSTOMIZED_PUREDNS_RATE_LIMIT:
+            puredns_rate = 50
 
         puredns_base_cmd = [
             "puredns", "bruteforce", current_wordlist_p1,
             config.CLEAN_DOMAIN_TARGET, "--resolvers", config.RESOLVERS_FILE,
+            "--rate-limit", str(puredns_rate), "-q"
         ]
+        
         tool_configurations = [
             {"name": "Subfinder", "cmd_template": [
                 "subfinder", "-d", config.CLEAN_DOMAIN_TARGET, "-silent"]},
@@ -126,13 +127,8 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                 "assetfinder", "--subs-only", config.CLEAN_DOMAIN_TARGET]},
             {"name": "Findomain", "cmd_template": [
                 "findomain", "--target", config.CLEAN_DOMAIN_TARGET, "-q"]},
-            {"name": "Puredns", "cmd_template": puredns_base_cmd + [
-                "--rate-limit", "1000", "-q"]},
+            {"name": "Puredns", "cmd_template": puredns_base_cmd},
         ]
-
-        if config.SAFE_MODE:
-            tool_configurations[3]["cmd_template"] = puredns_base_cmd + [
-                "--rate-limit", "50", "-q"]
 
         tasks_to_run = []
         for i, tool_cfg in enumerate(tool_configurations):
@@ -195,21 +191,25 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
     status_msg = "[bold green]Weryfikuję subdomeny (HTTPX)...[/bold green]"
     with utils.console.status(status_msg):
         httpx_output_file = os.path.join(config.REPORT_DIR, "httpx_results_phase1.txt")
+        
+        httpx_rate_limit = config.HTTPX_P1_RATE_LIMIT
+        if config.SAFE_MODE and not config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT:
+            httpx_rate_limit = 10
+
         httpx_command = [
             "httpx", "-l", unique_subdomains_file,
             "-silent", "-fc", "404", "-json", "-irh",
+            "-rate-limit", str(httpx_rate_limit),
         ]
+        
+        current_ua = config.CUSTOM_HEADER or utils.user_agent_rotator.get()
+        httpx_command.extend(["-H", f"User-Agent: {current_ua}"])
 
         if config.SAFE_MODE:
-            httpx_command.extend(["-p", "80,443,8000,8080,8443", "-rate-limit", "10"])
+            httpx_command.extend(["-p", "80,443,8000,8080,8443"])
             for header in utils.get_random_browser_headers():
                 httpx_command.extend(["-H", header])
-        if config.CUSTOM_HEADER:
-            httpx_command.extend(["-H", f"User-Agent: {config.CUSTOM_HEADER}"])
-        elif not config.SAFE_MODE:
-            ua_header = f"User-Agent: {utils.get_random_user_agent_header()}"
-            httpx_command.extend(["-H", ua_header])
-
+        
         if os.path.exists(unique_subdomains_file) and os.path.getsize(unique_subdomains_file) > 0:
             httpx_result_file = _execute_tool_command(
                 "Httpx (Faza 1)", httpx_command,
@@ -309,7 +309,7 @@ def display_phase1_tool_selection_menu(display_banner_func):
 
 
 def display_phase1_settings_menu(display_banner_func):
-    """Wyświetla menu ustawień specyficznych dla Fazy 1."""
+    """Wyświetla rozbudowane menu ustawień specyficznych dla Fazy 1."""
     while True:
         utils.console.clear()
         display_banner_func()
@@ -318,18 +318,41 @@ def display_phase1_settings_menu(display_banner_func):
         )
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
 
+        # --- Logika wyświetlania dla Wordlist ---
         wordlist_display = f"[dim]{config.WORDLIST_PHASE1}[/dim]"
         if config.USER_CUSTOMIZED_WORDLIST_PHASE1:
-            wordlist_display = (f"[bold green]{config.WORDLIST_PHASE1} (Użytkownika)[/bold green]")
+            wordlist_display = f"[bold green]{config.WORDLIST_PHASE1} (Użytkownika)[/bold green]"
         elif config.SAFE_MODE:
-            wordlist_display = (f"[bold yellow]{config.SMALL_WORDLIST_PHASE1} (Safe Mode)[/bold yellow]")
+            wordlist_display = f"[bold yellow]{config.SMALL_WORDLIST_PHASE1} (Safe Mode)[/bold yellow]"
 
-        resolvers_display = f"[dim]{config.RESOLVERS_FILE}[/dim]"
-        if config.USER_CUSTOMIZED_RESOLVERS:
-            resolvers_display = (f"[bold green]{config.RESOLVERS_FILE} (Użytkownika)[/bold green]")
+        # --- Logika wyświetlania dla User-Agent ---
+        ua_display = "[dim]Domyślny (losowy)[/dim]"
+        if config.USER_CUSTOMIZED_USER_AGENT:
+            ua_display = f"[bold green]{config.CUSTOM_HEADER} (Użytkownika)[/bold green]"
+        
+        # --- Logika wyświetlania dla Rate Limit (Puredns) ---
+        puredns_rate_display = f"[dim]{config.PUREDNS_RATE_LIMIT}[/dim]"
+        if config.USER_CUSTOMIZED_PUREDNS_RATE_LIMIT:
+            puredns_rate_display = f"[bold green]{config.PUREDNS_RATE_LIMIT} (Użytkownika)[/bold green]"
+        elif config.SAFE_MODE:
+            puredns_rate_display = "[bold yellow]50 (Safe Mode)[/bold yellow]"
+            
+        # --- Logika wyświetlania dla Rate Limit (Httpx) ---
+        httpx_rate_display = f"[dim]{config.HTTPX_P1_RATE_LIMIT}[/dim]"
+        if config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT:
+            httpx_rate_display = f"[bold green]{config.HTTPX_P1_RATE_LIMIT} (Użytkownika)[/bold green]"
+        elif config.SAFE_MODE:
+            httpx_rate_display = "[bold yellow]10 (Safe Mode)[/bold yellow]"
 
-        table.add_row("[bold cyan][1][/bold cyan]", f"Lista słów (Puredns): {wordlist_display}")
-        table.add_row("[bold cyan][2][/bold cyan]", f"Plik resolverów (Puredns): {resolvers_display}")
+        # --- Budowa tabeli ---
+        safe_status = "[bold green]✓[/bold green]" if config.SAFE_MODE else "[bold red]✗[/bold red]"
+        table.add_row("[bold cyan][1][/bold cyan]", f"[{safe_status}] Tryb bezpieczny")
+        table.add_row("[bold cyan][2][/bold cyan]", f"Lista słów (Puredns): {wordlist_display}")
+        table.add_row("[bold cyan][3][/bold cyan]", f"Plik resolverów: [dim]{config.RESOLVERS_FILE}[/dim]")
+        table.add_row("[bold cyan][4][/bold cyan]", f"Wątki: [dim]{config.THREADS}[/dim]")
+        table.add_row("[bold cyan][5][/bold cyan]", f"User-Agent (Httpx): {ua_display}")
+        table.add_row("[bold cyan][6][/bold cyan]", f"Rate Limit (Puredns): {puredns_rate_display}")
+        table.add_row("[bold cyan][7][/bold cyan]", f"Rate Limit (Httpx): {httpx_rate_display}")
         table.add_section()
         table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu Fazy 1")
 
@@ -339,26 +362,40 @@ def display_phase1_settings_menu(display_banner_func):
         )
 
         if choice == "1":
-            new_path = Prompt.ask(
-                "[bold cyan]Podaj ścieżkę do listy słów[/bold cyan]",
-                default=config.WORDLIST_PHASE1,
-            )
+            config.SAFE_MODE = not config.SAFE_MODE
+            utils.handle_safe_mode_tor_check()
+        elif choice == "2":
+            new_path = Prompt.ask("[bold cyan]Podaj ścieżkę do listy słów[/bold cyan]", default=config.WORDLIST_PHASE1)
             if os.path.isfile(new_path):
                 config.WORDLIST_PHASE1 = new_path
                 config.USER_CUSTOMIZED_WORDLIST_PHASE1 = True
             else:
-                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"))
-                time.sleep(1)
-        elif choice == "2":
-            new_path = Prompt.ask(
-                "[bold cyan]Podaj ścieżkę do pliku resolverów[/bold cyan]",
-                default=config.RESOLVERS_FILE,
-            )
+                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"), time.sleep(1))
+        elif choice == "3":
+            new_path = Prompt.ask("[bold cyan]Podaj ścieżkę do pliku resolverów[/bold cyan]", default=config.RESOLVERS_FILE)
             if os.path.isfile(new_path):
                 config.RESOLVERS_FILE = new_path
                 config.USER_CUSTOMIZED_RESOLVERS = True
             else:
-                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"))
-                time.sleep(1)
+                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"), time.sleep(1))
+        elif choice == "4":
+            new_threads = Prompt.ask("[bold cyan]Podaj liczbę wątków[/bold cyan]", default=str(config.THREADS))
+            if new_threads.isdigit():
+                config.THREADS = int(new_threads)
+                config.USER_CUSTOMIZED_THREADS = True
+        elif choice == "5":
+            new_ua = Prompt.ask("[bold cyan]Podaj własny User-Agent[/bold cyan]", default=config.CUSTOM_HEADER)
+            config.CUSTOM_HEADER = new_ua
+            config.USER_CUSTOMIZED_USER_AGENT = bool(new_ua)
+        elif choice == "6":
+            new_rate = Prompt.ask("[bold cyan]Podaj rate limit dla Puredns[/bold cyan]", default=str(config.PUREDNS_RATE_LIMIT))
+            if new_rate.isdigit():
+                config.PUREDNS_RATE_LIMIT = int(new_rate)
+                config.USER_CUSTOMIZED_PUREDNS_RATE_LIMIT = True
+        elif choice == "7":
+            new_rate = Prompt.ask("[bold cyan]Podaj rate limit dla Httpx[/bold cyan]", default=str(config.HTTPX_P1_RATE_LIMIT))
+            if new_rate.isdigit():
+                config.HTTPX_P1_RATE_LIMIT = int(new_rate)
+                config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT = True
         elif choice.lower() == "b":
             break

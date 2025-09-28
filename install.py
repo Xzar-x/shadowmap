@@ -34,7 +34,8 @@ SYSTEM_DEPS = ["go", "python3", "pip3", "nmap", "masscan", "whois", "whatweb", "
 GO_TOOLS = {
     "subfinder": "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
     "assetfinder": "github.com/tomnomnom/assetfinder@latest",
-    "puredns": "github.com/d3mondev/puredns/v2/cmd/puredns@latest",
+    # ZMIANA: Poprawiona ścieżka instalacji puredns
+    "puredns": "github.com/d3mondev/puredns/v2@latest",
     "httpx": "github.com/projectdiscovery/httpx/cmd/httpx@latest",
     "naabu": "github.com/projectdiscovery/naabu/v2/cmd/naabu@latest",
     "ffuf": "github.com/ffuf/ffuf@latest",
@@ -138,7 +139,6 @@ def check_dependencies():
             go_table.add_row(tool, "[bold red]✗ BRAK[/bold red]")
             missing_go.append(tool)
 
-    # ZMIANA: Usunięcie Panelu i użycie Align.center do wyśrodkowania kolumn
     grid = Columns([system_table, go_table], align="center", expand=True)
     console.print(Align.center(grid))
     
@@ -238,4 +238,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         console.print("\n[bold red]Instalacja przerwana przez użytkownika.[/bold red]")
         sys.exit(1)
-

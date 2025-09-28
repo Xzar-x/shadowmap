@@ -216,12 +216,29 @@
             z-index: 1000; opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
         }
         .copy-notification.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
-        .port-scan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px; padding: 10px; margin: 0 auto; max-width: 90%; }
+        
+        .port-scan-grid { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 10px; margin: 0 auto; max-width: 95%; }
         .port-card {
             background: linear-gradient(135deg, #2a2a3a, #1e1e2e); border: 1px solid #444; border-radius: 8px;
             padding: 15px; transition: all 0.3s ease;
         }
         .port-card h4 { margin-top: 0; color: #00d4ff; }
+        .port-card-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            gap: 20px;
+        }
+        .port-details, .nse-results {
+            padding: 10px;
+            background: rgba(10, 10, 10, 0.3);
+            border-radius: 6px;
+        }
+        .port-details h5, .nse-results h5 {
+            margin-top: 0;
+            color: #5bc0de;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
         .port-list { list-style: none; padding-left: 0; }
         .port-list-item { background: #333; margin-bottom: 5px; padding: 8px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
         .port-number { color: #e0e0e0; font-weight: bold; }
@@ -229,7 +246,16 @@
         .port-status.open { background-color: #28a745; color: white; }
         .port-status.filtered { background-color: #ffc107; color: black; }
         .port-status.closed { background-color: #dc3545; color: white; }
-        
+        .nse-script-output {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #ccc;
+        }
+        .nse-script-output ul { padding-left: 15px; margin: 5px 0 0 0; list-style-type: none; }
+        .nse-script-output li { margin-bottom: 5px; }
+        .nse-script-name { color: #ffc107; font-weight: bold; }
+        .nse-key { color: #00d4ff; }
+
         .tech-container {
             background: linear-gradient(135deg, #111 0%, #1a1a1a 100%);
             color: #e0e0e0; padding: 15px; border-radius: 8px; margin-top: 5px;
@@ -241,7 +267,6 @@
         .tech-columns li:last-child { padding-bottom: 0; }
         .tech-container p { margin: 0; font-style: italic; color: #999; }
         
-        /* NOWE STYLE DLA SEKCJI EXPLOITÓW */
         .exploit-container details {
             background-color: rgba(255, 77, 77, 0.05);
             border: 1px solid rgba(255, 77, 77, 0.3);
@@ -285,7 +310,6 @@
             color: #ffc107;
             margin-right: 10px;
         }
-        /* KONIEC NOWYCH STYLI */
 
         @media (max-width: 768px) {
             body { padding: 5px; } .container { padding: 10px; border-radius: 8px; }
@@ -294,6 +318,7 @@
             .results-grid, .port-scan-grid { grid-template-columns: 1fr; padding: 5px; max-width: 95%; }
             .filter-section { padding: 8px; max-width: 95%; }
             .result-card { padding: 12px; height: auto; }
+            .port-card-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -305,13 +330,13 @@
     <div class="container">
         <h1>ShadowMap Scan Report for {{DOMAIN}}</h1>
         <div class="main-tabs">
-            <div class="main-tab-button active" onclick="openMainTab(event, 'summary')">Podsumowanie</div>
-            <div class="main-tab-button" onclick="openMainTab(event, 'phase0')">Faza 0: OSINT</div>
-            <div class="main-tab-button" onclick="openMainTab(event, 'phase1')">Faza 1: Subdomeny</div>
-            <div class="main-tab-button" onclick="openMainTab(event, 'phase2')">Faza 2: Porty</div>
-            <div class="main-tab-button" onclick="openMainTab(event, 'phase3')">Faza 3: Katalogi</div>
-            <div class="main-tab-button" onclick="openMainTab(event, 'phase4')">Faza 4: Web Crawling</div>
-            <div class="main-tab-button" onclick="openMainTab(event, 'all_results')">Wszystkie wyniki</div>
+            <div class="main-tab-button active" onclick="openMainTab(this, 'summary')">Podsumowanie</div>
+            <div class="main-tab-button" onclick="openMainTab(this, 'phase0')">Faza 0: OSINT</div>
+            <div class="main-tab-button" onclick="openMainTab(this, 'phase1')">Faza 1: Subdomeny</div>
+            <div class="main-tab-button" onclick="openMainTab(this, 'phase2')">Faza 2: Porty</div>
+            <div class="main-tab-button" onclick="openMainTab(this, 'phase3')">Faza 3: Katalogi</div>
+            <div class="main-tab-button" onclick="openMainTab(this, 'phase4')">Faza 4: Web Crawling</div>
+            <div class="main-tab-button" onclick="openMainTab(this, 'all_results')">Wszystkie wyniki</div>
         </div>
 
         <div id="summary" class="tab-content active">
@@ -340,11 +365,11 @@
         <div id="phase1" class="tab-content">
             <h2>Faza 1: Enumeracja Subdomen</h2>
             <div class="sub-tabs">
-                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase1', 'httpx')">HTTPX</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase1', 'subfinder')">Subfinder</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase1', 'assetfinder')">Assetfinder</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase1', 'findomain')">Findomain</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase1', 'puredns')">Puredns</div>
+                <div class="sub-tab-button active" onclick="openSubTab(this, 'phase1', 'httpx')">HTTPX</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'subfinder')">Subfinder</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'assetfinder')">Assetfinder</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'findomain')">Findomain</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'puredns')">Puredns</div>
             </div>
 
             <div id="phase1-httpx" class="sub-tab-content active">
@@ -364,10 +389,10 @@
         <div id="phase2" class="tab-content">
             <h2>Faza 2: Skanowanie Portów</h2>
             <div class="sub-tabs">
-                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase2', 'summary_ports')">Podsumowanie Portów</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'nmap_raw')">Nmap (Surowe)</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'naabu_raw')">Naabu (Surowe)</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase2', 'masscan_raw')">Masscan (Surowe)</div>
+                <div class="sub-tab-button active" onclick="openSubTab(this, 'phase2', 'summary_ports')">Podsumowanie Portów</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'nmap_raw')">Nmap (Surowe)</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'naabu_raw')">Naabu (Surowe)</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'masscan_raw')">Masscan (Surowe)</div>
             </div>
             <div id="phase2-summary_ports" class="sub-tab-content active">
                 <h3>Wizualne podsumowanie otwartych portów (Wyniki Nmap)</h3>
@@ -384,8 +409,8 @@
         <div id="phase3" class="tab-content">
             <h2>Faza 3: Wyszukiwanie Katalogów</h2>
              <div class="sub-tabs">
-                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase3', 'verified_httpx')">✅ Zweryfikowane (HTTPX)</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase3', 'all_dirsearch')">Wszystkie wyniki (surowe)</div>
+                <div class="sub-tab-button active" onclick="openSubTab(this, 'phase3', 'verified_httpx')">✅ Zweryfikowane (HTTPX)</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'all_dirsearch')">Wszystkie wyniki (surowe)</div>
              </div>
              <div id="phase3-verified_httpx" class="sub-tab-content active">
                 <h3>Wyniki z Fazy 3 zweryfikowane przez HTTPX</h3>
@@ -404,11 +429,11 @@
         <div id="phase4" class="tab-content">
             <h2>Faza 4: Web Crawling i Link Discovery</h2>
             <div class="sub-tabs">
-                <div class="sub-tab-button active" onclick="openSubTab(event, 'phase4', 'all_crawled')">Wszystkie URL-e</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase4', 'parameters')">Parametry</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase4', 'js_files')">Pliki JS</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase4', 'api_endpoints')">Endpointy API</div>
-                <div class="sub-tab-button" onclick="openSubTab(event, 'phase4', 'interesting_paths')">Interesujące ścieżki</div>
+                <div class="sub-tab-button active" onclick="openSubTab(this, 'phase4', 'all_crawled')">Wszystkie URL-e</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'parameters')">Parametry</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'js_files')">Pliki JS</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'api_endpoints')">Endpointy API</div>
+                <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'interesting_paths')">Interesujące ścieżki</div>
             </div>
 
             <div id="phase4-all_crawled" class="sub-tab-content active"><h3>Wszystkie znalezione URL-e ({{COUNT_ALL_URLS_P4}})</h3><pre class="output">{{PHASE4_ALL_URLS_OUTPUT}}</pre></div>
@@ -545,11 +570,11 @@
             });
         }
         
-        function renderPortScanResults(nmapData) {
+       function renderPortScanResults(nmapData) {
             const container = document.getElementById('port-scan-results');
             if (!container) return;
             container.innerHTML = '';
-            
+
             let parsedNmap;
             try {
                 parsedNmap = typeof nmapData === 'string' ? JSON.parse(nmapData) : nmapData;
@@ -566,29 +591,76 @@
             for (const host in parsedNmap) {
                 const card = document.createElement('div');
                 card.className = 'port-card';
-                let listItems = '';
-
+                card.innerHTML = `<h4>${host}</h4><div class="port-card-grid"><div class="port-details"><h5>Otwarte Porty</h5><ul class="port-list"></ul></div><div class="nse-results"><h5>Wyniki Skryptów NSE</h5><div class="nse-script-output"></div></div></div>`;
+                
+                const portList = card.querySelector('.port-list');
+                const nseOutputContainer = card.querySelector('.nse-script-output');
+                
+                let portInfo = {};
+                
+                // First pass: gather all info
                 (parsedNmap[host] || "").split('\n').forEach(line => {
-                    const match = line.match(/^(\d+)\/tcp\s+(open|filtered|closed)\s+(.*)/);
-                    if (match) {
-                        const port = parseInt(match[1]);
-                        const status = match[2];
-                        const service = match[3].trim();
-                        
-                        listItems += `
-                            <li class="port-list-item">
-                                <div>
-                                    <span class="port-number">${port}/tcp</span> - ${service}
-                                </div>
-                                <span class="port-status ${status}">${status}</span>
-                            </li>`;
+                    const portMatch = line.match(/^(\d+)\/tcp\s+(open|filtered|closed)\s+(.*)/);
+                    if (portMatch) {
+                        const port = portMatch[1];
+                        portInfo[port] = {
+                            status: portMatch[2],
+                            service: portMatch[3].trim(),
+                            nse: []
+                        };
+                    } else if(Object.keys(portInfo).length > 0) {
+                         const lastPort = Object.keys(portInfo).pop();
+                         if (line.trim().startsWith('|') || line.trim().startsWith('_')) {
+                            portInfo[lastPort].nse.push(line);
+                         }
                     }
                 });
 
-                if (listItems) {
-                    card.innerHTML = `<h4>${host}</h4><ul class="port-list">${listItems}</ul>`;
-                    container.appendChild(card);
+                // Second pass: render
+                Object.keys(portInfo).forEach(port => {
+                    const info = portInfo[port];
+                    const listItem = document.createElement('li');
+                    listItem.className = 'port-list-item';
+                    listItem.innerHTML = `<div><span class="port-number">${port}/tcp</span> - ${info.service}</div><span class="port-status ${info.status}">${info.status}</span>`;
+                    portList.appendChild(listItem);
+
+                    if (info.nse.length > 0) {
+                        let nseHTML = `<p><strong>Port ${port}:</strong></p>`;
+                        let currentScriptName = '';
+                        let scriptDetails = '<ul>';
+
+                        info.nse.forEach(line => {
+                            let cleanedLine = line.trim().replace(/^\|_?\s*/, '');
+                            const scriptNameMatch = cleanedLine.match(/^([a-zA-Z0-9_-]+):/);
+                            
+                            if (scriptNameMatch) {
+                                if (currentScriptName) scriptDetails += '</ul>'; // Close previous script's list
+                                currentScriptName = scriptNameMatch[1];
+                                scriptDetails += `<li><span class="nse-script-name">${currentScriptName}:</span><ul>`;
+                                cleanedLine = cleanedLine.substring(scriptNameMatch[0].length).trim();
+                            }
+                            
+                            if (cleanedLine) {
+                                let indentedLine = cleanedLine.replace(/\s\s/g, '&nbsp;&nbsp;')
+                                const keyValueMatch = indentedLine.match(/^\s*([\w\s-]+):\s(.*)/);
+                                if(keyValueMatch) {
+                                     scriptDetails += `<li><span class="nse-key">${keyValueMatch[1].trim()}:</span> ${keyValueMatch[2].trim()}</li>`;
+                                } else {
+                                    scriptDetails += `<li>${indentedLine}</li>`;
+                                }
+                            }
+                        });
+
+                        scriptDetails += '</ul></li>'; // Close the last list
+                        nseOutputContainer.innerHTML += nseHTML + scriptDetails;
+                    }
+                });
+
+                if (!nseOutputContainer.innerHTML) {
+                    nseOutputContainer.textContent = 'Brak wyników ze skryptów NSE.';
                 }
+                
+                container.appendChild(card);
             }
         }
 
@@ -623,19 +695,19 @@
             }
         }
 
-        function openMainTab(evt, tabName) {
+        function openMainTab(buttonElement, tabName) {
             Array.from(document.getElementsByClassName("tab-content")).forEach(t => t.style.display = "none");
             Array.from(document.getElementsByClassName("main-tab-button")).forEach(b => b.classList.remove("active"));
             document.getElementById(tabName).style.display = "block";
-            evt.currentTarget.classList.add("active");
+            buttonElement.classList.add("active");
         }
 
-        function openSubTab(evt, mainTabName, subTabName) {
+        function openSubTab(buttonElement, mainTabName, subTabName) {
             const mainTab = document.getElementById(mainTabName);
             Array.from(mainTab.getElementsByClassName("sub-tab-content")).forEach(t => t.style.display = "none");
             Array.from(mainTab.getElementsByClassName("sub-tab-button")).forEach(b => b.classList.remove("active"));
             document.getElementById(`${mainTabName}-${subTabName}`).style.display = "block";
-            evt.currentTarget.classList.add("active");
+            buttonElement.classList.add("active");
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -646,7 +718,11 @@
             renderRawText(naabuRawOutput, 'naabu-raw-output');
             renderRawText(masscanRawOutput, 'masscan-raw-output');
             
-            document.querySelector('.main-tab-button').click();
+            const firstMainTab = document.querySelector('.main-tab-button');
+            if(firstMainTab) {
+                firstMainTab.click();
+            }
+
             const firstActiveSubTab = document.querySelector('.tab-content.active .sub-tab-button');
              if(firstActiveSubTab) {
                 firstActiveSubTab.click();
@@ -655,3 +731,4 @@
     </script>
 </body>
 </html>
+

@@ -43,6 +43,13 @@ CUSTOM_HEADER: str = ""
 PROXY: Optional[str] = None
 EXCLUSION_PATTERNS: List[str] = []
 
+# --- Filtrowanie OSINT ---
+OSINT_TECH_BLOCKLIST: List[str] = [
+    "ip", "script", "title", "country", "email", "httpserver", 
+    "uncommonheaders", "redirectlocation", "metagenerator", "html5"
+]
+
+
 # --- Stan celu ---
 ORIGINAL_TARGET: str = ""
 HOSTNAME_TARGET: str = ""
@@ -73,6 +80,12 @@ NMAP_SOLO_SCAN_MODE: str = "default"
 # --- Ustawienia Fazy 3 ---
 DIRSEARCH_SMART_FILTER: bool = True
 FEROXBUSTER_SMART_FILTER: bool = True
+IGNORED_EXTENSIONS: List[str] = [
+    "png", "jpg", "jpeg", "gif", "svg", "bmp", "ico",
+    "css", "js", "map",
+    "woff", "woff2", "ttf", "eot",
+]
+
 
 # --- Ustawienia Super Safe Mode ---
 USE_HEADLESS_BROWSER: bool = False
@@ -105,4 +118,5 @@ USER_CUSTOMIZED_MASSCAN_RATE: bool = False
 USER_CUSTOMIZED_NAABU_RATE: bool = False
 USER_CUSTOMIZED_USE_HEADLESS: bool = False
 USER_CUSTOMIZED_PUREDNS_RATE_LIMIT: bool = False
+USER_CUSTOMIZED_IGNORED_EXTENSIONS: bool = False
 
