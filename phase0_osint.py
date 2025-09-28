@@ -25,23 +25,40 @@ import utils
 
 def get_best_target_url(target: str) -> str:
     """
-    Sprawdza dostępność celu na porcie 443 (HTTPS) i 80 (HTTP)
+    Sprawdza dostępność celu na podanym porcie lub na 443/80
     i zwraca najlepszy URL (preferując HTTPS).
     """
     utils.console.print(
-        Align.center("[bold cyan]Sprawdzam protokół (HTTP/HTTPS)...[/bold cyan]")
+        Align.center("[bold cyan]Wybieram najlepszy URL docelowy...[/bold cyan]")
     )
 
+    # NOWOŚĆ: Logika sprawdzania niestandardowego portu
+    if config.TARGET_PORT:
+        try:
+            # Spróbuj najpierw jako HTTPS
+            sock_https = socket.create_connection((target, config.TARGET_PORT), timeout=5)
+            sock_https.close()
+            https_url = f"https://{target}:{config.TARGET_PORT}"
+            utils.console.print(Align.center(f"[bold green]✓ Port {config.TARGET_PORT} (HTTPS) jest otwarty. Używam: {https_url}[/bold green]"))
+            return https_url
+        except (socket.timeout, ConnectionRefusedError, OSError):
+            # Jeśli HTTPS na niestandardowym porcie zawiedzie, spróbuj HTTP
+            try:
+                sock_http = socket.create_connection((target, config.TARGET_PORT), timeout=5)
+                sock_http.close()
+                http_url = f"http://{target}:{config.TARGET_PORT}"
+                utils.console.print(Align.center(f"[bold yellow]! HTTPS na porcie {config.TARGET_PORT} nie odpowiada. Używam HTTP: {http_url}[/bold yellow]"))
+                return http_url
+            except (socket.timeout, ConnectionRefusedError, OSError):
+                # Jeśli oba zawiodą, wypisz błąd i przejdź do standardowej logiki
+                 utils.console.print(Align.center(f"[bold red]! Nie udało się połączyć z podanym portem {config.TARGET_PORT}. Próbuję standardowych portów...[/bold red]"))
+
+    # Standardowa logika fallback
     try:
         sock_https = socket.create_connection((target, 443), timeout=5)
         sock_https.close()
         https_url = f"https://{target}"
-        utils.console.print(
-            Align.center(
-                f"[bold green]✓ Port 443 (HTTPS) jest otwarty. "
-                f"Używam: {https_url}[/bold green]"
-            )
-        )
+        utils.console.print(Align.center(f"[bold green]✓ Port 443 (HTTPS) jest otwarty. Używam: {https_url}[/bold green]"))
         return https_url
     except (socket.timeout, ConnectionRefusedError, OSError):
         pass
@@ -50,23 +67,13 @@ def get_best_target_url(target: str) -> str:
         sock_http = socket.create_connection((target, 80), timeout=5)
         sock_http.close()
         http_url = f"http://{target}"
-        utils.console.print(
-            Align.center(
-                f"[bold yellow]! Port 443 zamknięty. Port 80 (HTTP) jest otwarty. "
-                f"Używam: {http_url}[/bold yellow]"
-            )
-        )
+        utils.console.print(Align.center(f"[bold yellow]! Port 443 zamknięty. Port 80 (HTTP) jest otwarty. Używam: {http_url}[/bold yellow]"))
         return http_url
     except (socket.timeout, ConnectionRefusedError, OSError):
         pass
 
     default_url = f"http://{config.HOSTNAME_TARGET}"
-    utils.console.print(
-        Align.center(
-            f"[bold red]! Nie udało się połączyć ani z portem 80, ani 443. "
-            f"Używam fallback: {default_url}[/bold red]"
-        )
-    )
+    utils.console.print(Align.center(f"[bold red]! Nie udało się połączyć z żadnym standardowym portem. Używam fallback: {default_url}[/bold red]"))
     return default_url
 
 
@@ -328,8 +335,7 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
     utils.console.print(
         Align.center(
             Panel.fit(
-                "[bold cyan]Faza 0: Zwiad Pasywny (OSINT) "
-                f"dla {config.ORIGINAL_TARGET}[/bold cyan]"
+                f"[bold cyan]Faza 0: Zwiad Pasywny (OSINT) dla {config.ORIGINAL_TARGET}[/bold cyan]"
             )
         )
     )
@@ -357,7 +363,6 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
             all_techs.update(whatweb_results)
             all_techs.update(webtech_results)
             
-            # ZMIANA: Filtrowanie technologii na podstawie listy blokowanych
             filtered_techs = {
                 tech for tech in all_techs 
                 if tech.split('(')[0].strip().lower() not in config.OSINT_TECH_BLOCKLIST
@@ -366,7 +371,6 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
 
         if osint_data.get("technologies"):
             status.update("[bold green]Szukam publicznych exploitów (Searchsploit)...[/bold green]")
-            # ZMIANA: Przekazanie odfiltrowanej listy do searchsploit
             searchsploit_results = get_searchsploit_info(osint_data["technologies"])
             osint_data["searchsploit_results"] = searchsploit_results
 
@@ -414,3 +418,4 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
 
     utils.console.print(table)
     return osint_data, best_target_url
+

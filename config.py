@@ -11,10 +11,12 @@ USER_AGENTS_FILE = os.path.join(SHARE_DIR, "user_agents.txt")
 DEFAULT_WORDLIST_PHASE1 = (
     "/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt"
 )
-SMALL_WORDLIST_PHASE1 = os.path.join(SHARE_DIR, "subdomen_wordlist.txt")
+SMALL_WORDLIST_PHASE1 = (
+    "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
+)
 
-DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/common.txt"
-SMALL_WORDLIST_PHASE3 = os.path.join(SHARE_DIR, "dir_wordlist.txt")
+DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
+SMALL_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt"
 
 WORDPRESS_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt"
 JOOMLA_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/joomla.fuzz.txt"
@@ -55,6 +57,7 @@ ORIGINAL_TARGET: str = ""
 HOSTNAME_TARGET: str = ""
 CLEAN_DOMAIN_TARGET: str = ""
 TARGET_IS_IP: bool = False
+TARGET_PORT: Optional[int] = None # NOWOŚĆ: Przechowuje port celu
 
 # --- Ustawienia narzędzi ---
 THREADS: int = 40
@@ -68,6 +71,7 @@ RESOLVERS_FILE: str = DEFAULT_RESOLVERS_FILE
 
 # --- Ustawienia Fazy 1 ---
 PUREDNS_RATE_LIMIT: int = 1000
+HTTPX_P1_RATE_LIMIT: int = 150
 
 # --- Ustawienia Fazy 2 ---
 NMAP_USE_SCRIPTS: bool = False
@@ -116,7 +120,9 @@ USER_CUSTOMIZED_AUTO_FORM_FILL: bool = False
 USER_CUSTOMIZED_NAABU_SOURCE_PORT: bool = False
 USER_CUSTOMIZED_MASSCAN_RATE: bool = False
 USER_CUSTOMIZED_NAABU_RATE: bool = False
+USER_CUSTOMIZED_NMAP_SOLO_SCAN_MODE: bool = False
 USER_CUSTOMIZED_USE_HEADLESS: bool = False
 USER_CUSTOMIZED_PUREDNS_RATE_LIMIT: bool = False
+USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT: bool = False
 USER_CUSTOMIZED_IGNORED_EXTENSIONS: bool = False
 
