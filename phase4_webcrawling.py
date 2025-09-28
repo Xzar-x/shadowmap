@@ -5,7 +5,7 @@ import re
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Set
 
 from rich.align import Align
@@ -24,37 +24,45 @@ def _run_and_parse_crawl_tool(
     tool_name: str, command: List[str], target_url: str, timeout: int
 ) -> List[str]:
     """
-    Uruchamia narzędzie do web crawlingu i parsuje jego output w poszukiwaniu URL-i.
+    Uruchamia narzędzie do web crawlingu i parsuje jego output.
     """
     results: Set[str] = set()
     cmd_str = " ".join(f'"{p}"' if " " in p else p for p in command)
     utils.console.print(
-        f"[bold cyan]Uruchamiam {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]"
+        f"[bold cyan]Uruchamiam {tool_name}:[/bold cyan] "
+        f"[dim white]{cmd_str}[/dim white]"
     )
 
     try:
         process = subprocess.run(
-            command, capture_output=True, text=True, timeout=timeout,
-            encoding="utf-8", errors="ignore",
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            encoding="utf-8",
+            errors="ignore",
         )
 
-        # Zapisz surowy wynik do pliku w odpowiednim katalogu fazy
         phase4_dir = os.path.join(config.REPORT_DIR, "faza4_webcrawling")
-        sanitized_target = re.sub(r'https?://', '', target_url).replace('/', '_').replace(':', '_')
-        raw_output_file = os.path.join(phase4_dir, f"{tool_name.lower()}_{sanitized_target}.txt")
-        
-        with open(raw_output_file, 'w', encoding='utf-8') as f:
+        sanitized_target = re.sub(r"https?://", "", target_url).replace("/", "_")
+        sanitized_target = sanitized_target.replace(":", "_")
+        raw_output_file = os.path.join(
+            phase4_dir, f"{tool_name.lower()}_{sanitized_target}.txt"
+        )
+
+        with open(raw_output_file, "w", encoding="utf-8") as f:
             f.write(f"--- Raw output for {tool_name} on {target_url} ---\n\n")
             f.write(process.stdout)
             if process.stderr:
                 f.write("\n\n--- STDERR ---\n\n")
                 f.write(process.stderr)
 
-        url_pattern = re.compile(r'https?://[^\s"\'<>]+')
+        url_pattern = re.compile(r"https?://[^\s\"'<>]+")
         found_urls = url_pattern.findall(process.stdout)
 
         if tool_name == "LinkFinder":
-            endpoint_pattern = re.compile(r"^(?!\[\+\]|\[i\]|\[!\])(?:'|\")?(/[a-zA-Z0-9_./-]+)")
+            ep_pattern = r"^(?!\[\+\]|\[i\]|\[!\])(?:'|\")?(/[a-zA-Z0-9_./-]+)"
+            endpoint_pattern = re.compile(ep_pattern)
             for line in process.stdout.splitlines():
                 if url_match := url_pattern.search(line.strip()):
                     found_urls.append(url_match.group(0))
@@ -67,17 +75,20 @@ def _run_and_parse_crawl_tool(
                 results.add(stripped_url)
 
         if process.returncode == 0:
-            msg = f"✅ {tool_name} zakończył dla {target_url}. Znaleziono {len(results)} URLi."
+            msg = (
+                f"✅ {tool_name} zakończył dla {target_url}. "
+                f"Znaleziono {len(results)} URLi."
+            )
             utils.console.print(f"[bold green]{msg}[/bold green]")
         else:
             msg = f"{tool_name} dla {target_url} zakończył z błędem."
             utils.log_and_echo(msg, "WARN")
 
     except subprocess.TimeoutExpired:
-        msg = f"Komenda '{tool_name}' dla {target_url} przekroczyła limit czasu."
+        msg = f"'{tool_name}' dla {target_url} przekroczył limit czasu."
         utils.log_and_echo(msg, "WARN")
     except Exception as e:
-        msg = f"Ogólny błąd wykonania '{tool_name}' dla {target_url}: {e}"
+        msg = f"Błąd wykonania '{tool_name}' dla {target_url}: {e}"
         utils.log_and_echo(msg, "ERROR")
 
     return sorted(list(results))
@@ -88,15 +99,20 @@ def _categorize_urls(urls: List[str]) -> Dict[str, List[str]]:
     Kategoryzuje listę URL-i na podstawie słów kluczowych i wzorców.
     """
     categorized: Dict[str, List[str]] = {
-        "parameters": [], "js_files": [], "api_endpoints": [],
-        "interesting_paths": [], "all_urls": sorted(list(set(urls))),
+        "parameters": [],
+        "js_files": [],
+        "api_endpoints": [],
+        "interesting_paths": [],
+        "all_urls": sorted(list(set(urls))),
     }
     api_keywords = ["api", "rest", "graphql", "rpc", "json", "xml"]
     interesting_ext = [
-        ".json", ".xml", ".yml", ".yaml", ".conf", ".config",
-        ".bak", ".old", ".zip", ".tar.gz", ".sql",
+        ".json", ".xml", ".yml", ".yaml", ".conf", ".config", ".bak",
+        ".old", ".zip", ".tar.gz", ".sql",
     ]
-    interesting_kws = ["swagger", "openapi", "debug", "test", "backup", "dump", "admin"]
+    interesting_kws = [
+        "swagger", "openapi", "debug", "test", "backup", "dump", "admin"
+    ]
 
     for url in categorized["all_urls"]:
         if "?" in url and "=" in url:
@@ -105,8 +121,9 @@ def _categorize_urls(urls: List[str]) -> Dict[str, List[str]]:
             categorized["js_files"].append(url)
         if any(keyword in url.lower() for keyword in api_keywords):
             categorized["api_endpoints"].append(url)
-        if any(url.endswith(ext) for ext in interesting_ext) or \
-           any(kw in url.lower() for kw in interesting_kws):
+        if any(url.endswith(ext) for ext in interesting_ext) or any(
+            kw in url.lower() for kw in interesting_kws
+        ):
             categorized["interesting_paths"].append(url)
 
     for key in categorized:
@@ -124,20 +141,31 @@ def start_web_crawl(
     """
     Uruchamia Fazę 4: Web Crawling, agreguje i kategoryzuje wyniki.
     """
-    utils.log_and_echo(f"Rozpoczynam Fazę 4 - Web Crawling dla {len(urls)} celów.", "INFO")
+    msg = f"Rozpoczynam Fazę 4 - Web Crawling dla {len(urls)} celów."
+    utils.log_and_echo(msg, "INFO")
     all_found_urls: Set[str] = set()
 
     tool_configs = [
-        {"name": "Katana", "enabled": config.selected_phase4_tools[0], "cmd_template": [
-            "katana", "-silent", "-d", str(config.CRAWL_DEPTH_P4), "-jc"]},
-        {"name": "Hakrawler", "enabled": config.selected_phase4_tools[1], "cmd_template": [
-            "hakrawler", "-d", str(config.CRAWL_DEPTH_P4), "-insecure"]},
-        {"name": "ParamSpider", "enabled": config.selected_phase4_tools[2],
-            "cmd_template": ["paramspider", "-s"]},
-        {"name": "LinkFinder", "enabled": config.selected_phase4_tools[3],
-            "cmd_template": ["linkfinder", "-d"]},
-        {"name": "Gauplus", "enabled": config.selected_phase4_tools[4],
-            "cmd_template": ["gauplus", "-t", "50", "-random-agent"]},
+        {
+            "name": "Katana", "enabled": config.selected_phase4_tools[0],
+            "cmd_template": ["katana", "-silent", "-d", str(config.CRAWL_DEPTH_P4), "-jc"],
+        },
+        {
+            "name": "Hakrawler", "enabled": config.selected_phase4_tools[1],
+            "cmd_template": ["hakrawler", "-d", str(config.CRAWL_DEPTH_P4), "-insecure"],
+        },
+        {
+            "name": "ParamSpider", "enabled": config.selected_phase4_tools[2],
+            "cmd_template": ["paramspider", "-s"],
+        },
+        {
+            "name": "LinkFinder", "enabled": config.selected_phase4_tools[3],
+            "cmd_template": ["linkfinder", "-d"],
+        },
+        {
+            "name": "Gauplus", "enabled": config.selected_phase4_tools[4],
+            "cmd_template": ["gauplus", "-t", "50", "-random-agent"],
+        },
     ]
 
     if config.SAFE_MODE:
@@ -155,7 +183,7 @@ def start_web_crawl(
                 cfg["cmd_template"].extend(["--proxy", config.PROXY])
 
     with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
-        futures = []
+        futures: List[Future] = []
         for url in urls:
             for cfg in tool_configs:
                 if cfg["enabled"]:
@@ -174,13 +202,18 @@ def start_web_crawl(
                             cmd.append(domain_match.group(1))
                         else:
                             continue
-                    else:  # Katana, Hakrawler
+                    else:
                         cmd.extend(["-u", url])
 
-                    futures.append(executor.submit(
-                        _run_and_parse_crawl_tool, cfg["name"], cmd, url,
-                        config.TOOL_TIMEOUT_SECONDS
-                    ))
+                    futures.append(
+                        executor.submit(
+                            _run_and_parse_crawl_tool,
+                            cfg["name"],
+                            cmd,
+                            url,
+                            config.TOOL_TIMEOUT_SECONDS,
+                        )
+                    )
 
         for future in as_completed(futures):
             try:
@@ -191,7 +224,8 @@ def start_web_crawl(
                 progress_obj.update(main_task_id, advance=1)
 
     final_results = _categorize_urls(list(all_found_urls))
-    msg = f"Ukończono fazę 4. Znaleziono {len(final_results['all_urls'])} unikalnych URLi."
+    count = len(final_results['all_urls'])
+    msg = f"Ukończono fazę 4. Znaleziono {count} unikalnych URLi."
     utils.log_and_echo(msg, "INFO")
     return final_results
 
@@ -200,36 +234,50 @@ def display_phase4_tool_selection_menu(display_banner_func):
     while True:
         utils.console.clear()
         display_banner_func()
-        utils.console.print(
-            Align.center(Panel.fit("[bold magenta]Faza 4: Web Crawling & Discovery[/bold magenta]"))
+        title = "[bold magenta]Faza 4: Web Crawling & Discovery[/bold magenta]"
+        utils.console.print(Align.center(Panel.fit(title)))
+        safe_mode_status = (
+            "[bold green]WŁĄCZONY[/bold green]"
+            if config.SAFE_MODE
+            else "[bold red]WYŁĄCZONY[/bold red]"
         )
-        safe_mode_status = ("[bold green]WŁĄCZONY[/bold green]" if config.SAFE_MODE
-                            else "[bold red]WYŁĄCZONY[/bold red]")
         utils.console.print(
-            Align.center(f"Cel: [bold green]{config.ORIGINAL_TARGET}[/bold green] | "
-                         f"Tryb bezpieczny: {safe_mode_status}")
+            Align.center(
+                f"Cel: [bold green]{config.ORIGINAL_TARGET}[/bold green] | "
+                f"Tryb bezpieczny: {safe_mode_status}"
+            )
         )
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
         tool_names = [
-            "Katana (Aktywny crawler)", "Hakrawler (Aktywny crawler)",
-            "ParamSpider (Parametry)", "LinkFinder (Analiza JS)",
+            "Katana (Aktywny crawler)",
+            "Hakrawler (Aktywny crawler)",
+            "ParamSpider (Parametry)",
+            "LinkFinder (Analiza JS)",
             "Gauplus (Pasywne z archiwów)",
         ]
         for i, tool_name in enumerate(tool_names):
-            status = ("[bold green]✓[/bold green]" if config.selected_phase4_tools[i]
-                      else "[bold red]✗[/bold red]")
+            status = (
+                "[bold green]✓[/bold green]"
+                if config.selected_phase4_tools[i]
+                else "[bold red]✗[/bold red]"
+            )
             table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
         table.add_section()
-        table.add_row("[bold cyan][s][/bold cyan]", "[bold magenta]Zmień ustawienia Fazy 4[/bold magenta]")
-        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu głównego")
-        table.add_row("[bold cyan][q][/bold cyan]", "Wyjdź")
+        table.add_row(
+            "[bold cyan][s][/bold cyan]",
+            "[bold magenta]Zmień ustawienia Fazy 4[/bold magenta]",
+        )
+        table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu głównego")
+        table.add_row("[bold cyan][\fq][/bold cyan]", "Wyjdź")
         utils.console.print(Align.center(table))
         utils.console.print(
             Align.center("[bold cyan]Rekomendacja: Włącz Katana i Gauplus.[/bold cyan]")
         )
-        choice = utils.get_single_char_input_with_prompt(
-            Text.from_markup("[bold cyan]Wybierz opcję i naciśnij Enter[/bold cyan]", justify="center")
+        prompt_text = Text.from_markup(
+            "[bold cyan]Wybierz opcję i naciśnij Enter[/bold cyan]",
+            justify="center",
         )
+        choice = utils.get_single_char_input_with_prompt(prompt_text)
 
         if choice.isdigit() and 1 <= int(choice) <= 5:
             config.selected_phase4_tools[int(choice) - 1] ^= 1
@@ -243,7 +291,8 @@ def display_phase4_tool_selection_menu(display_banner_func):
             if any(config.selected_phase4_tools):
                 return True
             else:
-                utils.console.print(Align.center("[bold yellow]Wybierz co najmniej jedno narzędzie.[/bold yellow]"))
+                msg = "[bold yellow]Wybierz co najmniej jedno narzędzie.[/bold yellow]"
+                utils.console.print(Align.center(msg))
         else:
             utils.console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
         time.sleep(0.1)
@@ -253,26 +302,57 @@ def display_phase4_settings_menu(display_banner_func):
     while True:
         utils.console.clear()
         display_banner_func()
-        utils.console.print(Align.center(Panel.fit("[bold cyan]Ustawienia Fazy 4[/bold cyan]")))
+        utils.console.print(
+            Align.center(Panel.fit("[bold cyan]Ustawienia Fazy 4[/bold cyan]"))
+        )
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
 
-        proxy_display = f"[bold green]{config.PROXY}[/bold green]" if config.PROXY else "[dim]Brak[/dim]"
-        safe_status = ("[bold green]✓[/bold green]" if config.SAFE_MODE else "[bold red]✗[/bold red]")
-        aff_status = ("[bold green]✓[/bold green]" if config.AUTO_FORM_FILL else "[bold red]✗[/bold red]")
-        headless_status = ("[bold green]✓[/bold green]" if config.USE_HEADLESS_BROWSER else "[bold red]✗[/bold red]")
+        proxy_display = (
+            f"[bold green]{config.PROXY} (Użytkownika)[/bold green]"
+            if config.USER_CUSTOMIZED_PROXY and config.PROXY
+            else f"[dim]{config.PROXY or 'Brak'}[/dim]"
+        )
+        threads_display = (
+            f"[bold green]{config.THREADS} (Użytkownika)[/bold green]"
+            if config.USER_CUSTOMIZED_THREADS
+            else f"[dim]{config.THREADS}[/dim]"
+        )
+        timeout_display = (
+            f"[bold green]{config.TOOL_TIMEOUT_SECONDS}s (Użytkownika)[/bold green]"
+            if config.USER_CUSTOMIZED_TIMEOUT
+            else f"[dim]{config.TOOL_TIMEOUT_SECONDS}s[/dim]"
+        )
+        depth_display = (
+            f"[bold green]{config.CRAWL_DEPTH_P4} (Użytkownika)[/bold green]"
+            if config.USER_CUSTOMIZED_CRAWL_DEPTH_P4
+            else f"[dim]{config.CRAWL_DEPTH_P4}[/dim]"
+        )
+        safe_status = "[bold green]✓[/bold green]" if config.SAFE_MODE else "[bold red]✗[/bold red]"
+        aff_status = "[bold green]✓[/bold green]" if config.AUTO_FORM_FILL else "[bold red]✗[/bold red]"
+        headless_status = "[bold green]✓[/bold green]" if config.USE_HEADLESS_BROWSER else "[bold red]✗[/bold red]"
 
         table.add_row("[bold cyan][1][/bold cyan]", f"[{safe_status}] Tryb bezpieczny")
-        table.add_row("[bold cyan][2][/bold cyan]", f"Głębokość crawlera (Katana, Hakrawler): {config.CRAWL_DEPTH_P4}")
-        table.add_row("[bold cyan][3][/bold cyan]", f"[{aff_status}] Automatyczne wypełnianie formularzy (Katana)")
-        table.add_row("[bold cyan][4][/bold cyan]", f"[{headless_status}] Użyj przeglądarki Headless (Katana, Safe Mode)")
+        table.add_row(
+            "[bold cyan][2][/bold cyan]",
+            f"Głębokość crawlera: {depth_display}",
+        )
+        table.add_row(
+            "[bold cyan][3][/bold cyan]",
+            f"[{aff_status}] Wypełnianie formularzy (Katana)",
+        )
+        table.add_row(
+            "[bold cyan][4][/bold cyan]",
+            f"[{headless_status}] Headless (Katana, Safe Mode)",
+        )
         table.add_row("[bold cyan][5][/bold cyan]", f"Proxy: {proxy_display}")
-        table.add_row("[bold cyan][6][/bold cyan]", f"Liczba wątków: {config.THREADS}")
-        table.add_row("[bold cyan][7][/bold cyan]", f"Limit czasu narzędzia: {config.TOOL_TIMEOUT_SECONDS}s")
+        table.add_row("[bold cyan][6][/bold cyan]", f"Liczba wątków: {threads_display}")
+        table.add_row(
+            "[bold cyan][7][/bold cyan]", f"Limit czasu narzędzia: {timeout_display}"
+        )
         table.add_section()
-        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu Fazy 4")
-        table.add_row("[bold cyan][q][/bold cyan]", "Wyjdź")
-        utils.console.print(Align.center(table))
+        table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu Fazy 4")
 
+        utils.console.print(Align.center(table))
         choice = utils.get_single_char_input_with_prompt(
             Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center")
         )
@@ -281,7 +361,8 @@ def display_phase4_settings_menu(display_banner_func):
             config.SAFE_MODE = not config.SAFE_MODE
             utils.handle_safe_mode_tor_check()
         elif choice == "2":
-            new_depth = Prompt.ask("[bold cyan]Podaj głębokość crawlera[/bold cyan]", default=str(config.CRAWL_DEPTH_P4))
+            prompt = "[bold cyan]Podaj głębokość crawlera[/bold cyan]"
+            new_depth = Prompt.ask(prompt, default=str(config.CRAWL_DEPTH_P4))
             if new_depth.isdigit():
                 config.CRAWL_DEPTH_P4 = int(new_depth)
                 config.USER_CUSTOMIZED_CRAWL_DEPTH_P4 = True
@@ -292,18 +373,21 @@ def display_phase4_settings_menu(display_banner_func):
             config.USE_HEADLESS_BROWSER = not config.USE_HEADLESS_BROWSER
             config.USER_CUSTOMIZED_USE_HEADLESS = True
         elif choice == "5":
-            new_proxy = Prompt.ask("[bold cyan]Podaj adres proxy[/bold cyan]", default=config.PROXY or "")
+            prompt = "[bold cyan]Podaj adres proxy[/bold cyan]"
+            new_proxy = Prompt.ask(prompt, default=config.PROXY or "")
             config.PROXY = new_proxy
             config.USER_CUSTOMIZED_PROXY = bool(new_proxy)
         elif choice == "6":
-            new_threads = Prompt.ask("[bold cyan]Podaj liczbę wątków[/bold cyan]", default=str(config.THREADS))
+            prompt = "[bold cyan]Podaj liczbę wątków[/bold cyan]"
+            new_threads = Prompt.ask(prompt, default=str(config.THREADS))
             if new_threads.isdigit():
                 config.THREADS = int(new_threads)
                 config.USER_CUSTOMIZED_THREADS = True
         elif choice == "7":
-            new_timeout = Prompt.ask("[bold cyan]Podaj limit czasu (s)[/bold cyan]", default=str(config.TOOL_TIMEOUT_SECONDS))
+            prompt = "[bold cyan]Podaj limit czasu (s)[/bold cyan]"
+            new_timeout = Prompt.ask(prompt, default=str(config.TOOL_TIMEOUT_SECONDS))
             if new_timeout.isdigit():
                 config.TOOL_TIMEOUT_SECONDS = int(new_timeout)
                 config.USER_CUSTOMIZED_TIMEOUT = True
-        elif choice.lower() == "b": break
-        elif choice.lower() == "q": sys.exit(0)
+        elif choice.lower() == "b":
+            break

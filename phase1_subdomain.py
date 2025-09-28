@@ -2,11 +2,10 @@
 
 import json
 import os
-import subprocess
 import sys
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from rich.align import Align
 from rich.panel import Panel
@@ -27,53 +26,6 @@ import config
 import utils
 
 
-def _execute_tool_command(
-    tool_name: str, command_parts: List[str], output_file: str, timeout: int
-) -> Optional[str]:
-    cmd_str = " ".join(command_parts)
-    utils.console.print(
-        f"[bold cyan]Uruchamiam {tool_name}:[/bold cyan] [dim white]{cmd_str}[/dim white]"
-    )
-    try:
-        process = subprocess.run(
-            command_parts,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=timeout,
-            text=True,
-            check=False,
-            encoding="utf-8",
-            errors="ignore",
-        )
-
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(process.stdout)
-
-        if process.stderr:
-            utils.log_and_echo(
-                f"Komunikaty z STDERR dla '{tool_name}':\n{process.stderr.strip()}",
-                "DEBUG",
-            )
-
-        if process.returncode == 0:
-            utils.console.print(
-                f"[bold green]✅ {tool_name} zakończył skanowanie.[/bold green]"
-            )
-        else:
-            utils.log_and_echo(
-                f"Narzędzie {tool_name} zakończyło z błędem ({process.returncode}).",
-                "WARN",
-            )
-        return output_file
-
-    except Exception as e:
-        utils.log_and_echo(f"BŁĄD: Ogólny błąd wykonania '{cmd_str}': {e}", "ERROR")
-        utils.console.print(
-            Align.center(f"[bold red]❌ BŁĄD: {tool_name}: {e}[/bold red]")
-        )
-        return None
-
-
 def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]]:
     """
     Uruchamia skanowanie Fazy 1 w celu odkrycia subdomen i wzbogacenia ich o dane.
@@ -88,11 +40,17 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        BarColumn(), MofNCompleteColumn(), "•", TimeElapsedColumn(),
-        console=utils.console, transient=True,
+        BarColumn(),
+        MofNCompleteColumn(),
+        "•",
+        TimeElapsedColumn(),
+        console=utils.console,
+        transient=True,
     ) as progress:
+        tools_enabled = config.selected_phase1_tools
         task1_total = sum(
-            1 for i, en in enumerate(config.selected_phase1_tools)
+            1
+            for i, en in enumerate(tools_enabled)
             if en and not (config.TARGET_IS_IP and i < 3)
         )
         task1 = progress.add_task(
@@ -102,40 +60,45 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
         current_wordlist_p1 = config.WORDLIST_PHASE1
         if config.SAFE_MODE and not config.USER_CUSTOMIZED_WORDLIST_PHASE1:
             current_wordlist_p1 = config.SMALL_WORDLIST_PHASE1
-        
+
         shuffled_path = utils.shuffle_wordlist(current_wordlist_p1, config.REPORT_DIR)
         if shuffled_path:
             current_wordlist_p1 = shuffled_path
             config.TEMP_FILES_TO_CLEAN.append(shuffled_path)
 
         phase1_dir = os.path.join(config.REPORT_DIR, "faza1_subdomain_scanning")
-        
+
         puredns_rate = config.PUREDNS_RATE_LIMIT
         if config.SAFE_MODE and not config.USER_CUSTOMIZED_PUREDNS_RATE_LIMIT:
             puredns_rate = 50
 
-        puredns_base_cmd = [
-            "puredns", "bruteforce", current_wordlist_p1,
-            config.CLEAN_DOMAIN_TARGET, "--resolvers", config.RESOLVERS_FILE,
-            "--rate-limit", str(puredns_rate), "-q"
+        puredns_cmd = [
+            "puredns", "bruteforce", current_wordlist_p1, config.CLEAN_DOMAIN_TARGET,
+            "--resolvers", config.RESOLVERS_FILE, "--rate-limit", str(puredns_rate),
+            "-q",
         ]
-        
+
         tool_configurations = [
-            {"name": "Subfinder", "cmd_template": [
-                "subfinder", "-d", config.CLEAN_DOMAIN_TARGET, "-silent"]},
-            {"name": "Assetfinder", "cmd_template": [
-                "assetfinder", "--subs-only", config.CLEAN_DOMAIN_TARGET]},
-            {"name": "Findomain", "cmd_template": [
-                "findomain", "--target", config.CLEAN_DOMAIN_TARGET, "-q"]},
-            {"name": "Puredns", "cmd_template": puredns_base_cmd},
+            {
+                "name": "Subfinder",
+                "cmd_template": ["subfinder", "-d", config.CLEAN_DOMAIN_TARGET, "-silent"],
+            },
+            {
+                "name": "Assetfinder",
+                "cmd_template": ["assetfinder", "--subs-only", config.CLEAN_DOMAIN_TARGET],
+            },
+            {
+                "name": "Findomain",
+                "cmd_template": ["findomain", "--target", config.CLEAN_DOMAIN_TARGET, "-q"],
+            },
+            {"name": "Puredns", "cmd_template": puredns_cmd},
         ]
 
         tasks_to_run = []
         for i, tool_cfg in enumerate(tool_configurations):
             if config.selected_phase1_tools[i]:
-                if config.TARGET_IS_IP and tool_cfg["name"] in [
-                    "Subfinder", "Assetfinder", "Findomain"
-                ]:
+                is_passive = tool_cfg["name"] in ["Subfinder", "Assetfinder", "Findomain"]
+                if config.TARGET_IS_IP and is_passive:
                     continue
                 output_path = os.path.join(
                     phase1_dir, f"{tool_cfg['name'].lower()}_results.txt"
@@ -145,22 +108,26 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                 )
 
         if not tasks_to_run:
-            utils.console.print(
-                Align.center("Nie wybrano narzędzi, pomijam.", style="bold yellow")
-            )
+            msg = "Nie wybrano narzędzi, pomijam."
+            utils.console.print(Align.center(msg, style="bold yellow"))
             return {}, [], []
 
-        output_files_collected: Dict[str, str] = {}
+        output_files: Dict[str, str] = {}
         with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
             futures: Dict[Future, str] = {
                 executor.submit(
-                    _execute_tool_command, name, cmd, out, config.TOOL_TIMEOUT_SECONDS
-                ): name for name, cmd, out in tasks_to_run
+                    utils.execute_tool_command,
+                    name,
+                    cmd,
+                    out,
+                    config.TOOL_TIMEOUT_SECONDS,
+                ): name
+                for name, cmd, out in tasks_to_run
             }
             for future in as_completed(futures):
                 tool_name = futures[future]
                 if result_file := future.result():
-                    output_files_collected[tool_name] = result_file
+                    output_files[tool_name] = result_file
                 progress.update(task1, advance=1)
 
     utils.console.print(Align.center("Integracja wyników...", style="bold green"))
@@ -169,39 +136,43 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
     )
     config.TEMP_FILES_TO_CLEAN.append(unique_subdomains_file)
     all_lines = []
-    for f_path in output_files_collected.values():
+    for f_path in output_files.values():
         if os.path.exists(f_path):
             with open(f_path, "r", encoding="utf-8") as f:
                 all_lines.extend(f.readlines())
 
     domain_part = f".{config.CLEAN_DOMAIN_TARGET}"
     unique_lines = sorted(
-        list(set(
-            line.strip().lower() for line in all_lines if line.strip() and (
-                domain_part in line.lower() or
-                line.strip().lower() == config.CLEAN_DOMAIN_TARGET
+        list(
+            set(
+                line.strip().lower()
+                for line in all_lines
+                if line.strip()
+                and (
+                    domain_part in line.lower()
+                    or line.strip().lower() == config.CLEAN_DOMAIN_TARGET
+                )
             )
-        ))
+        )
     )
 
     with open(unique_subdomains_file, "w", encoding="utf-8") as f:
         f.write("\n".join(unique_lines))
 
-    active_urls_with_metadata = []
+    active_urls_meta: List[Dict[str, Any]] = []
     status_msg = "[bold green]Weryfikuję subdomeny (HTTPX)...[/bold green]"
     with utils.console.status(status_msg):
         httpx_output_file = os.path.join(config.REPORT_DIR, "httpx_results_phase1.txt")
-        
+
         httpx_rate_limit = config.HTTPX_P1_RATE_LIMIT
         if config.SAFE_MODE and not config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT:
             httpx_rate_limit = 10
 
         httpx_command = [
-            "httpx", "-l", unique_subdomains_file,
-            "-silent", "-fc", "404", "-json", "-irh",
-            "-rate-limit", str(httpx_rate_limit),
+            "httpx", "-l", unique_subdomains_file, "-silent", "-fc", "404",
+            "-json", "-irh", "-rate-limit", str(httpx_rate_limit),
         ]
-        
+
         current_ua = config.CUSTOM_HEADER or utils.user_agent_rotator.get()
         httpx_command.extend(["-H", f"User-Agent: {current_ua}"])
 
@@ -209,14 +180,16 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
             httpx_command.extend(["-p", "80,443,8000,8080,8443"])
             for header in utils.get_random_browser_headers():
                 httpx_command.extend(["-H", header])
-        
+
         if os.path.exists(unique_subdomains_file) and os.path.getsize(unique_subdomains_file) > 0:
-            httpx_result_file = _execute_tool_command(
-                "Httpx (Faza 1)", httpx_command,
-                httpx_output_file, config.TOOL_TIMEOUT_SECONDS
+            httpx_result_file = utils.execute_tool_command(
+                "Httpx (Faza 1)",
+                httpx_command,
+                httpx_output_file,
+                config.TOOL_TIMEOUT_SECONDS,
             )
             if httpx_result_file:
-                output_files_collected["Httpx"] = httpx_result_file
+                output_files["Httpx"] = httpx_result_file
                 with open(httpx_result_file, "r", encoding="utf-8") as f:
                     for line in f:
                         if not line.strip():
@@ -224,21 +197,23 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                         try:
                             data = json.loads(line)
                             if url := data.get("url"):
-                                headers = {k.lower(): v for k, v in data.get("header", {}).items()}
+                                headers = {
+                                    k.lower(): v
+                                    for k, v in data.get("header", {}).items()
+                                }
                                 last_mod = headers.get("last-modified")
-
                                 result_obj = {
-                                    "url": url, "status_code": data.get("status_code"),
+                                    "url": url,
+                                    "status_code": data.get("status_code"),
                                 }
                                 if last_mod:
                                     result_obj["last_modified"] = last_mod
-                                active_urls_with_metadata.append(result_obj)
-
+                                active_urls_meta.append(result_obj)
                         except (json.JSONDecodeError, TypeError):
                             continue
 
-    sorted_active_urls = sorted(active_urls_with_metadata, key=lambda x: x["url"])
-    return output_files_collected, sorted_active_urls, unique_lines
+    sorted_active_urls = sorted(active_urls_meta, key=lambda x: x["url"])
+    return output_files, sorted_active_urls, unique_lines
 
 
 def display_phase1_tool_selection_menu(display_banner_func):
@@ -251,42 +226,53 @@ def display_phase1_tool_selection_menu(display_banner_func):
             )
         )
         safe_mode_status = (
-            "[bold green]WŁĄCZONY[/bold green]" if config.SAFE_MODE
+            "[bold green]WŁĄCZONY[/bold green]"
+            if config.SAFE_MODE
             else "[bold red]WYŁĄCZONY[/bold red]"
         )
         utils.console.print(
-            Align.center(f"Cel: [bold green]{config.ORIGINAL_TARGET}[/bold green] | "
-                         f"Tryb bezpieczny: {safe_mode_status}")
+            Align.center(
+                f"Cel: [bold green]{config.ORIGINAL_TARGET}[/bold green] | "
+                f"Tryb bezpieczny: {safe_mode_status}"
+            )
         )
 
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
         tool_names = ["Subfinder", "Assetfinder", "Findomain", "Puredns (bruteforce)"]
         for i, tool_name in enumerate(tool_names):
-            status = ("[bold green]✓[/bold green]" if config.selected_phase1_tools[i]
-                      else "[bold red]✗[/bold red]")
+            status = (
+                "[bold green]✓[/bold green]"
+                if config.selected_phase1_tools[i]
+                else "[bold red]✗[/bold red]"
+            )
             if config.TARGET_IS_IP and i < 3:
-                table.add_row(f"[bold cyan][{i+1}][/bold cyan]",
-                              f"[dim]{status}[/dim] [dim]{tool_name} (pominięto dla IP)[/dim]")
+                table.add_row(
+                    f"[bold cyan][{i+1}][/bold cyan]",
+                    f"[dim]{status}[/dim] [dim]{tool_name} (pominięto dla IP)[/dim]",
+                )
             else:
                 table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
 
         table.add_section()
-        table.add_row("[bold cyan][s][/bold cyan]", "[bold magenta]Ustawienia Fazy 1[/bold magenta]")
-        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu głównego")
-        table.add_row("[bold cyan][q][/bold cyan]", "Wyjdź")
+        table.add_row(
+            "[bold cyan][s][/bold cyan]",
+            "[bold magenta]Ustawienia Fazy 1[/bold magenta]",
+        )
+        table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu głównego")
+        table.add_row("[bold cyan][\fq][/bold cyan]", "Wyjdź")
 
         utils.console.print(Align.center(table))
         prompt_txt = Text.from_markup(
             "[bold cyan]Wybierz opcję i naciśnij Enter, aby rozpocząć[/bold cyan]",
-            justify="center"
+            justify="center",
         )
         choice = utils.get_single_char_input_with_prompt(prompt_txt)
 
         if choice.isdigit() and 1 <= int(choice) <= 4:
             idx = int(choice) - 1
             if config.TARGET_IS_IP and idx < 3:
-                msg = "[bold yellow]Nie można włączyć narzędzi pasywnych dla IP.[/bold yellow]"
-                utils.console.print(Align.center(msg))
+                msg = "[yellow]Nie można włączyć narzędzi pasywnych dla IP.[/yellow]"
+                utils.console.print(Align.center(msg, style="bold"))
             else:
                 config.selected_phase1_tools[idx] ^= 1
         elif choice.lower() == "s":
@@ -318,43 +304,59 @@ def display_phase1_settings_menu(display_banner_func):
         )
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
 
-        # --- Logika wyświetlania dla Wordlist ---
-        wordlist_display = f"[dim]{config.WORDLIST_PHASE1}[/dim]"
-        if config.USER_CUSTOMIZED_WORDLIST_PHASE1:
-            wordlist_display = f"[bold green]{config.WORDLIST_PHASE1} (Użytkownika)[/bold green]"
-        elif config.SAFE_MODE:
-            wordlist_display = f"[bold yellow]{config.SMALL_WORDLIST_PHASE1} (Safe Mode)[/bold yellow]"
-
-        # --- Logika wyświetlania dla User-Agent ---
-        ua_display = "[dim]Domyślny (losowy)[/dim]"
-        if config.USER_CUSTOMIZED_USER_AGENT:
-            ua_display = f"[bold green]{config.CUSTOM_HEADER} (Użytkownika)[/bold green]"
-        
-        # --- Logika wyświetlania dla Rate Limit (Puredns) ---
-        puredns_rate_display = f"[dim]{config.PUREDNS_RATE_LIMIT}[/dim]"
-        if config.USER_CUSTOMIZED_PUREDNS_RATE_LIMIT:
-            puredns_rate_display = f"[bold green]{config.PUREDNS_RATE_LIMIT} (Użytkownika)[/bold green]"
-        elif config.SAFE_MODE:
-            puredns_rate_display = "[bold yellow]50 (Safe Mode)[/bold yellow]"
-            
-        # --- Logika wyświetlania dla Rate Limit (Httpx) ---
-        httpx_rate_display = f"[dim]{config.HTTPX_P1_RATE_LIMIT}[/dim]"
-        if config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT:
-            httpx_rate_display = f"[bold green]{config.HTTPX_P1_RATE_LIMIT} (Użytkownika)[/bold green]"
-        elif config.SAFE_MODE:
-            httpx_rate_display = "[bold yellow]10 (Safe Mode)[/bold yellow]"
-
-        # --- Budowa tabeli ---
+        wordlist_disp = (
+            f"[bold green]{config.WORDLIST_PHASE1} (Użytkownika)[/bold green]"
+            if config.USER_CUSTOMIZED_WORDLIST_PHASE1
+            else (
+                f"[bold yellow]{config.SMALL_WORDLIST_PHASE1} (Safe Mode)[/bold yellow]"
+                if config.SAFE_MODE
+                else f"[dim]{config.WORDLIST_PHASE1}[/dim]"
+            )
+        )
+        resolvers_disp = (
+            f"[bold green]{config.RESOLVERS_FILE} (Użytkownika)[/bold green]"
+            if config.USER_CUSTOMIZED_RESOLVERS
+            else f"[dim]{config.RESOLVERS_FILE}[/dim]"
+        )
+        threads_disp = (
+            f"[bold green]{config.THREADS} (Użytkownika)[/bold green]"
+            if config.USER_CUSTOMIZED_THREADS
+            else f"[dim]{config.THREADS}[/dim]"
+        )
+        ua_disp = (
+            f"[bold green]{config.CUSTOM_HEADER} (Użytkownika)[/bold green]"
+            if config.USER_CUSTOMIZED_USER_AGENT and config.CUSTOM_HEADER
+            else "[dim]Domyślny (losowy)[/dim]"
+        )
+        puredns_rate_disp = (
+            f"[bold green]{config.PUREDNS_RATE_LIMIT} (Użytkownika)[/bold green]"
+            if config.USER_CUSTOMIZED_PUREDNS_RATE_LIMIT
+            else (
+                "[bold yellow]50 (Safe Mode)[/bold yellow]"
+                if config.SAFE_MODE
+                else f"[dim]{config.PUREDNS_RATE_LIMIT}[/dim]"
+            )
+        )
+        httpx_rate_disp = (
+            f"[bold green]{config.HTTPX_P1_RATE_LIMIT} (Użytkownika)[/bold green]"
+            if config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT
+            else (
+                "[bold yellow]10 (Safe Mode)[/bold yellow]"
+                if config.SAFE_MODE
+                else f"[dim]{config.HTTPX_P1_RATE_LIMIT}[/dim]"
+            )
+        )
         safe_status = "[bold green]✓[/bold green]" if config.SAFE_MODE else "[bold red]✗[/bold red]"
+
         table.add_row("[bold cyan][1][/bold cyan]", f"[{safe_status}] Tryb bezpieczny")
-        table.add_row("[bold cyan][2][/bold cyan]", f"Lista słów (Puredns): {wordlist_display}")
-        table.add_row("[bold cyan][3][/bold cyan]", f"Plik resolverów: [dim]{config.RESOLVERS_FILE}[/dim]")
-        table.add_row("[bold cyan][4][/bold cyan]", f"Wątki: [dim]{config.THREADS}[/dim]")
-        table.add_row("[bold cyan][5][/bold cyan]", f"User-Agent (Httpx): {ua_display}")
-        table.add_row("[bold cyan][6][/bold cyan]", f"Rate Limit (Puredns): {puredns_rate_display}")
-        table.add_row("[bold cyan][7][/bold cyan]", f"Rate Limit (Httpx): {httpx_rate_display}")
+        table.add_row("[bold cyan][2][/bold cyan]", f"Lista słów (Puredns): {wordlist_disp}")
+        table.add_row("[bold cyan][3][/bold cyan]", f"Plik resolverów: {resolvers_disp}")
+        table.add_row("[bold cyan][4][/bold cyan]", f"Wątki: {threads_disp}")
+        table.add_row("[bold cyan][5][/bold cyan]", f"User-Agent (Httpx): {ua_disp}")
+        table.add_row("[bold cyan][6][/bold cyan]", f"Rate Limit (Puredns): {puredns_rate_disp}")
+        table.add_row("[bold cyan][7][/bold cyan]", f"Rate Limit (Httpx): {httpx_rate_disp}")
         table.add_section()
-        table.add_row("[bold cyan][b][/bold cyan]", "Powrót do menu Fazy 1")
+        table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu Fazy 1")
 
         utils.console.print(Align.center(table))
         choice = utils.get_single_char_input_with_prompt(
@@ -365,35 +367,43 @@ def display_phase1_settings_menu(display_banner_func):
             config.SAFE_MODE = not config.SAFE_MODE
             utils.handle_safe_mode_tor_check()
         elif choice == "2":
-            new_path = Prompt.ask("[bold cyan]Podaj ścieżkę do listy słów[/bold cyan]", default=config.WORDLIST_PHASE1)
+            prompt = "[bold cyan]Podaj ścieżkę do listy słów[/bold cyan]"
+            new_path = Prompt.ask(prompt, default=config.WORDLIST_PHASE1)
             if os.path.isfile(new_path):
                 config.WORDLIST_PHASE1 = new_path
                 config.USER_CUSTOMIZED_WORDLIST_PHASE1 = True
             else:
-                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"), time.sleep(1))
+                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"))
+                time.sleep(1)
         elif choice == "3":
-            new_path = Prompt.ask("[bold cyan]Podaj ścieżkę do pliku resolverów[/bold cyan]", default=config.RESOLVERS_FILE)
+            prompt = "[bold cyan]Podaj ścieżkę do pliku resolverów[/bold cyan]"
+            new_path = Prompt.ask(prompt, default=config.RESOLVERS_FILE)
             if os.path.isfile(new_path):
                 config.RESOLVERS_FILE = new_path
                 config.USER_CUSTOMIZED_RESOLVERS = True
             else:
-                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"), time.sleep(1))
+                utils.console.print(Align.center("[bold red]Plik nie istnieje.[/bold red]"))
+                time.sleep(1)
         elif choice == "4":
-            new_threads = Prompt.ask("[bold cyan]Podaj liczbę wątków[/bold cyan]", default=str(config.THREADS))
+            prompt = "[bold cyan]Podaj liczbę wątków[/bold cyan]"
+            new_threads = Prompt.ask(prompt, default=str(config.THREADS))
             if new_threads.isdigit():
                 config.THREADS = int(new_threads)
                 config.USER_CUSTOMIZED_THREADS = True
         elif choice == "5":
-            new_ua = Prompt.ask("[bold cyan]Podaj własny User-Agent[/bold cyan]", default=config.CUSTOM_HEADER)
+            prompt = "[bold cyan]Podaj własny User-Agent[/bold cyan]"
+            new_ua = Prompt.ask(prompt, default=config.CUSTOM_HEADER)
             config.CUSTOM_HEADER = new_ua
             config.USER_CUSTOMIZED_USER_AGENT = bool(new_ua)
         elif choice == "6":
-            new_rate = Prompt.ask("[bold cyan]Podaj rate limit dla Puredns[/bold cyan]", default=str(config.PUREDNS_RATE_LIMIT))
+            prompt = "[bold cyan]Podaj rate limit dla Puredns[/bold cyan]"
+            new_rate = Prompt.ask(prompt, default=str(config.PUREDNS_RATE_LIMIT))
             if new_rate.isdigit():
                 config.PUREDNS_RATE_LIMIT = int(new_rate)
                 config.USER_CUSTOMIZED_PUREDNS_RATE_LIMIT = True
         elif choice == "7":
-            new_rate = Prompt.ask("[bold cyan]Podaj rate limit dla Httpx[/bold cyan]", default=str(config.HTTPX_P1_RATE_LIMIT))
+            prompt = "[bold cyan]Podaj rate limit dla Httpx[/bold cyan]"
+            new_rate = Prompt.ask(prompt, default=str(config.HTTPX_P1_RATE_LIMIT))
             if new_rate.isdigit():
                 config.HTTPX_P1_RATE_LIMIT = int(new_rate)
                 config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT = True

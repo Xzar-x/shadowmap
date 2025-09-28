@@ -15,12 +15,22 @@ SMALL_WORDLIST_PHASE1 = (
     "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
 )
 
-DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
-SMALL_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt"
+DEFAULT_WORDLIST_PHASE3 = (
+    "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
+)
+SMALL_WORDLIST_PHASE3 = (
+    "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt"
+)
 
-WORDPRESS_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt"
-JOOMLA_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/joomla.fuzz.txt"
-DRUPAL_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/drupal.fuzz.txt"
+WORDPRESS_WORDLIST = (
+    "/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt"
+)
+JOOMLA_WORDLIST = (
+    "/usr/share/seclists/Discovery/Web-Content/CMS/joomla.fuzz.txt"
+)
+DRUPAL_WORDLIST = (
+    "/usr/share/seclists/Discovery/Web-Content/CMS/drupal.fuzz.txt"
+)
 TOMCAT_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/tomcat.txt"
 
 DEFAULT_RESOLVERS_FILE = os.path.join(SHARE_DIR, "resolvers.txt")
@@ -47,8 +57,8 @@ EXCLUSION_PATTERNS: List[str] = []
 
 # --- Filtrowanie OSINT ---
 OSINT_TECH_BLOCKLIST: List[str] = [
-    "ip", "script", "title", "country", "email", "httpserver", 
-    "uncommonheaders", "redirectlocation", "metagenerator", "html5"
+    "ip", "script", "title", "country", "email", "httpserver",
+    "uncommonheaders", "redirectlocation", "metagenerator", "html5",
 ]
 
 
@@ -57,7 +67,6 @@ ORIGINAL_TARGET: str = ""
 HOSTNAME_TARGET: str = ""
 CLEAN_DOMAIN_TARGET: str = ""
 TARGET_IS_IP: bool = False
-TARGET_PORT: Optional[int] = None # NOWOŚĆ: Przechowuje port celu
 
 # --- Ustawienia narzędzi ---
 THREADS: int = 40
@@ -125,4 +134,3 @@ USER_CUSTOMIZED_USE_HEADLESS: bool = False
 USER_CUSTOMIZED_PUREDNS_RATE_LIMIT: bool = False
 USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT: bool = False
 USER_CUSTOMIZED_IGNORED_EXTENSIONS: bool = False
-

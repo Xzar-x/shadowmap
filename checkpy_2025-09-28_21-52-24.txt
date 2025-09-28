@@ -1,0 +1,369 @@
+===== CHECKPY START (2025-09-28_21-52-24) =====
+Katalog: .
+
+▶️ Black (formatowanie)...
+▶️ isort (importy)...
+Skipped 2 files
+▶️ Flake8 (styl i błędy)...
+./install.py:36:80: E501 line too long (81 > 79 characters)
+./install.py:65:80: E501 line too long (80 > 79 characters)
+./install.py:69:80: E501 line too long (93 > 79 characters)
+./install.py:89:80: E501 line too long (84 > 79 characters)
+./install.py:100:80: E501 line too long (92 > 79 characters)
+./install.py:155:80: E501 line too long (87 > 79 characters)
+./install.py:162:80: E501 line too long (93 > 79 characters)
+./install.py:166:80: E501 line too long (86 > 79 characters)
+./install.py:168:80: E501 line too long (80 > 79 characters)
+./install.py:175:80: E501 line too long (94 > 79 characters)
+./install.py:177:80: E501 line too long (83 > 79 characters)
+./install.py:188:80: E501 line too long (97 > 79 characters)
+./install.py:206:80: E501 line too long (83 > 79 characters)
+./install.py:208:80: E501 line too long (80 > 79 characters)
+./install.py:211:1: W293 blank line contains whitespace
+./install.py:213:80: E501 line too long (91 > 79 characters)
+./install.py:225:80: E501 line too long (82 > 79 characters)
+./install.py:232:80: E501 line too long (82 > 79 characters)
+./install.py:235:80: E501 line too long (81 > 79 characters)
+./install.py:236:80: E501 line too long (80 > 79 characters)
+./install.py:237:80: E501 line too long (84 > 79 characters)
+./install.py:251:80: E501 line too long (87 > 79 characters)
+./phase0_osint.py:32:80: E501 line too long (81 > 79 characters)
+./phase0_osint.py:55:80: E501 line too long (83 > 79 characters)
+./phase0_osint.py:80:80: E501 line too long (85 > 79 characters)
+./phase0_osint.py:84:80: E501 line too long (89 > 79 characters)
+./phase0_osint.py:108:80: E501 line too long (88 > 79 characters)
+./phase0_osint.py:131:80: E501 line too long (85 > 79 characters)
+./phase0_osint.py:156:80: E501 line too long (83 > 79 characters)
+./phase0_osint.py:186:80: E501 line too long (86 > 79 characters)
+./phase0_osint.py:215:80: E501 line too long (81 > 79 characters)
+./phase0_osint.py:266:80: E501 line too long (80 > 79 characters)
+./phase0_osint.py:274:80: E501 line too long (81 > 79 characters)
+./phase0_osint.py:283:80: E501 line too long (84 > 79 characters)
+./phase0_osint.py:307:80: E501 line too long (84 > 79 characters)
+./phase0_osint.py:315:80: E501 line too long (85 > 79 characters)
+./phase0_osint.py:321:80: E501 line too long (86 > 79 characters)
+./phase0_osint.py:329:80: E501 line too long (91 > 79 characters)
+./phase0_osint.py:332:80: E501 line too long (81 > 79 characters)
+./phase0_osint.py:351:80: E501 line too long (90 > 79 characters)
+./phase0_osint.py:352:80: E501 line too long (84 > 79 characters)
+./phase0_osint.py:356:80: E501 line too long (83 > 79 characters)
+./phase0_osint.py:362:80: E501 line too long (81 > 79 characters)
+./phase0_osint.py:367:80: E501 line too long (80 > 79 characters)
+./phase0_osint.py:368:80: E501 line too long (88 > 79 characters)
+./phase0_osint.py:369:80: E501 line too long (91 > 79 characters)
+./phase0_osint.py:371:80: E501 line too long (82 > 79 characters)
+./phase0_osint.py:389:80: E501 line too long (86 > 79 characters)
+./phase0_osint.py:397:80: E501 line too long (93 > 79 characters)
+./phase1_subdomain.py:29:80: E501 line too long (82 > 79 characters)
+./phase1_subdomain.py:31:80: E501 line too long (82 > 79 characters)
+./phase1_subdomain.py:64:80: E501 line too long (86 > 79 characters)
+./phase1_subdomain.py:69:80: E501 line too long (80 > 79 characters)
+./phase1_subdomain.py:76:80: E501 line too long (85 > 79 characters)
+./phase1_subdomain.py:77:80: E501 line too long (84 > 79 characters)
+./phase1_subdomain.py:84:80: E501 line too long (91 > 79 characters)
+./phase1_subdomain.py:88:80: E501 line too long (91 > 79 characters)
+./phase1_subdomain.py:92:80: E501 line too long (92 > 79 characters)
+./phase1_subdomain.py:100:80: E501 line too long (90 > 79 characters)
+./phase1_subdomain.py:133:80: E501 line too long (82 > 79 characters)
+./phase1_subdomain.py:165:80: E501 line too long (87 > 79 characters)
+./phase1_subdomain.py:184:80: E501 line too long (98 > 79 characters)
+./phase1_subdomain.py:225:80: E501 line too long (85 > 79 characters)
+./phase1_subdomain.py:241:80: E501 line too long (86 > 79 characters)
+./phase1_subdomain.py:251:80: E501 line too long (85 > 79 characters)
+./phase1_subdomain.py:254:80: E501 line too long (89 > 79 characters)
+./phase1_subdomain.py:261:80: E501 line too long (80 > 79 characters)
+./phase1_subdomain.py:266:80: E501 line too long (83 > 79 characters)
+./phase1_subdomain.py:274:80: E501 line too long (85 > 79 characters)
+./phase1_subdomain.py:288:80: E501 line too long (87 > 79 characters)
+./phase1_subdomain.py:311:80: E501 line too long (88 > 79 characters)
+./phase1_subdomain.py:332:80: E501 line too long (81 > 79 characters)
+./phase1_subdomain.py:341:80: E501 line too long (82 > 79 characters)
+./phase1_subdomain.py:349:80: E501 line too long (100 > 79 characters)
+./phase1_subdomain.py:351:80: E501 line too long (87 > 79 characters)
+./phase1_subdomain.py:352:80: E501 line too long (93 > 79 characters)
+./phase1_subdomain.py:353:80: E501 line too long (89 > 79 characters)
+./phase1_subdomain.py:355:80: E501 line too long (85 > 79 characters)
+./phase1_subdomain.py:356:80: E501 line too long (97 > 79 characters)
+./phase1_subdomain.py:357:80: E501 line too long (93 > 79 characters)
+./phase1_subdomain.py:363:80: E501 line too long (86 > 79 characters)
+./phase1_subdomain.py:376:80: E501 line too long (92 > 79 characters)
+./phase1_subdomain.py:385:80: E501 line too long (92 > 79 characters)
+./phase1_subdomain.py:400:80: E501 line too long (81 > 79 characters)
+./phase1_subdomain.py:406:80: E501 line too long (82 > 79 characters)
+./phase2_port_scanning.py:32:80: E501 line too long (83 > 79 characters)
+./phase2_port_scanning.py:126:80: E501 line too long (84 > 79 characters)
+./phase2_port_scanning.py:143:80: E501 line too long (88 > 79 characters)
+./phase2_port_scanning.py:157:80: E501 line too long (86 > 79 characters)
+./phase2_port_scanning.py:160:80: E501 line too long (80 > 79 characters)
+./phase2_port_scanning.py:181:80: E501 line too long (92 > 79 characters)
+./phase2_port_scanning.py:191:80: E501 line too long (91 > 79 characters)
+./phase2_port_scanning.py:220:80: E501 line too long (85 > 79 characters)
+./phase2_port_scanning.py:221:80: E501 line too long (95 > 79 characters)
+./phase2_port_scanning.py:223:80: E501 line too long (92 > 79 characters)
+./phase2_port_scanning.py:226:80: E501 line too long (80 > 79 characters)
+./phase2_port_scanning.py:231:80: E501 line too long (88 > 79 characters)
+./phase2_port_scanning.py:235:80: E501 line too long (104 > 79 characters)
+./phase2_port_scanning.py:237:80: E501 line too long (97 > 79 characters)
+./phase2_port_scanning.py:238:80: E501 line too long (88 > 79 characters)
+./phase2_port_scanning.py:241:80: E501 line too long (102 > 79 characters)
+./phase2_port_scanning.py:258:80: E501 line too long (92 > 79 characters)
+./phase2_port_scanning.py:262:80: E501 line too long (88 > 79 characters)
+./phase2_port_scanning.py:271:80: E501 line too long (88 > 79 characters)
+./phase2_port_scanning.py:273:80: E501 line too long (92 > 79 characters)
+./phase2_port_scanning.py:288:80: E501 line too long (90 > 79 characters)
+./phase2_port_scanning.py:307:80: E501 line too long (98 > 79 characters)
+./phase2_port_scanning.py:357:80: E501 line too long (85 > 79 characters)
+./phase2_port_scanning.py:363:80: E501 line too long (80 > 79 characters)
+./phase2_port_scanning.py:370:80: E501 line too long (85 > 79 characters)
+./phase2_port_scanning.py:386:80: E501 line too long (87 > 79 characters)
+./phase2_port_scanning.py:389:80: E501 line too long (96 > 79 characters)
+./phase2_port_scanning.py:426:80: E501 line too long (97 > 79 characters)
+./phase2_port_scanning.py:430:80: E501 line too long (98 > 79 characters)
+./phase2_port_scanning.py:431:80: E501 line too long (108 > 79 characters)
+./phase2_port_scanning.py:432:80: E501 line too long (108 > 79 characters)
+./phase2_port_scanning.py:434:80: E501 line too long (85 > 79 characters)
+./phase2_port_scanning.py:437:80: E501 line too long (98 > 79 characters)
+./phase2_port_scanning.py:438:80: E501 line too long (88 > 79 characters)
+./phase2_port_scanning.py:439:80: E501 line too long (97 > 79 characters)
+./phase2_port_scanning.py:442:80: E501 line too long (101 > 79 characters)
+./phase2_port_scanning.py:445:80: E501 line too long (105 > 79 characters)
+./phase2_port_scanning.py:452:80: E501 line too long (86 > 79 characters)
+./phase2_port_scanning.py:483:80: E501 line too long (96 > 79 characters)
+./phase2_port_scanning.py:487:80: E501 line too long (81 > 79 characters)
+./phase2_port_scanning.py:494:80: E501 line too long (96 > 79 characters)
+./phase3_dirsearch.py:5:1: F401 'random' imported but unused
+./phase3_dirsearch.py:44:80: E501 line too long (80 > 79 characters)
+./phase3_dirsearch.py:48:80: E501 line too long (87 > 79 characters)
+./phase3_dirsearch.py:74:80: E501 line too long (85 > 79 characters)
+./phase3_dirsearch.py:93:80: E501 line too long (86 > 79 characters)
+./phase3_dirsearch.py:121:80: E501 line too long (83 > 79 characters)
+./phase3_dirsearch.py:130:80: E501 line too long (88 > 79 characters)
+./phase3_dirsearch.py:136:80: E501 line too long (86 > 79 characters)
+./phase3_dirsearch.py:148:80: E501 line too long (95 > 79 characters)
+./phase3_dirsearch.py:188:80: E501 line too long (81 > 79 characters)
+./phase3_dirsearch.py:211:80: E501 line too long (80 > 79 characters)
+./phase3_dirsearch.py:215:80: E501 line too long (88 > 79 characters)
+./phase3_dirsearch.py:228:80: E501 line too long (84 > 79 characters)
+./phase3_dirsearch.py:266:80: E501 line too long (95 > 79 characters)
+./phase3_dirsearch.py:274:80: E501 line too long (80 > 79 characters)
+./phase3_dirsearch.py:279:80: E501 line too long (91 > 79 characters)
+./phase3_dirsearch.py:280:80: E501 line too long (119 > 79 characters)
+./phase3_dirsearch.py:281:80: E501 line too long (115 > 79 characters)
+./phase3_dirsearch.py:282:80: E501 line too long (123 > 79 characters)
+./phase3_dirsearch.py:287:80: E501 line too long (197 > 79 characters)
+./phase3_dirsearch.py:288:80: E501 line too long (87 > 79 characters)
+./phase3_dirsearch.py:291:80: E501 line too long (90 > 79 characters)
+./phase3_dirsearch.py:299:80: E501 line too long (92 > 79 characters)
+./phase3_dirsearch.py:311:80: E501 line too long (106 > 79 characters)
+./phase3_dirsearch.py:312:44: E701 multiple statements on one line (colon)
+./phase3_dirsearch.py:313:80: E501 line too long (91 > 79 characters)
+./phase3_dirsearch.py:314:59: E701 multiple statements on one line (colon)
+./phase3_dirsearch.py:314:80: E501 line too long (93 > 79 characters)
+./phase3_dirsearch.py:315:63: E701 multiple statements on one line (colon)
+./phase3_dirsearch.py:315:80: E501 line too long (99 > 79 characters)
+./phase3_dirsearch.py:319:80: E501 line too long (80 > 79 characters)
+./phase3_dirsearch.py:321:80: E501 line too long (83 > 79 characters)
+./phase3_dirsearch.py:333:80: E501 line too long (80 > 79 characters)
+./phase3_dirsearch.py:335:80: E501 line too long (103 > 79 characters)
+./phase3_dirsearch.py:336:44: E701 multiple statements on one line (colon)
+./phase3_dirsearch.py:345:80: E501 line too long (86 > 79 characters)
+./phase3_dirsearch.py:346:44: E701 multiple statements on one line (colon)
+./phase3_dirsearch.py:347:80: E501 line too long (86 > 79 characters)
+./phase3_dirsearch.py:350:80: E501 line too long (123 > 79 characters)
+./phase3_dirsearch.py:358:80: E501 line too long (101 > 79 characters)
+./phase3_dirsearch.py:371:80: E501 line too long (87 > 79 characters)
+./phase3_dirsearch.py:379:80: E501 line too long (85 > 79 characters)
+./phase3_dirsearch.py:380:80: E501 line too long (127 > 79 characters)
+./phase3_dirsearch.py:385:80: E501 line too long (87 > 79 characters)
+./phase3_dirsearch.py:386:80: E501 line too long (91 > 79 characters)
+./phase3_dirsearch.py:396:80: E501 line too long (87 > 79 characters)
+./phase3_dirsearch.py:405:80: E501 line too long (106 > 79 characters)
+./phase3_dirsearch.py:409:80: E501 line too long (95 > 79 characters)
+./phase3_dirsearch.py:420:80: E501 line too long (100 > 79 characters)
+./phase3_dirsearch.py:421:80: E501 line too long (113 > 79 characters)
+./phase3_dirsearch.py:427:80: E501 line too long (114 > 79 characters)
+./phase3_dirsearch.py:428:80: E501 line too long (85 > 79 characters)
+./phase3_dirsearch.py:431:80: E501 line too long (101 > 79 characters)
+./phase3_dirsearch.py:437:80: E501 line too long (85 > 79 characters)
+./phase3_dirsearch.py:445:35: E701 multiple statements on one line (colon)
+./phase3_dirsearch.py:446:35: E701 multiple statements on one line (colon)
+./phase3_dirsearch.py:448:49: E701 multiple statements on one line (colon)
+./phase3_dirsearch.py:449:17: E701 multiple statements on one line (colon)
+./phase3_dirsearch.py:449:80: E501 line too long (108 > 79 characters)
+./phase3_dirsearch.py:450:13: E701 multiple statements on one line (colon)
+./phase3_dirsearch.py:450:80: E501 line too long (88 > 79 characters)
+./phase3_dirsearch.py:458:80: E501 line too long (96 > 79 characters)
+./phase3_dirsearch.py:461:80: E501 line too long (91 > 79 characters)
+./phase3_dirsearch.py:462:28: E127 continuation line over-indented for visual indent
+./phase3_dirsearch.py:463:28: E127 continuation line over-indented for visual indent
+./phase3_dirsearch.py:463:80: E501 line too long (100 > 79 characters)
+./phase3_dirsearch.py:464:80: E501 line too long (93 > 79 characters)
+./phase3_dirsearch.py:465:80: E501 line too long (91 > 79 characters)
+./phase3_dirsearch.py:466:26: E127 continuation line over-indented for visual indent
+./phase3_dirsearch.py:466:80: E501 line too long (117 > 79 characters)
+./phase3_dirsearch.py:468:80: E501 line too long (87 > 79 characters)
+./phase3_dirsearch.py:469:32: E127 continuation line over-indented for visual indent
+./phase3_dirsearch.py:469:80: E501 line too long (113 > 79 characters)
+./phase3_dirsearch.py:470:80: E501 line too long (118 > 79 characters)
+./phase3_dirsearch.py:471:80: E501 line too long (116 > 79 characters)
+./phase3_dirsearch.py:472:80: E501 line too long (106 > 79 characters)
+./phase3_dirsearch.py:473:80: E501 line too long (98 > 79 characters)
+./phase3_dirsearch.py:475:80: E501 line too long (85 > 79 characters)
+./phase3_dirsearch.py:476:80: E501 line too long (83 > 79 characters)
+./phase3_dirsearch.py:477:80: E501 line too long (88 > 79 characters)
+./phase3_dirsearch.py:478:80: E501 line too long (111 > 79 characters)
+./phase3_dirsearch.py:479:80: E501 line too long (109 > 79 characters)
+./phase3_dirsearch.py:480:80: E501 line too long (88 > 79 characters)
+./phase3_dirsearch.py:481:80: E501 line too long (99 > 79 characters)
+./phase3_dirsearch.py:486:80: E501 line too long (132 > 79 characters)
+./phase3_dirsearch.py:492:80: E501 line too long (119 > 79 characters)
+./phase3_dirsearch.py:497:80: E501 line too long (92 > 79 characters)
+./phase3_dirsearch.py:500:80: E501 line too long (125 > 79 characters)
+./phase3_dirsearch.py:507:80: E501 line too long (81 > 79 characters)
+./phase3_dirsearch.py:513:80: E501 line too long (86 > 79 characters)
+./phase3_dirsearch.py:516:80: E501 line too long (110 > 79 characters)
+./phase4_webcrawling.py:47:80: E501 line too long (81 > 79 characters)
+./phase4_webcrawling.py:151:80: E501 line too long (91 > 79 characters)
+./phase4_webcrawling.py:155:80: E501 line too long (89 > 79 characters)
+./phase4_webcrawling.py:264:80: E501 line too long (85 > 79 characters)
+./phase4_webcrawling.py:270:80: E501 line too long (80 > 79 characters)
+./phase4_webcrawling.py:274:80: E501 line too long (88 > 79 characters)
+./phase4_webcrawling.py:294:80: E501 line too long (87 > 79 characters)
+./phase4_webcrawling.py:297:80: E501 line too long (96 > 79 characters)
+./phase4_webcrawling.py:321:80: E501 line too long (84 > 79 characters)
+./phase4_webcrawling.py:330:80: E501 line too long (100 > 79 characters)
+./phase4_webcrawling.py:331:80: E501 line too long (104 > 79 characters)
+./phase4_webcrawling.py:332:80: E501 line too long (115 > 79 characters)
+./phase4_webcrawling.py:334:80: E501 line too long (87 > 79 characters)
+./phase4_webcrawling.py:348:80: E501 line too long (88 > 79 characters)
+./phase4_webcrawling.py:350:80: E501 line too long (85 > 79 characters)
+./phase4_webcrawling.py:357:80: E501 line too long (86 > 79 characters)
+./phase4_webcrawling.py:388:80: E501 line too long (86 > 79 characters)
+./shadowmap.py:42:80: E501 line too long (81 > 79 characters)
+./shadowmap.py:70:80: E501 line too long (85 > 79 characters)
+./shadowmap.py:102:80: E501 line too long (87 > 79 characters)
+./shadowmap.py:103:80: E501 line too long (87 > 79 characters)
+./shadowmap.py:117:80: E501 line too long (80 > 79 characters)
+./shadowmap.py:124:80: E501 line too long (81 > 79 characters)
+./shadowmap.py:143:80: E501 line too long (83 > 79 characters)
+./shadowmap.py:169:80: E501 line too long (81 > 79 characters)
+./shadowmap.py:207:80: E501 line too long (81 > 79 characters)
+./shadowmap.py:221:80: E501 line too long (82 > 79 characters)
+./shadowmap.py:233:80: E501 line too long (81 > 79 characters)
+./shadowmap.py:245:80: E501 line too long (86 > 79 characters)
+./shadowmap.py:290:80: E501 line too long (82 > 79 characters)
+./shadowmap.py:328:80: E501 line too long (80 > 79 characters)
+./shadowmap.py:401:80: E501 line too long (84 > 79 characters)
+./shadowmap.py:446:80: E501 line too long (81 > 79 characters)
+./shadowmap.py:449:80: E501 line too long (81 > 79 characters)
+./shadowmap.py:452:80: E501 line too long (86 > 79 characters)
+./shadowmap.py:470:80: E501 line too long (85 > 79 characters)
+./shadowmap.py:472:80: E501 line too long (92 > 79 characters)
+./shadowmap.py:492:80: E501 line too long (89 > 79 characters)
+./shadowmap.py:496:80: E501 line too long (89 > 79 characters)
+./shadowmap.py:508:80: E501 line too long (85 > 79 characters)
+./shadowmap.py:515:80: E501 line too long (89 > 79 characters)
+./shadowmap.py:519:80: E501 line too long (85 > 79 characters)
+./shadowmap.py:521:80: E501 line too long (85 > 79 characters)
+./shadowmap.py:525:80: E501 line too long (83 > 79 characters)
+./shadowmap.py:526:80: E501 line too long (88 > 79 characters)
+./shadowmap.py:529:80: E501 line too long (95 > 79 characters)
+./shadowmap.py:546:80: E501 line too long (98 > 79 characters)
+./shadowmap.py:561:80: E501 line too long (86 > 79 characters)
+./shadowmap.py:569:80: E501 line too long (87 > 79 characters)
+./shadowmap.py:571:80: E501 line too long (85 > 79 characters)
+./shadowmap.py:575:80: E501 line too long (83 > 79 characters)
+./shadowmap.py:576:80: E501 line too long (88 > 79 characters)
+./shadowmap.py:579:80: E501 line too long (95 > 79 characters)
+./utils.py:13:1: F401 'concurrent.futures.Future' imported but unused
+./utils.py:34:80: E501 line too long (84 > 79 characters)
+./utils.py:77:80: E501 line too long (81 > 79 characters)
+./utils.py:101:80: E501 line too long (84 > 79 characters)
+./utils.py:111:80: E501 line too long (85 > 79 characters)
+./utils.py:133:80: E501 line too long (84 > 79 characters)
+./utils.py:201:80: E501 line too long (81 > 79 characters)
+./utils.py:205:80: E501 line too long (84 > 79 characters)
+▶️ mypy (typy)...
+install.py:9: error: Cannot find implementation or library stub for module named "questionary"  [import-not-found]
+install.py:10: error: Cannot find implementation or library stub for module named "pyfiglet"  [import-not-found]
+install.py:11: error: Cannot find implementation or library stub for module named "rich"  [import-not-found]
+install.py:12: error: Cannot find implementation or library stub for module named "rich.align"  [import-not-found]
+install.py:12: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+install.py:13: error: Cannot find implementation or library stub for module named "rich.columns"  [import-not-found]
+install.py:14: error: Cannot find implementation or library stub for module named "rich.console"  [import-not-found]
+install.py:15: error: Cannot find implementation or library stub for module named "rich.panel"  [import-not-found]
+install.py:16: error: Cannot find implementation or library stub for module named "rich.table"  [import-not-found]
+install.py:17: error: Cannot find implementation or library stub for module named "rich.text"  [import-not-found]
+utils.py:16: error: Cannot find implementation or library stub for module named "rich.align"  [import-not-found]
+utils.py:17: error: Cannot find implementation or library stub for module named "rich.console"  [import-not-found]
+utils.py:18: error: Cannot find implementation or library stub for module named "rich.markup"  [import-not-found]
+utils.py:19: error: Cannot find implementation or library stub for module named "rich.panel"  [import-not-found]
+utils.py:20: error: Cannot find implementation or library stub for module named "rich.text"  [import-not-found]
+utils.py:23: error: Library stubs not installed for "requests"  [import-untyped]
+utils.py:24: error: Library stubs not installed for "requests.packages.urllib3.exceptions"  [import-untyped]
+phase4_webcrawling.py:11: error: Cannot find implementation or library stub for module named "rich.align"  [import-not-found]
+phase4_webcrawling.py:12: error: Cannot find implementation or library stub for module named "rich.panel"  [import-not-found]
+phase4_webcrawling.py:13: error: Cannot find implementation or library stub for module named "rich.progress"  [import-not-found]
+phase4_webcrawling.py:14: error: Cannot find implementation or library stub for module named "rich.prompt"  [import-not-found]
+phase4_webcrawling.py:15: error: Cannot find implementation or library stub for module named "rich.table"  [import-not-found]
+phase4_webcrawling.py:16: error: Cannot find implementation or library stub for module named "rich.text"  [import-not-found]
+phase4_webcrawling.py:174: error: "object" has no attribute "append"  [attr-defined]
+phase4_webcrawling.py:176: error: "object" has no attribute "append"  [attr-defined]
+phase4_webcrawling.py:181: error: "object" has no attribute "extend"  [attr-defined]
+phase4_webcrawling.py:183: error: "object" has no attribute "extend"  [attr-defined]
+phase4_webcrawling.py:190: error: No overload variant of "list" matches argument type "object"  [call-overload]
+phase4_webcrawling.py:190: note: Possible overload variants:
+phase4_webcrawling.py:190: note:     def [_T] list(self) -> list[_T]
+phase4_webcrawling.py:190: note:     def [_T] list(self, Iterable[_T], /) -> list[_T]
+phase4_webcrawling.py:211: error: Argument 2 to "submit" of "Executor" has incompatible type "object"; expected "str"  [arg-type]
+phase3_dirsearch.py:15: error: Library stubs not installed for "requests"  [import-untyped]
+phase3_dirsearch.py:15: note: Hint: "python3 -m pip install types-requests"
+phase3_dirsearch.py:15: note: (or run "mypy --install-types" to install all missing stub packages)
+phase3_dirsearch.py:16: error: Cannot find implementation or library stub for module named "urllib3"  [import-not-found]
+phase3_dirsearch.py:17: error: Cannot find implementation or library stub for module named "rich.align"  [import-not-found]
+phase3_dirsearch.py:18: error: Cannot find implementation or library stub for module named "rich.panel"  [import-not-found]
+phase3_dirsearch.py:19: error: Cannot find implementation or library stub for module named "rich.progress"  [import-not-found]
+phase3_dirsearch.py:20: error: Cannot find implementation or library stub for module named "rich.prompt"  [import-not-found]
+phase3_dirsearch.py:21: error: Cannot find implementation or library stub for module named "rich.table"  [import-not-found]
+phase3_dirsearch.py:22: error: Cannot find implementation or library stub for module named "rich.text"  [import-not-found]
+phase3_dirsearch.py:23: error: Cannot find implementation or library stub for module named "urllib3.exceptions"  [import-not-found]
+phase3_dirsearch.py:305: error: No overload variant of "list" matches argument type "object"  [call-overload]
+phase3_dirsearch.py:305: note: Possible overload variants:
+phase3_dirsearch.py:305: note:     def [_T] list(self) -> list[_T]
+phase3_dirsearch.py:305: note:     def [_T] list(self, Iterable[_T], /) -> list[_T]
+phase3_dirsearch.py:350: error: Argument 2 to "submit" of "Executor" has incompatible type "object"; expected "str"  [arg-type]
+phase3_dirsearch.py:356: error: Incompatible types in assignment (expression has type "WafHealthMonitor | None", variable has type "WafHealthMonitor")  [assignment]
+phase3_dirsearch.py:358: error: Argument 2 to "_handle_waf_block_detection" has incompatible type "list[Future[Any]]"; expected "dict[Future[Any], str]"  [arg-type]
+phase2_port_scanning.py:12: error: Cannot find implementation or library stub for module named "rich.align"  [import-not-found]
+phase2_port_scanning.py:13: error: Cannot find implementation or library stub for module named "rich.panel"  [import-not-found]
+phase2_port_scanning.py:14: error: Cannot find implementation or library stub for module named "rich.progress"  [import-not-found]
+phase2_port_scanning.py:23: error: Cannot find implementation or library stub for module named "rich.prompt"  [import-not-found]
+phase2_port_scanning.py:24: error: Cannot find implementation or library stub for module named "rich.table"  [import-not-found]
+phase2_port_scanning.py:25: error: Cannot find implementation or library stub for module named "rich.text"  [import-not-found]
+phase2_port_scanning.py:286: error: Name "ports" already defined on line 269  [no-redef]
+phase1_subdomain.py:10: error: Cannot find implementation or library stub for module named "rich.align"  [import-not-found]
+phase1_subdomain.py:11: error: Cannot find implementation or library stub for module named "rich.panel"  [import-not-found]
+phase1_subdomain.py:12: error: Cannot find implementation or library stub for module named "rich.progress"  [import-not-found]
+phase1_subdomain.py:20: error: Cannot find implementation or library stub for module named "rich.prompt"  [import-not-found]
+phase1_subdomain.py:21: error: Cannot find implementation or library stub for module named "rich.table"  [import-not-found]
+phase1_subdomain.py:22: error: Cannot find implementation or library stub for module named "rich.text"  [import-not-found]
+phase1_subdomain.py:104: error: "Sequence[str]" has no attribute "lower"  [attr-defined]
+phase1_subdomain.py:120: error: Argument 2 to "submit" of "Executor" has incompatible type "Sequence[str]"; expected "str"  [arg-type]
+phase1_subdomain.py:121: error: Argument 3 to "submit" of "Executor" has incompatible type "Sequence[str]"; expected "list[str]"  [arg-type]
+phase1_subdomain.py:124: error: Value expression in dictionary comprehension has incompatible type "Sequence[str]"; expected type "str"  [misc]
+phase0_osint.py:11: error: Cannot find implementation or library stub for module named "rich"  [import-not-found]
+phase0_osint.py:12: error: Cannot find implementation or library stub for module named "rich.align"  [import-not-found]
+phase0_osint.py:13: error: Cannot find implementation or library stub for module named "rich.columns"  [import-not-found]
+phase0_osint.py:14: error: Cannot find implementation or library stub for module named "rich.panel"  [import-not-found]
+phase0_osint.py:15: error: Cannot find implementation or library stub for module named "rich.table"  [import-not-found]
+phase0_osint.py:18: error: Cannot find implementation or library stub for module named "webtech"  [import-not-found]
+shadowmap.py:13: error: Cannot find implementation or library stub for module named "typer"  [import-not-found]
+shadowmap.py:14: error: Cannot find implementation or library stub for module named "pyfiglet"  [import-not-found]
+shadowmap.py:15: error: Cannot find implementation or library stub for module named "rich.align"  [import-not-found]
+shadowmap.py:16: error: Cannot find implementation or library stub for module named "rich.panel"  [import-not-found]
+shadowmap.py:17: error: Cannot find implementation or library stub for module named "rich.progress"  [import-not-found]
+shadowmap.py:25: error: Cannot find implementation or library stub for module named "rich.table"  [import-not-found]
+shadowmap.py:26: error: Cannot find implementation or library stub for module named "rich.text"  [import-not-found]
+Found 71 errors in 8 files (checked 9 source files)
+
+===== CHECKPY END =====
