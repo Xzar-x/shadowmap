@@ -4,6 +4,7 @@ import hashlib
 import logging
 import os
 import random
+import shutil
 import socket
 import subprocess
 import sys
@@ -462,3 +463,22 @@ def get_random_browser_headers() -> List[str]:
         f"Cookie: sessionid={session_id}",
     ]
     return headers
+
+# --- NOWA FUNKCJA ---
+def check_required_tools() -> List[str]:
+    """
+    Sprawdza, czy wszystkie wymagane narzędzia CLI są zainstalowane i dostępne w PATH.
+
+    Returns:
+        Lista brakujących narzędzi. Pusta lista, jeśli wszystkie są dostępne.
+    """
+    # Lista narzędzi skompilowana na podstawie `install.py` i użycia w modułach
+    required_tools = [
+        "whois", "whatweb", "nmap", "masscan", "wafw00f",
+        "subfinder", "assetfinder", "puredns", "httpx", "naabu",
+        "ffuf", "feroxbuster", "dirsearch", "gobuster",
+        "katana", "hakrawler", "paramspider", "linkfinder", "gauplus"
+    ]
+    
+    missing_tools = [tool for tool in required_tools if not shutil.which(tool)]
+    return missing_tools

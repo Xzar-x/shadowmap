@@ -395,6 +395,21 @@ def main(
         rich_help_panel="Output",
     ),
 ):
+    # --- ZMIANA: Sprawdzenie dostępności narzędzi na starcie ---
+    missing_tools = utils.check_required_tools()
+    if missing_tools:
+        missing_str = "\n".join(f" - {tool}" for tool in missing_tools)
+        panel_text = (
+            f"[bold red]Błąd: Brak wymaganych narzędzi![/bold red]\n\n"
+            f"Nie znaleziono następujących poleceń w Twoim systemie:\n"
+            f"[yellow]{missing_str}[/yellow]\n\n"
+            f"Upewnij się, że są one zainstalowane i dostępne w ścieżce (PATH).\n"
+            f"Możesz spróbować uruchomić ponownie skrypt [bold cyan]install.py[/bold cyan]."
+        )
+        utils.console.print(Align.center(Panel(panel_text, border_style="red", title="[bold red]Błąd Konfiguracji[/bold red]")))
+        raise typer.Exit(code=1)
+    # --- KONIEC ZMIANY ---
+    
     targets_to_scan = []
     if target_list and target_list.is_file():
         with open(target_list) as f:
@@ -416,7 +431,7 @@ def main(
     scan_initiated = False
     try:
         for current_target in targets_to_scan:
-            # --- ZMIANA: Inicjalizacja centralnego słownika na wyniki ---
+            # --- Inicjalizacja centralnego słownika na wyniki ---
             scan_results: Dict[str, Any] = {}
             
             targets_for_phase2_3, targets_for_phase4 = [], []
@@ -435,7 +450,7 @@ def main(
             if config.QUIET_MODE:
                 continue
 
-            # --- ZMIANA: Zapisywanie wyników do centralnego słownika ---
+            # --- Zapisywanie wyników do centralnego słownika ---
             p0_data, best_target_url = phase0_osint.start_phase0_osint()
             scan_results["phase0_osint"] = p0_data
             config.ORIGINAL_TARGET = best_target_url
@@ -536,7 +551,7 @@ def main(
                     choice = ""
                 
                 elif choice.lower() == "q":
-                    # --- ZMIANA: Wywołanie obu funkcji generujących raporty ---
+                    # --- Wywołanie obu funkcji generujących raporty ---
                     generate_json_report(scan_results)
                     if report_path := generate_html_report(scan_results):
                         open_html_report(report_path)
