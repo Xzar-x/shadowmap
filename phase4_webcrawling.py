@@ -264,7 +264,7 @@ def display_phase4_tool_selection_menu(display_banner_func):
             table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
         table.add_section()
         table.add_row(
-            "[bold cyan][s][/bold cyan]",
+            "[bold cyan][\fs][/bold cyan]",
             "[bold magenta]Zmień ustawienia Fazy 4[/bold magenta]",
         )
         table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu głównego")
@@ -297,8 +297,9 @@ def display_phase4_tool_selection_menu(display_banner_func):
             utils.console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
         time.sleep(0.1)
 
-
+# --- NAPRAWIONA SEKCJA ---
 def display_phase4_settings_menu(display_banner_func):
+    """Wyświetla i obsługuje menu ustawień specyficznych dla Fazy 4."""
     while True:
         utils.console.clear()
         display_banner_func()
@@ -307,6 +308,7 @@ def display_phase4_settings_menu(display_banner_func):
         )
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
 
+        # Przygotowanie wyświetlanych wartości
         proxy_display = (
             f"[bold green]{config.PROXY} (Użytkownika)[/bold green]"
             if config.USER_CUSTOMIZED_PROXY and config.PROXY
@@ -331,24 +333,14 @@ def display_phase4_settings_menu(display_banner_func):
         aff_status = "[bold green]✓[/bold green]" if config.AUTO_FORM_FILL else "[bold red]✗[/bold red]"
         headless_status = "[bold green]✓[/bold green]" if config.USE_HEADLESS_BROWSER else "[bold red]✗[/bold red]"
 
+        # Dodawanie wierszy do tabeli
         table.add_row("[bold cyan][1][/bold cyan]", f"[{safe_status}] Tryb bezpieczny")
-        table.add_row(
-            "[bold cyan][2][/bold cyan]",
-            f"Głębokość crawlera: {depth_display}",
-        )
-        table.add_row(
-            "[bold cyan][3][/bold cyan]",
-            f"[{aff_status}] Wypełnianie formularzy (Katana)",
-        )
-        table.add_row(
-            "[bold cyan][4][/bold cyan]",
-            f"[{headless_status}] Headless (Katana, Safe Mode)",
-        )
+        table.add_row("[bold cyan][2][/bold cyan]", f"Głębokość crawlera: {depth_display}")
+        table.add_row("[bold cyan][3][/bold cyan]", f"[{aff_status}] Wypełnianie formularzy (Katana)")
+        table.add_row("[bold cyan][4][/bold cyan]", f"[{headless_status}] Przeglądarka headless (Katana w Safe Mode)")
         table.add_row("[bold cyan][5][/bold cyan]", f"Proxy: {proxy_display}")
         table.add_row("[bold cyan][6][/bold cyan]", f"Liczba wątków: {threads_display}")
-        table.add_row(
-            "[bold cyan][7][/bold cyan]", f"Limit czasu narzędzia: {timeout_display}"
-        )
+        table.add_row("[bold cyan][7][/bold cyan]", f"Limit czasu narzędzia: {timeout_display}")
         table.add_section()
         table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu Fazy 4")
 
@@ -357,12 +349,13 @@ def display_phase4_settings_menu(display_banner_func):
             Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center")
         )
 
+        # Obsługa wyboru użytkownika
         if choice == "1":
             config.SAFE_MODE = not config.SAFE_MODE
             utils.handle_safe_mode_tor_check()
         elif choice == "2":
-            prompt = "[bold cyan]Podaj głębokość crawlera[/bold cyan]"
-            new_depth = Prompt.ask(prompt, default=str(config.CRAWL_DEPTH_P4))
+            prompt_text = "[bold cyan]Podaj głębokość crawlera (np. 2)[/bold cyan]"
+            new_depth = Prompt.ask(prompt_text, default=str(config.CRAWL_DEPTH_P4))
             if new_depth.isdigit():
                 config.CRAWL_DEPTH_P4 = int(new_depth)
                 config.USER_CUSTOMIZED_CRAWL_DEPTH_P4 = True
@@ -373,19 +366,19 @@ def display_phase4_settings_menu(display_banner_func):
             config.USE_HEADLESS_BROWSER = not config.USE_HEADLESS_BROWSER
             config.USER_CUSTOMIZED_USE_HEADLESS = True
         elif choice == "5":
-            prompt = "[bold cyan]Podaj adres proxy[/bold cyan]"
-            new_proxy = Prompt.ask(prompt, default=config.PROXY or "")
-            config.PROXY = new_proxy
+            prompt_text = "[bold cyan]Podaj adres proxy (puste, by usunąć)[/bold cyan]"
+            new_proxy = Prompt.ask(prompt_text, default=config.PROXY or "")
+            config.PROXY = new_proxy if new_proxy else None
             config.USER_CUSTOMIZED_PROXY = bool(new_proxy)
         elif choice == "6":
-            prompt = "[bold cyan]Podaj liczbę wątków[/bold cyan]"
-            new_threads = Prompt.ask(prompt, default=str(config.THREADS))
+            prompt_text = "[bold cyan]Podaj liczbę wątków[/bold cyan]"
+            new_threads = Prompt.ask(prompt_text, default=str(config.THREADS))
             if new_threads.isdigit():
                 config.THREADS = int(new_threads)
                 config.USER_CUSTOMIZED_THREADS = True
         elif choice == "7":
-            prompt = "[bold cyan]Podaj limit czasu (s)[/bold cyan]"
-            new_timeout = Prompt.ask(prompt, default=str(config.TOOL_TIMEOUT_SECONDS))
+            prompt_text = "[bold cyan]Podaj limit czasu dla narzędzi (w sekundach)[/bold cyan]"
+            new_timeout = Prompt.ask(prompt_text, default=str(config.TOOL_TIMEOUT_SECONDS))
             if new_timeout.isdigit():
                 config.TOOL_TIMEOUT_SECONDS = int(new_timeout)
                 config.USER_CUSTOMIZED_TIMEOUT = True

@@ -253,7 +253,6 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
     p4_results = scan_results.get("phase4_results", {})
     all_subdomains_list = scan_results.get("phase1_all_subdomains", [])
 
-    # --- Logika przygotowania danych (taka sama jak wcześniej) ---
     p1_urls = [item['url'] for item in active_urls_data]
     p3_urls = [item['url'] for item in p3_verified_data]
     p4_urls = p4_results.get("all_urls", [])
@@ -285,13 +284,24 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
             if html_parts:
                 searchsploit_html = "".join(html_parts)
 
+    # --- POPRAWKA: Konwersja list URL z Fazy 4 na format obiektowy dla JS ---
+    def convert_urls_to_objects(urls: List[str]) -> List[Dict[str, Any]]:
+        """Konwertuje listę stringów URL na listę obiektów, której oczekuje JS."""
+        return [{"url": url, "status_code": None, "last_modified": None} for url in urls]
+
+    p4_all_urls_obj = convert_urls_to_objects(p4_results.get("all_urls", []))
+    p4_params_obj = convert_urls_to_objects(p4_results.get("parameters", []))
+    p4_js_obj = convert_urls_to_objects(p4_results.get("js_files", []))
+    p4_api_obj = convert_urls_to_objects(p4_results.get("api_endpoints", []))
+    p4_interesting_obj = convert_urls_to_objects(p4_results.get("interesting_paths", []))
+
     # --- Słownik zamienników ---
     replacements = {
         "{{DOMAIN}}": config.HOSTNAME_TARGET,
-        "{{OSINT_IP}}": p0_data.get("ip"), "{{OSINT_ASN_DETAILS}}": p0_data.get("asn_details"),
-        "{{OSINT_CDN}}": p0_data.get("cdn_name"), "{{OSINT_REGISTRAR}}": p0_data.get("registrar"),
-        "{{OSINT_CREATION_DATE}}": p0_data.get("creation_date"),
-        "{{OSINT_EXPIRATION_DATE}}": p0_data.get("expiration_date"),
+        "{{OSINT_IP}}": p0_data.get("ip", "Brak"), "{{OSINT_ASN_DETAILS}}": p0_data.get("asn_details", "Brak"),
+        "{{OSINT_CDN}}": p0_data.get("cdn_name", "Brak"), "{{OSINT_REGISTRAR}}": p0_data.get("registrar", "Brak"),
+        "{{OSINT_CREATION_DATE}}": p0_data.get("creation_date", "Brak"),
+        "{{OSINT_EXPIRATION_DATE}}": p0_data.get("expiration_date", "Brak"),
         "{{OSINT_NAME_SERVERS}}": "\n".join(p0_data.get("name_servers", [])),
         "{{OSINT_TECHNOLOGIES_HTML}}": tech_html,
         "{{SEARCHSPLOIT_RESULTS_HTML}}": searchsploit_html,
@@ -300,7 +310,6 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         "{{COUNT_HTTPX}}": len(active_urls_data), 
         "{{COUNT_OPEN_PORTS}}": open_ports_count,
         "{{COUNT_DIR_SEARCH}}": len(p3_verified_data),
-        "{{COUNT_ALL_URLS_P4}}": len(p4_results.get("all_urls", [])),
         "{{ALL_URLS_COMBINED_OUTPUT}}": "\n".join(all_urls_combined),
         "{{COUNT_ALL_URLS_COMBINED}}": len(all_urls_combined),
         
@@ -317,18 +326,22 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         "{{PUREDNS_OUTPUT}}": read_file(p1_files.get("Puredns")),
         "{{ALL_SUBDOMAINS_OUTPUT}}": "\n".join(all_subdomains_list),
 
-        "{{DIR_SEARCH_ALL_OUTPUT}}": "\n".join(p3_results.get("all_dirsearch_results", [])),
+        "{{FFUF_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Ffuf", [])),
+        "{{FEROXBUSTER_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Feroxbuster", [])),
+        "{{DIRSEARCH_P3_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Dirsearch", [])),
+        "{{GOBUSTER_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Gobuster", [])),
 
         "{{COUNT_ALL_URLS_P4}}": len(p4_results.get("all_urls", [])),
-        "{{PHASE4_ALL_URLS_OUTPUT}}": "\n".join(p4_results.get("all_urls", [])),
         "{{COUNT_PARAMETERS}}": len(p4_results.get("parameters", [])),
-        "{{PARAMETERS_OUTPUT}}": "\n".join(p4_results.get("parameters", [])),
         "{{COUNT_JS_FILES}}": len(p4_results.get("js_files", [])),
-        "{{JS_FILES_OUTPUT}}": "\n".join(p4_results.get("js_files", [])),
         "{{COUNT_API_ENDPOINTS}}": len(p4_results.get("api_endpoints", [])),
-        "{{API_ENDPOINTS_OUTPUT}}": "\n".join(p4_results.get("api_endpoints", [])),
         "{{COUNT_INTERESTING_PATHS}}": len(p4_results.get("interesting_paths", [])),
-        "{{INTERESTING_PATHS_OUTPUT}}": "\n".join(p4_results.get("interesting_paths", [])),
+        
+        "{{PHASE4_ALL_URLS_JSON}}": json.dumps(p4_all_urls_obj),
+        "{{PHASE4_PARAMETERS_JSON}}": json.dumps(p4_params_obj),
+        "{{PHASE4_JS_FILES_JSON}}": json.dumps(p4_js_obj),
+        "{{PHASE4_API_ENDPOINTS_JSON}}": json.dumps(p4_api_obj),
+        "{{PHASE4_INTERESTING_PATHS_JSON}}": json.dumps(p4_interesting_obj),
     }
 
     for placeholder, value in replacements.items():
@@ -395,7 +408,6 @@ def main(
         rich_help_panel="Output",
     ),
 ):
-    # --- ZMIANA: Sprawdzenie dostępności narzędzi na starcie ---
     missing_tools = utils.check_required_tools()
     if missing_tools:
         missing_str = "\n".join(f" - {tool}" for tool in missing_tools)
@@ -408,7 +420,6 @@ def main(
         )
         utils.console.print(Align.center(Panel(panel_text, border_style="red", title="[bold red]Błąd Konfiguracji[/bold red]")))
         raise typer.Exit(code=1)
-    # --- KONIEC ZMIANY ---
     
     targets_to_scan = []
     if target_list and target_list.is_file():
@@ -431,7 +442,6 @@ def main(
     scan_initiated = False
     try:
         for current_target in targets_to_scan:
-            # --- Inicjalizacja centralnego słownika na wyniki ---
             scan_results: Dict[str, Any] = {}
             
             targets_for_phase2_3, targets_for_phase4 = [], []
@@ -450,7 +460,6 @@ def main(
             if config.QUIET_MODE:
                 continue
 
-            # --- Zapisywanie wyników do centralnego słownika ---
             p0_data, best_target_url = phase0_osint.start_phase0_osint()
             scan_results["phase0_osint"] = p0_data
             config.ORIGINAL_TARGET = best_target_url
@@ -551,7 +560,6 @@ def main(
                     choice = ""
                 
                 elif choice.lower() == "q":
-                    # --- Wywołanie obu funkcji generujących raporty ---
                     generate_json_report(scan_results)
                     if report_path := generate_html_report(scan_results):
                         open_html_report(report_path)

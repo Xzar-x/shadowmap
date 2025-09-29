@@ -64,7 +64,6 @@ def _select_wordlist_based_on_tech(detected_technologies: List[str]) -> str:
                     f"Użyć dedykowanej listy słów [bold green]{file_name}[/bold green]?"
                 )
                 
-                # Używamy funkcji z utils do zadania pytania
                 choice = utils.ask_user_decision(question, choices=["y", "n"], default="y")
 
                 if choice == 'y':
@@ -149,11 +148,13 @@ def _parse_tool_output_line(
 
     full_url = None
     if tool_name == "Feroxbuster":
-        match = re.match(
-            r"^\s*(\d{3})\s+\S+\s+\S+l\s+\S+w\s+\S+c\s+(https?:\/\/\S+)", cleaned_line
-        )
-        if match:
-            full_url = match.group(2)
+        # Example: 200      GET        7l       20w      264c   http://localhost/test
+        # Poprawka: Użycie prostszego parsowania opartego na podziale.
+        parts = cleaned_line.split()
+        if len(parts) >= 6 and parts[0].isdigit() and parts[2].endswith('l') and parts[4].endswith('c'):
+            url = parts[-1]
+            if url.startswith("http"):
+                full_url = url
     elif tool_name == "Dirsearch":
         match = DIRSEARCH_RESULT_PATTERN.match(cleaned_line)
         if match:
@@ -341,10 +342,10 @@ def start_dir_search(
                         cmd.extend(["-a", utils.user_agent_rotator.get()])
                         if not config.FEROXBUSTER_SMART_FILTER:
                             cmd.append("--dont-filter")
+                        # POPRAWKA: Przekazuj tylko rozmiar wildcard, aby uniknąć filtrowania
+                        # prawidłowych odpowiedzi 200 OK. Wewnętrzny filtr Feroxbustera jest wystarczająco inteligentny.
                         elif wc_size := wildcard.get("size"):
                             cmd.extend(["-S", str(wc_size)])
-                        if wc_status := wildcard.get("status"):
-                            cmd.extend(["-C", str(wc_status)])
 
                     elif cfg["name"] == "Dirsearch":
                         cmd.extend(["-w", wordlist, "-t", threads, "-u", v_url])
@@ -354,7 +355,8 @@ def start_dir_search(
                         if not config.DIRSEARCH_SMART_FILTER:
                             cmd.append("--exclude-sizes=0B")
                         elif wc_status := wildcard.get("status"):
-                            cmd.extend(["--exclude-status", str(wc_status)])
+                            if wc_status != 200:
+                                cmd.extend(["--exclude-status", str(wc_status)])
                             if wc_size := wildcard.get("size"):
                                 cmd.extend(["--exclude-lengths", str(wc_size)])
 
@@ -445,7 +447,7 @@ def display_phase3_tool_selection_menu(display_banner_func):
             table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
 
         table.add_section()
-        table.add_row("[bold cyan][s][/bold cyan]", "[bold magenta]Ustawienia Fazy 3[/bold magenta]")
+        table.add_row("[bold cyan][\fs][/bold cyan]", "[bold magenta]Ustawienia Fazy 3[/bold magenta]")
         table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu")
         table.add_row("[bold cyan][\fq][/bold cyan]", "Wyjdź")
 

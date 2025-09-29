@@ -357,7 +357,7 @@ def display_phase2_tool_selection_menu(display_banner_func):
             table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
         table.add_section()
         table.add_row(
-            "[bold cyan][s][/bold cyan]",
+            "[bold cyan][\fs][/bold cyan]",
             "[bold magenta]Zmień ustawienia Fazy 2[/bold magenta]",
         )
         table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu głównego")

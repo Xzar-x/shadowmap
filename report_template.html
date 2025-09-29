@@ -641,7 +641,6 @@
                 
                 let portInfo = {};
                 
-                // First pass: gather all info
                 (parsedNmap[host] || "").split('\n').forEach(line => {
                     const portMatch = line.match(/^(\d+)\/tcp\s+(open|filtered|closed)\s+(.*)/);
                     if (portMatch) {
@@ -659,7 +658,6 @@
                     }
                 });
 
-                // Second pass: render
                 Object.keys(portInfo).forEach(port => {
                     const info = portInfo[port];
                     const listItem = document.createElement('li');
@@ -677,7 +675,7 @@
                             const scriptNameMatch = cleanedLine.match(/^([a-zA-Z0-9_-]+):/);
                             
                             if (scriptNameMatch) {
-                                if (currentScriptName) scriptDetails += '</ul>'; // Close previous script's list
+                                if (currentScriptName) scriptDetails += '</ul>'; 
                                 currentScriptName = scriptNameMatch[1];
                                 scriptDetails += `<li><span class="nse-script-name">${currentScriptName}:</span><ul>`;
                                 cleanedLine = cleanedLine.substring(scriptNameMatch[0].length).trim();
@@ -694,7 +692,7 @@
                             }
                         });
 
-                        scriptDetails += '</ul></li>'; // Close the last list
+                        scriptDetails += '</ul></li>'; 
                         nseOutputContainer.innerHTML += nseHTML + scriptDetails;
                     }
                 });
@@ -773,4 +771,3 @@
     </script>
 </body>
 </html>
-

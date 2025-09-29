@@ -255,7 +255,7 @@ def display_phase1_tool_selection_menu(display_banner_func):
 
         table.add_section()
         table.add_row(
-            "[bold cyan][s][/bold cyan]",
+            "[bold cyan][\fs][/bold cyan]",
             "[bold magenta]Ustawienia Fazy 1[/bold magenta]",
         )
         table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu głównego")
