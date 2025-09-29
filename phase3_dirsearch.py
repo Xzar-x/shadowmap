@@ -41,7 +41,10 @@ GENERIC_URL_PATTERN = re.compile(r"(https?://[^\s/$.?#].[^\s]*)")
 
 
 def _select_wordlist_based_on_tech(detected_technologies: List[str]) -> str:
-    """Wybiera specjalistyczną listę słów na podstawie wykrytych technologii."""
+    """
+    Analizuje wykryte technologie i pyta użytkownika, czy chce użyć
+    specjalistycznej listy słów, jeśli zostanie znaleziona.
+    """
     if not detected_technologies:
         return config.WORDLIST_PHASE3
 
@@ -55,23 +58,37 @@ def _select_wordlist_based_on_tech(detected_technologies: List[str]) -> str:
             wordlist_path = config.TECH_SPECIFIC_WORDLISTS[tech_lower]
             if os.path.exists(wordlist_path):
                 file_name = os.path.basename(wordlist_path)
-                msg = (
-                    f"Wykryto '{tech}'. Używam dedykowanej listy słów: "
-                    f"[bold green]{file_name}[/bold green]"
+                
+                question = (
+                    f"Wykryto technologię [bold yellow]{tech}[/bold yellow].\n"
+                    f"Użyć dedykowanej listy słów [bold green]{file_name}[/bold green]?"
                 )
-                utils.log_and_echo(msg, "INFO")
-                utils.console.print(Align.center(msg))
-                return wordlist_path
+                
+                # Używamy funkcji z utils do zadania pytania
+                choice = utils.ask_user_decision(question, choices=["y", "n"], default="y")
+
+                if choice == 'y':
+                    msg = (
+                        f"Użytkownik wybrał dedykowaną listę słów dla '{tech}': "
+                        f"[bold green]{file_name}[/bold green]"
+                    )
+                    utils.log_and_echo(msg, "INFO")
+                    utils.console.print(Align.center(msg))
+                    return wordlist_path
+                else:
+                    msg = "[yellow]Użytkownik odrzucił dedykowaną listę. Używam domyślnej.[/yellow]"
+                    utils.console.print(Align.center(msg, style="bold"))
+                    return config.WORDLIST_PHASE3
             else:
                 msg = (
                     f"Wykryto '{tech}', ale dedykowana lista słów "
                     f"[bold red]{wordlist_path}[/bold red] nie istnieje. "
-                    "Używam domyślnej."
+                    "Próbuję dalej..."
                 )
                 utils.log_and_echo(msg, "WARN")
                 utils.console.print(Align.center(msg))
 
-    msg = "[yellow]Nie znaleziono dedykowanej listy słów. Używam domyślnej.[/yellow]"
+    msg = "[yellow]Nie znaleziono dedykowanej listy słów lub odrzucono sugestię. Używam domyślnej.[/yellow]"
     utils.console.print(Align.center(msg, style="bold"))
     return config.WORDLIST_PHASE3
 
