@@ -11,28 +11,33 @@ import sys
 import tempfile
 import threading
 import time
-from concurrent.futures import Future
 from typing import Any, Dict, List, Optional
 
+import urllib3
 from rich.align import Align
 from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
 from rich.text import Text
+from urllib3.exceptions import InsecureRequestWarning
 
 try:
     import requests
-    from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
-    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+    urllib3.disable_warnings(InsecureRequestWarning)
 except ImportError:
-    requests = None
+    requests = None  # type: ignore
 
 import config
 
 # Konfiguracja Rich i logowania
 console = Console()
-LOG_COLOR_MAP = {"INFO": "green", "WARN": "yellow", "ERROR": "red", "DEBUG": "blue"}
+LOG_COLOR_MAP = {
+    "INFO": "green",
+    "WARN": "yellow",
+    "ERROR": "red",
+    "DEBUG": "blue",
+}
 
 # --- Globalne zarządzanie procesami ---
 managed_processes: List[subprocess.Popen] = []
@@ -78,10 +83,11 @@ def execute_tool_command(
         Ścieżka do pliku wyjściowego w przypadku sukcesu, None w przypadku błędu.
     """
     cmd_str = " ".join(command_parts)
-    console.print(
-        f"[bold cyan]Uruchamiam {tool_name}:[/bold cyan] "
-        f"[dim white]{cmd_str}[/dim white]"
-    )
+    if not config.QUIET_MODE:
+        console.print(
+            f"[bold cyan]Uruchamiam {tool_name}:[/bold cyan] "
+            f"[dim white]{cmd_str}[/dim white]"
+        )
     try:
         process = subprocess.run(
             command_parts,
@@ -99,32 +105,33 @@ def execute_tool_command(
 
         if process.stderr:
             log_and_echo(
-                f"Komunikaty z STDERR dla '{tool_name}':\n{process.stderr.strip()}",
+                f"Komunikaty z STDERR dla '{tool_name}':\n" f"{process.stderr.strip()}",
                 "DEBUG",
             )
 
         if process.returncode == 0:
-            console.print(
-                f"[bold green]✅ {tool_name} zakończył skanowanie.[/bold green]"
-            )
+            if not config.QUIET_MODE:
+                console.print(
+                    f"[bold green]✅ {tool_name} zakończył skanowanie.[/bold green]"
+                )
         else:
             log_and_echo(
-                f"Narzędzie {tool_name} zakończyło z błędem ({process.returncode}).",
+                f"Narzędzie {tool_name} zakończyło z błędem "
+                f"({process.returncode}).",
                 "WARN",
             )
         return output_file
 
     except Exception as e:
         log_and_echo(f"BŁĄD: Ogólny błąd wykonania '{cmd_str}': {e}", "ERROR")
-        console.print(
-            Align.center(f"[bold red]❌ BŁĄD: {tool_name}: {e}[/bold red]")
-        )
+        if not config.QUIET_MODE:
+            console.print(Align.center(f"[bold red]❌ BŁĄD: {tool_name}: {e}[/bold red]"))
         return None
 
 
 # --- Klasa do rotacji User-Agentów ---
 class UserAgentRotator:
-    """Zarządza listą User-Agentów i rotuje je co określoną liczbę zapytań."""
+    """Zarządza listą User-Agentów i rotuje je."""
 
     def __init__(self, user_agents_file: str, rotation_interval: int = 50):
         self.user_agents = self._load_user_agents(user_agents_file)
@@ -160,13 +167,11 @@ user_agent_rotator = UserAgentRotator(config.USER_AGENTS_FILE)
 
 # --- Klasa monitora WAF ---
 class WafHealthMonitor:
-    """Monitoruje stan połączenia z celem w tle, aby wykryć blokady WAF."""
+    """Monitoruje stan połączenia z celem, aby wykryć blokady WAF."""
 
     def __init__(self, target_url: str, interval_min: int, interval_max: int):
         if not requests:
-            raise ImportError(
-                "Biblioteka 'requests' jest wymagana do monitorowania WAF."
-            )
+            raise ImportError("Biblioteka 'requests' jest wymagana.")
         self.target_url = target_url.rstrip("/")
         self.baseline: Dict[str, Any] = {}
         self.is_blocked_event = threading.Event()
@@ -194,18 +199,13 @@ class WafHealthMonitor:
 
         positive_res = self._make_request(self.target_url + "/")
         if not positive_res:
-            log_and_echo(
-                "Health Check: Nie udało się połączyć z celem.", "WARN"
-            )
+            log_and_echo("Health Check: Nie udało się połączyć.", "WARN")
             return False
 
         random_path = "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=12))
         negative_res = self._make_request(f"{self.target_url}/{random_path}")
         if not negative_res:
-            log_and_echo(
-                "Health Check: Drugie zapytanie do linii bazowej nie powiodło się.",
-                "WARN",
-            )
+            log_and_echo("Health Check: Drugie zapytanie nie powiodło się.", "WARN")
             return False
 
         self.baseline = {
@@ -240,7 +240,7 @@ class WafHealthMonitor:
             != self.baseline["positive"]["hash"]
         ):
             log_and_echo(
-                "Health Check: WYKRYTO BLOKADĘ! Zmiana hash-a strony "
+                "Health Check: WYKRYTO BLOKADĘ! Zmiana hash-a "
                 f"przy statusie {current_positive.status_code}",
                 "WARN",
             )
@@ -259,9 +259,7 @@ class WafHealthMonitor:
     def start(self):
         """Uruchamia monitor w tle."""
         if self.establish_baseline():
-            self.monitor_thread = threading.Thread(
-                target=self.run_monitor, daemon=True
-            )
+            self.monitor_thread = threading.Thread(target=self.run_monitor, daemon=True)
             self.monitor_thread.start()
 
     def stop(self):
@@ -318,11 +316,7 @@ def handle_safe_mode_tor_check():
         )
         console.print(Align.center(panel))
         console.print(
-            Align.center(
-                Text.from_markup(
-                    "\n[dim]Naciśnij dowolny klawisz, aby kontynuować...[/dim]"
-                )
-            )
+            Align.center(Text.from_markup("\n[dim]Naciśnij dowolny klawisz...[/dim]"))
         )
         get_single_char_input()
 
@@ -345,11 +339,39 @@ def log_and_echo(message: str, level: str = "INFO"):
 
 def filter_critical_urls(urls: List[str]) -> List[str]:
     critical_keywords = [
-        "admin", "login", "logon", "signin", "auth", "panel", "dashboard",
-        "config", "backup", "dump", "sql", "db", "database", "api",
-        "graphql", "debug", "trace", "test", "dev", "staging", ".git",
-        ".env", ".docker", "credentials", "password", "secret", "token",
-        "key", "jwt", "oauth", "phpinfo", "status", "metrics",
+        "admin",
+        "login",
+        "logon",
+        "signin",
+        "auth",
+        "panel",
+        "dashboard",
+        "config",
+        "backup",
+        "dump",
+        "sql",
+        "db",
+        "database",
+        "api",
+        "graphql",
+        "debug",
+        "trace",
+        "test",
+        "dev",
+        "staging",
+        ".git",
+        ".env",
+        ".docker",
+        "credentials",
+        "password",
+        "secret",
+        "token",
+        "key",
+        "jwt",
+        "oauth",
+        "phpinfo",
+        "status",
+        "metrics",
     ]
     return [
         url
@@ -393,6 +415,14 @@ def get_single_char_input_with_prompt(
 
 
 def ask_user_decision(question: str, choices: List[str], default: str) -> str:
+    # ZMIANA: Dodano obsługę trybu auto
+    if config.AUTO_MODE:
+        if not config.QUIET_MODE:
+            console.print(
+                f"[yellow]Tryb Auto:[/yellow] Domyślna odpowiedź '{default.upper()}' na pytanie: '{question.splitlines()[0]}...'"
+            )
+        return default
+
     panel = Panel(
         Text.from_markup(question, justify="center"),
         border_style="yellow",
@@ -447,12 +477,12 @@ def get_random_browser_headers() -> List[str]:
     accept = ["text/html", "application/json", "text/plain", "*/*"]
     languages = ["en-US", "en-GB", "de", "pl"]
     referers = [
-        "https://www.google.com/", "https://www.bing.com/",
-        "https://duckduckgo.com/", ""
+        "https://www.google.com/",
+        "https://www.bing.com/",
+        "https://duckduckgo.com/",
+        "",
     ]
-    session_id = "".join(
-        random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=32)
-    )
+    session_id = "".join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=32))
     headers = [
         f"Accept: {random.choice(accept)}",
         f"Accept-Language: {random.choice(languages)}",
@@ -464,21 +494,36 @@ def get_random_browser_headers() -> List[str]:
     ]
     return headers
 
+
 # --- NOWA FUNKCJA ---
 def check_required_tools() -> List[str]:
     """
-    Sprawdza, czy wszystkie wymagane narzędzia CLI są zainstalowane i dostępne w PATH.
+    Sprawdza, czy wszystkie wymagane narzędzia CLI są zainstalowane.
 
     Returns:
-        Lista brakujących narzędzi. Pusta lista, jeśli wszystkie są dostępne.
+        Lista brakujących narzędzi.
     """
-    # Lista narzędzi skompilowana na podstawie `install.py` i użycia w modułach
     required_tools = [
-        "whois", "whatweb", "nmap", "masscan", "wafw00f",
-        "subfinder", "assetfinder", "puredns", "httpx", "naabu",
-        "ffuf", "feroxbuster", "dirsearch", "gobuster",
-        "katana", "hakrawler", "paramspider", "linkfinder", "gauplus"
+        "whois",
+        "whatweb",
+        "nmap",
+        "masscan",
+        "wafw00f",
+        "subfinder",
+        "assetfinder",
+        "puredns",
+        "httpx",
+        "naabu",
+        "ffuf",
+        "feroxbuster",
+        "dirsearch",
+        "gobuster",
+        "katana",
+        "hakrawler",
+        "paramspider",
+        "linkfinder",
+        "gauplus",
     ]
-    
+
     missing_tools = [tool for tool in required_tools if not shutil.which(tool)]
     return missing_tools

@@ -52,8 +52,8 @@ def get_best_target_url(target: str) -> str:
         http_url = f"http://{target}"
         utils.console.print(
             Align.center(
-                f"[bold yellow]! Port 443 zamknięty. Port 80 (HTTP) jest otwarty. "
-                f"Używam: {http_url}[/bold yellow]"
+                f"[bold yellow]! Port 443 zamknięty. Port 80 (HTTP) jest "
+                f"otwarty. Używam: {http_url}[/bold yellow]"
             )
         )
         return http_url
@@ -81,7 +81,9 @@ def get_whois_info(domain: str) -> Dict[str, Any]:
         output = process.stdout
 
         phase0_dir = os.path.join(config.REPORT_DIR, "faza0_osint")
-        with open(os.path.join(phase0_dir, "whois_raw.txt"), "w", encoding="utf-8") as f:
+        with open(
+            os.path.join(phase0_dir, "whois_raw.txt"), "w", encoding="utf-8"
+        ) as f:
             f.write(f"--- WHOIS for {domain} ---\n")
             f.write(output)
             if process.stderr:
@@ -89,9 +91,7 @@ def get_whois_info(domain: str) -> Dict[str, Any]:
                 f.write(process.stderr)
 
         if process.returncode != 0 and "No whois server" not in process.stderr:
-            utils.log_and_echo(
-                f"Błąd 'whois': {process.stderr}", "WARN"
-            )
+            utils.log_and_echo(f"Błąd 'whois': {process.stderr}", "WARN")
             return {"Error": "Nie można pobrać danych WHOIS."}
 
         patterns = {
@@ -125,8 +125,15 @@ def get_http_info(target: str) -> Dict[str, Any]:
 
     try:
         command = [
-            "httpx", "-u", target, "-silent", "-json",
-            "-ip", "-asn", "-cdn", "-tech-detect",
+            "httpx",
+            "-u",
+            target,
+            "-silent",
+            "-json",
+            "-ip",
+            "-asn",
+            "-cdn",
+            "-tech-detect",
         ]
         process = subprocess.run(command, capture_output=True, text=True, timeout=60)
 
@@ -263,7 +270,7 @@ def get_webtech_info(target_url: str) -> List[str]:
 def get_searchsploit_info(
     technologies: List[str],
 ) -> Union[Dict[str, List[Dict[str, str]]], Dict[str, str]]:
-    """Używa searchsploit do znalezienia exploitów dla wykrytych technologii."""
+    """Używa searchsploit do znalezienia exploitów."""
     results: Dict[str, List[Dict[str, str]]] = {}
     phase0_dir = os.path.join(config.REPORT_DIR, "faza0_osint")
     raw_output_path = os.path.join(phase0_dir, "searchsploit_raw.txt")
@@ -287,7 +294,8 @@ def get_searchsploit_info(
 
                 if process.stdout:
                     data = json.loads(process.stdout)
-                    if exploits := data.get("RESULTS_EXPLOIT"):
+                    exploits = data.get("RESULTS_EXPLOIT")
+                    if exploits:
                         if tech not in results:
                             results[tech] = []
 
@@ -304,7 +312,8 @@ def get_searchsploit_info(
                                 existing_ids.add(exploit["EDB-ID"])
 
             except FileNotFoundError:
-                return {"Error": "Polecenie 'searchsploit' nie jest zainstalowane."}
+                msg = "Polecenie 'searchsploit' nie jest zainstalowane."
+                return {"Error": msg}
             except subprocess.TimeoutExpired:
                 msg = f"Searchsploit dla '{tech}' przekroczył limit czasu."
                 utils.log_and_echo(msg, "WARN")
@@ -326,7 +335,9 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
     with utils.console.status(status_text, spinner="dots") as status:
         best_target_url = get_best_target_url(config.HOSTNAME_TARGET)
 
-        status.update("[green]Zbieram informacje WHOIS, HTTP i o technologiach...[/green]")
+        status.update(
+            "[green]Zbieram informacje WHOIS, HTTP i o technologiach...[/green]"
+        )
         with ThreadPoolExecutor() as executor:
             f_http = executor.submit(get_http_info, best_target_url)
             f_whois = executor.submit(get_whois_info, config.CLEAN_DOMAIN_TARGET)
@@ -342,18 +353,22 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
             filtered_techs = {
                 tech
                 for tech in all_techs
-                if tech.split("(")[0].strip().lower()
-                not in config.OSINT_TECH_BLOCKLIST
+                if tech.split("(")[0].strip().lower() not in config.OSINT_TECH_BLOCKLIST
             }
             osint_data["technologies"] = sorted(list(filtered_techs))
 
         if osint_data.get("technologies"):
-            status.update("[green]Szukam publicznych exploitów (Searchsploit)...[/green]")
+            status.update(
+                "[green]Szukam publicznych exploitów (Searchsploit)...[/green]"
+            )
             searchsploit_results = get_searchsploit_info(osint_data["technologies"])
             osint_data["searchsploit_results"] = searchsploit_results
 
     table = Table(
-        show_header=True, header_style="bold magenta", box=box.ROUNDED, expand=True
+        show_header=True,
+        header_style="bold magenta",
+        box=box.ROUNDED,
+        expand=True,
     )
     table.add_column("Pole", style="cyan", min_width=20)
     table.add_column("Wartość", style="white")
@@ -366,7 +381,10 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
         table.add_section()
         table.add_row("Rejestrator", osint_data.get("registrar", "Brak danych"))
         table.add_row("Data Utworzenia", osint_data.get("creation_date", "Brak danych"))
-        table.add_row("Data Wygaśnięcia", osint_data.get("expiration_date", "Brak danych"))
+        table.add_row(
+            "Data Wygaśnięcia",
+            osint_data.get("expiration_date", "Brak danych"),
+        )
         ns = osint_data.get("name_servers")
         table.add_row("Serwery Nazw (NS)", "\n".join(ns) if ns else "Brak danych")
 
@@ -378,23 +396,27 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
         tech_display = Columns([col1, col2], equal=True, expand=True)
         table.add_row(f"Technologie ({len(technologies)})", tech_display)
 
-    if exploits := osint_data.get("searchsploit_results"):
-        if "Error" not in exploits:
-            table.add_section()
-            exploits_summary = []
-            total_exploits = 0
-            for tech, exploit_list in exploits.items():
-                if count := len(exploit_list):
-                    total_exploits += count
-                    summary = f"[yellow]{tech}[/yellow]: [bold red]{count}[/bold red]"
-                    exploits_summary.append(summary)
-            if total_exploits > 0:
-                table.add_row(
-                    f"Znalezione Exploity ({total_exploits})",
-                    "\n".join(exploits_summary),
-                )
-            else:
-                table.add_row("Znalezione Exploity", "[green]Brak znanych exploitów[/green]")
+    exploits = osint_data.get("searchsploit_results")
+    if exploits and "Error" not in exploits:
+        table.add_section()
+        exploits_summary = []
+        total_exploits = 0
+        for tech, exploit_list in exploits.items():
+            count = len(exploit_list)
+            if count:
+                total_exploits += count
+                summary = f"[yellow]{tech}[/yellow]: [bold red]{count}[/bold red]"
+                exploits_summary.append(summary)
+        if total_exploits > 0:
+            table.add_row(
+                f"Znalezione Exploity ({total_exploits})",
+                "\n".join(exploits_summary),
+            )
+        else:
+            table.add_row(
+                "Znalezione Exploity",
+                "[green]Brak znanych exploitów[/green]",
+            )
 
     utils.console.print(table)
     return osint_data, best_target_url

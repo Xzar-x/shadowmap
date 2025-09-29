@@ -30,7 +30,14 @@ NONINTERACTIVE = "-n" in sys.argv or "--non-interactive" in sys.argv
 IS_ROOT = os.geteuid() == 0
 
 SYSTEM_DEPS = [
-    "go", "python3", "pip3", "nmap", "masscan", "whois", "whatweb", "exploitdb"
+    "go",
+    "python3",
+    "pip3",
+    "nmap",
+    "masscan",
+    "whois",
+    "whatweb",
+    "exploitdb",
 ]
 GO_TOOLS = {
     "subfinder": "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
@@ -46,7 +53,13 @@ GO_TOOLS = {
     "gauplus": "github.com/bp0lr/gauplus@latest",
 }
 PYTHON_PKGS = [
-    "rich", "questionary", "pyfiglet", "typer", "psutil", "webtech", "requests"
+    "rich",
+    "questionary",
+    "pyfiglet",
+    "typer",
+    "psutil",
+    "webtech",
+    "requests",
 ]
 
 
@@ -62,11 +75,13 @@ def run_command(command, description, sudo=False, live_output=False):
     cmd_str = " ".join(full_command)
 
     if DRY_RUN:
-        console.print(Align.center(f"[blue]DRY RUN[/blue] Wykonuję: {cmd_str}"))
+        console.print(f"[blue]DRY RUN[/blue] Wykonuję: {cmd_str}")
         return True
 
     console.print(
-        Align.center(f"-> [yellow]Uruchamiam:[/yellow] {description} ([dim]{cmd_str}[/dim])")
+        Align.center(
+            f"-> [yellow]Uruchamiam:[/yellow] {description} " f"([dim]{cmd_str}[/dim])"
+        )
     )
     try:
         if live_output:
@@ -78,7 +93,7 @@ def run_command(command, description, sudo=False, live_output=False):
                 bufsize=1,
                 universal_newlines=True,
             )
-            for line in process.stdout:
+            for line in process.stdout:  # type: ignore
                 console.print(Align.center(f"[dim]  {line.strip()}[/dim]"))
             process.wait()
             if process.returncode != 0:
@@ -97,7 +112,12 @@ def run_command(command, description, sudo=False, live_output=False):
         console.print(Align.center(f"[red]{msg}[/red]"))
         console.print(
             Align.center(
-                Panel(e.stderr, title="[red]STDERR[/red]", border_style="red", expand=False)
+                Panel(
+                    e.stderr,
+                    title="[red]STDERR[/red]",
+                    border_style="red",
+                    expand=False,
+                )
             )
         )
         return False
@@ -159,22 +179,30 @@ def main():
 
     if not missing_system_deps and not missing_go_tools:
         console.print(
-            Align.center("\n[bold green]Wszystkie zależności są zainstalowane![/bold green]")
+            Align.center(
+                "\n[bold green]Wszystkie zależności są zainstalowane![/bold green]"
+            )
         )
     else:
         console.print(
             Align.center("\n[bold yellow]Wykryto brakujące zależności.[/bold yellow]")
         )
-        install_confirmed = ASSUME_YES or NONINTERACTIVE or questionary.confirm(
-            "Zainstalować brakujące pakiety?"
-        ).ask()
+        install_confirmed = (
+            ASSUME_YES
+            or NONINTERACTIVE
+            or questionary.confirm("Zainstalować brakujące pakiety?").ask()
+        )
 
         if install_confirmed:
             if missing_system_deps:
                 deps = ", ".join(missing_system_deps)
-                console.print(Align.center(f"\n[blue]Instaluję zależności: {deps}...[/blue]"))
+                console.print(
+                    Align.center(f"\n[blue]Instaluję zależności: {deps}...[/blue]")
+                )
                 run_command(
-                    ["apt-get", "update"], "Aktualizacja listy pakietów", sudo=True
+                    ["apt-get", "update"],
+                    "Aktualizacja listy pakietów",
+                    sudo=True,
                 )
                 run_command(
                     ["apt-get", "install", "-y"] + missing_system_deps,
@@ -185,7 +213,9 @@ def main():
 
             if missing_go_tools:
                 tools = ", ".join(missing_go_tools)
-                console.print(Align.center(f"\n[blue]Instaluję narzędzia Go: {tools}...[/blue]"))
+                console.print(
+                    Align.center(f"\n[blue]Instaluję narzędzia Go: {tools}...[/blue]")
+                )
                 for tool in missing_go_tools:
                     run_command(
                         ["go", "install", "-v", GO_TOOLS[tool]],
@@ -208,9 +238,13 @@ def main():
     run_command(["mkdir", "-p", SHARE_DIR], f"Tworzenie {SHARE_DIR}", sudo=True)
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     run_command(
-        ["cp", os.path.join(base_dir, "shadowmap.py"), os.path.join(BIN_DIR, "shadowmap")],
+        [
+            "cp",
+            os.path.join(base_dir, "shadowmap.py"),
+            os.path.join(BIN_DIR, "shadowmap"),
+        ],
         "Kopiowanie głównego skryptu",
         sudo=True,
     )
@@ -221,10 +255,18 @@ def main():
     )
 
     files_to_copy = [
-        "config.py", "utils.py", "phase0_osint.py", "phase1_subdomain.py",
-        "phase2_port_scanning.py", "phase3_dirsearch.py", "phase4_webcrawling.py",
-        "report_template.html", "resolvers.txt", "user_agents.txt",
-        "subdomen_wordlist.txt", "dir_wordlist.txt",
+        "config.py",
+        "utils.py",
+        "phase0_osint.py",
+        "phase1_subdomain.py",
+        "phase2_port_scanning.py",
+        "phase3_dirsearch.py",
+        "phase4_webcrawling.py",
+        "report_template.html",
+        "resolvers.txt",
+        "user_agents.txt",
+        "subdomen_wordlist.txt",
+        "dir_wordlist.txt",
     ]
     for f_name in files_to_copy:
         src = os.path.join(base_dir, f_name)
@@ -234,7 +276,8 @@ def main():
     final_message_text = (
         "[bold green]Instalacja ShadowMap zakończona pomyślnie![/bold green]\n\n"
         "Uruchom narzędzie wpisując: [bold cyan]shadowmap <cel>[/bold cyan]\n\n"
-        "[yellow]Uwaga:[/yellow] Może być konieczne ponowne uruchomienie terminala."
+        "[yellow]Uwaga:[/yellow] Może być konieczne ponowne "
+        "uruchomienie terminala."
     )
     final_message = Panel(
         Text.from_markup(final_message_text, justify="center"),

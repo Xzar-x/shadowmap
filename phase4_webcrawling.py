@@ -6,7 +6,7 @@ import subprocess
 import sys
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from rich.align import Align
 from rich.panel import Panel
@@ -64,14 +64,19 @@ def _run_and_parse_crawl_tool(
             ep_pattern = r"^(?!\[\+\]|\[i\]|\[!\])(?:'|\")?(/[a-zA-Z0-9_./-]+)"
             endpoint_pattern = re.compile(ep_pattern)
             for line in process.stdout.splitlines():
-                if url_match := url_pattern.search(line.strip()):
+                url_match = url_pattern.search(line.strip())
+                if url_match:
                     found_urls.append(url_match.group(0))
-                elif endpoint_match := endpoint_pattern.search(line.strip()):
-                    base_url = "/".join(target_url.split("/")[:3])
-                    found_urls.append(f"{base_url}{endpoint_match.group(1)}")
+                else:
+                    endpoint_match = endpoint_pattern.search(line.strip())
+                    if endpoint_match:
+                        base_url = "/".join(target_url.split("/")[:3])
+                        full_url = f"{base_url}{endpoint_match.group(1)}"
+                        found_urls.append(full_url)
 
         for url in found_urls:
-            if stripped_url := url.strip().strip("'\"").rstrip("/"):
+            stripped_url = url.strip().strip("'\"").rstrip("/")
+            if stripped_url:
                 results.add(stripped_url)
 
         if process.returncode == 0:
@@ -107,11 +112,26 @@ def _categorize_urls(urls: List[str]) -> Dict[str, List[str]]:
     }
     api_keywords = ["api", "rest", "graphql", "rpc", "json", "xml"]
     interesting_ext = [
-        ".json", ".xml", ".yml", ".yaml", ".conf", ".config", ".bak",
-        ".old", ".zip", ".tar.gz", ".sql",
+        ".json",
+        ".xml",
+        ".yml",
+        ".yaml",
+        ".conf",
+        ".config",
+        ".bak",
+        ".old",
+        ".zip",
+        ".tar.gz",
+        ".sql",
     ]
     interesting_kws = [
-        "swagger", "openapi", "debug", "test", "backup", "dump", "admin"
+        "swagger",
+        "openapi",
+        "debug",
+        "test",
+        "backup",
+        "dump",
+        "admin",
     ]
 
     for url in categorized["all_urls"]:
@@ -145,25 +165,41 @@ def start_web_crawl(
     utils.log_and_echo(msg, "INFO")
     all_found_urls: Set[str] = set()
 
-    tool_configs = [
+    tool_configs: List[Dict[str, Any]] = [
         {
-            "name": "Katana", "enabled": config.selected_phase4_tools[0],
-            "cmd_template": ["katana", "-silent", "-d", str(config.CRAWL_DEPTH_P4), "-jc"],
+            "name": "Katana",
+            "enabled": config.selected_phase4_tools[0],
+            "cmd_template": [
+                "katana",
+                "-silent",
+                "-d",
+                str(config.CRAWL_DEPTH_P4),
+                "-jc",
+            ],
         },
         {
-            "name": "Hakrawler", "enabled": config.selected_phase4_tools[1],
-            "cmd_template": ["hakrawler", "-d", str(config.CRAWL_DEPTH_P4), "-insecure"],
+            "name": "Hakrawler",
+            "enabled": config.selected_phase4_tools[1],
+            "cmd_template": [
+                "hakrawler",
+                "-d",
+                str(config.CRAWL_DEPTH_P4),
+                "-insecure",
+            ],
         },
         {
-            "name": "ParamSpider", "enabled": config.selected_phase4_tools[2],
+            "name": "ParamSpider",
+            "enabled": config.selected_phase4_tools[2],
             "cmd_template": ["paramspider", "-s"],
         },
         {
-            "name": "LinkFinder", "enabled": config.selected_phase4_tools[3],
+            "name": "LinkFinder",
+            "enabled": config.selected_phase4_tools[3],
             "cmd_template": ["linkfinder", "-d"],
         },
         {
-            "name": "Gauplus", "enabled": config.selected_phase4_tools[4],
+            "name": "Gauplus",
+            "enabled": config.selected_phase4_tools[4],
             "cmd_template": ["gauplus", "-t", "50", "-random-agent"],
         },
     ]
@@ -198,7 +234,8 @@ def start_web_crawl(
                         key = "-i" if cfg["name"] == "LinkFinder" else "-d"
                         cmd.extend([key, url])
                     elif cfg["name"] == "Gauplus":
-                        if domain_match := re.search(r"https?://([^/]+)", url):
+                        domain_match = re.search(r"https?://([^/]+)", url)
+                        if domain_match:
                             cmd.append(domain_match.group(1))
                         else:
                             continue
@@ -224,7 +261,7 @@ def start_web_crawl(
                 progress_obj.update(main_task_id, advance=1)
 
     final_results = _categorize_urls(list(all_found_urls))
-    count = len(final_results['all_urls'])
+    count = len(final_results["all_urls"])
     msg = f"Ukończono fazę 4. Znaleziono {count} unikalnych URLi."
     utils.log_and_echo(msg, "INFO")
     return final_results
@@ -294,10 +331,12 @@ def display_phase4_tool_selection_menu(display_banner_func):
                 msg = "[bold yellow]Wybierz co najmniej jedno narzędzie.[/bold yellow]"
                 utils.console.print(Align.center(msg))
         else:
-            utils.console.print(Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]"))
+            utils.console.print(
+                Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]")
+            )
         time.sleep(0.1)
 
-# --- NAPRAWIONA SEKCJA ---
+
 def display_phase4_settings_menu(display_banner_func):
     """Wyświetla i obsługuje menu ustawień specyficznych dla Fazy 4."""
     while True:
@@ -329,18 +368,42 @@ def display_phase4_settings_menu(display_banner_func):
             if config.USER_CUSTOMIZED_CRAWL_DEPTH_P4
             else f"[dim]{config.CRAWL_DEPTH_P4}[/dim]"
         )
-        safe_status = "[bold green]✓[/bold green]" if config.SAFE_MODE else "[bold red]✗[/bold red]"
-        aff_status = "[bold green]✓[/bold green]" if config.AUTO_FORM_FILL else "[bold red]✗[/bold red]"
-        headless_status = "[bold green]✓[/bold green]" if config.USE_HEADLESS_BROWSER else "[bold red]✗[/bold red]"
+        safe_status = (
+            "[bold green]✓[/bold green]"
+            if config.SAFE_MODE
+            else "[bold red]✗[/bold red]"
+        )
+        aff_status = (
+            "[bold green]✓[/bold green]"
+            if config.AUTO_FORM_FILL
+            else "[bold red]✗[/bold red]"
+        )
+        headless_status = (
+            "[bold green]✓[/bold green]"
+            if config.USE_HEADLESS_BROWSER
+            else "[bold red]✗[/bold red]"
+        )
 
         # Dodawanie wierszy do tabeli
         table.add_row("[bold cyan][1][/bold cyan]", f"[{safe_status}] Tryb bezpieczny")
-        table.add_row("[bold cyan][2][/bold cyan]", f"Głębokość crawlera: {depth_display}")
-        table.add_row("[bold cyan][3][/bold cyan]", f"[{aff_status}] Wypełnianie formularzy (Katana)")
-        table.add_row("[bold cyan][4][/bold cyan]", f"[{headless_status}] Przeglądarka headless (Katana w Safe Mode)")
+        table.add_row(
+            "[bold cyan][2][/bold cyan]",
+            f"Głębokość crawlera: {depth_display}",
+        )
+        table.add_row(
+            "[bold cyan][3][/bold cyan]",
+            f"[{aff_status}] Wypełnianie formularzy (Katana)",
+        )
+        table.add_row(
+            "[bold cyan][4][/bold cyan]",
+            f"[{headless_status}] Przeglądarka headless (Katana w Safe Mode)",
+        )
         table.add_row("[bold cyan][5][/bold cyan]", f"Proxy: {proxy_display}")
         table.add_row("[bold cyan][6][/bold cyan]", f"Liczba wątków: {threads_display}")
-        table.add_row("[bold cyan][7][/bold cyan]", f"Limit czasu narzędzia: {timeout_display}")
+        table.add_row(
+            "[bold cyan][7][/bold cyan]",
+            f"Limit czasu narzędzia: {timeout_display}",
+        )
         table.add_section()
         table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu Fazy 4")
 
@@ -377,8 +440,10 @@ def display_phase4_settings_menu(display_banner_func):
                 config.THREADS = int(new_threads)
                 config.USER_CUSTOMIZED_THREADS = True
         elif choice == "7":
-            prompt_text = "[bold cyan]Podaj limit czasu dla narzędzi (w sekundach)[/bold cyan]"
-            new_timeout = Prompt.ask(prompt_text, default=str(config.TOOL_TIMEOUT_SECONDS))
+            prompt_text = "[bold cyan]Podaj limit czasu (w sekundach)[/bold cyan]"
+            new_timeout = Prompt.ask(
+                prompt_text, default=str(config.TOOL_TIMEOUT_SECONDS)
+            )
             if new_timeout.isdigit():
                 config.TOOL_TIMEOUT_SECONDS = int(new_timeout)
                 config.USER_CUSTOMIZED_TIMEOUT = True

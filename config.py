@@ -22,15 +22,9 @@ SMALL_WORDLIST_PHASE3 = (
     "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt"
 )
 
-WORDPRESS_WORDLIST = (
-    "/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt"
-)
-JOOMLA_WORDLIST = (
-    "/usr/share/seclists/Discovery/Web-Content/CMS/joomla.fuzz.txt"
-)
-DRUPAL_WORDLIST = (
-    "/usr/share/seclists/Discovery/Web-Content/CMS/drupal.fuzz.txt"
-)
+WORDPRESS_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt"
+JOOMLA_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/joomla.fuzz.txt"
+DRUPAL_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/drupal.fuzz.txt"
 TOMCAT_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/tomcat.txt"
 
 DEFAULT_RESOLVERS_FILE = os.path.join(SHARE_DIR, "resolvers.txt")
@@ -47,6 +41,8 @@ TECH_SPECIFIC_WORDLISTS: Dict[str, str] = {
 # --- Globalne zmienne stanu i konfiguracji ---
 LOG_FILE: Optional[str] = None
 QUIET_MODE: bool = False
+# ZMIANA: Dodano nową flagę dla trybu automatycznego
+AUTO_MODE: bool = False
 OUTPUT_BASE_DIR: str = os.getcwd()
 REPORT_DIR: str = ""
 TEMP_FILES_TO_CLEAN: List[str] = []
@@ -57,8 +53,16 @@ EXCLUSION_PATTERNS: List[str] = []
 
 # --- Filtrowanie OSINT ---
 OSINT_TECH_BLOCKLIST: List[str] = [
-    "ip", "script", "title", "country", "email", "httpserver",
-    "uncommonheaders", "redirectlocation", "metagenerator", "html5",
+    "ip",
+    "script",
+    "title",
+    "country",
+    "email",
+    "httpserver",
+    "uncommonheaders",
+    "redirectlocation",
+    "metagenerator",
+    "html5",
 ]
 
 
@@ -94,9 +98,20 @@ NMAP_SOLO_SCAN_MODE: str = "default"
 DIRSEARCH_SMART_FILTER: bool = True
 FEROXBUSTER_SMART_FILTER: bool = True
 IGNORED_EXTENSIONS: List[str] = [
-    "png", "jpg", "jpeg", "gif", "svg", "bmp", "ico",
-    "css", "js", "map",
-    "woff", "woff2", "ttf", "eot",
+    "png",
+    "jpg",
+    "jpeg",
+    "gif",
+    "svg",
+    "bmp",
+    "ico",
+    "css",
+    "js",
+    "map",
+    "woff",
+    "woff2",
+    "ttf",
+    "eot",
 ]
 
 

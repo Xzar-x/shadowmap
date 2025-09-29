@@ -1,773 +1,1198 @@
 <!DOCTYPE html>
 <html lang="pl">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ShadowMap Scan Report - {{DOMAIN}}</title>
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0a0a0a;
-            color: #e0e0e0;
-            margin: 0;
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-            overflow-y: auto;
-        }
-        .header {
-            max-width: 1200px;
-            margin: 0 auto 10px auto;
-            text-align: center;
-            padding: 0 10px;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShadowMap Scan Report - {{DOMAIN}}</title>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0a0a0a;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-y: auto;
+    }
 
-        @keyframes pulseGlow {
-            0% { box-shadow: 0 0 10px rgba(0, 123, 255, 0.4), 0 0 20px rgba(0, 123, 255, 0.3); }
-            50% { box-shadow: 0 0 25px rgba(0, 123, 255, 0.8), 0 0 50px rgba(0, 123, 255, 0.6); }
-            100% { box-shadow: 0 0 10px rgba(0, 123, 255, 0.4), 0 0 20px rgba(0, 123, 255, 0.3); }
-        }
+    .header {
+      max-width: 1200px;
+      margin: 0 auto 10px auto;
+      text-align: center;
+      padding: 0 10px;
+    }
 
-        .banner-image {
-            width: 200%;
-            max-width: none;
-            height: 150px;
-            object-fit: cover;
-            border-radius: 8px;
-            display: block;
-            position: relative;
-            left: 50%;
-            transform: translateX(-50%);
-            animation: pulseGlow 2.5s infinite ease-in-out;
-        }
+    @keyframes pulseGlow {
+      0% {
+        box-shadow: 0 0 10px rgba(0, 123, 255, 0.4), 0 0 20px rgba(0, 123, 255, 0.3);
+      }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            padding: 15px;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: calc(100vh - 180px - 50px);
-            box-sizing: border-box;
-            backdrop-filter: blur(10px);
-        }
+      50% {
+        box-shadow: 0 0 25px rgba(0, 123, 255, 0.8), 0 0 50px rgba(0, 123, 255, 0.6);
+      }
 
-        h1, h2 { color: #00d4ff; margin-top: 0; margin-bottom: 10px; text-shadow: 0 0 20px rgba(0, 212, 255, 0.5); }
-        h3 { color: #5bc0de; margin-top: 15px; margin-bottom: 8px; }
+      100% {
+        box-shadow: 0 0 10px rgba(0, 123, 255, 0.4), 0 0 20px rgba(0, 123, 255, 0.3);
+      }
+    }
 
-        .main-tabs { 
-            display: flex; 
-            flex-wrap: wrap; 
-            margin-bottom: 10px; 
-            border-bottom: 2px solid #333;
-            justify-content: center;
-        }
-        .main-tab-button {
-            padding: 12px 20px;
-            cursor: pointer;
-            background: linear-gradient(135deg, #2a2a3a 0%, #1e1e2e 100%);
-            border: 1px solid #444;
-            border-bottom: none;
-            border-radius: 8px 8px 0 0;
-            margin: 0 4px 0 4px;
-            color: #e0e0e0;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-size: 1em;
-            font-weight: bold;
-            position: relative;
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-        .main-tab-button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-            transition: left 0.5s;
-        }
-        .main-tab-button:hover::before {
-            left: 100%;
-        }
-        .main-tab-button:hover { 
-            background: linear-gradient(135deg, #3a3a4a 0%, #2e2e3e 100%); 
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
-        }
-        .main-tab-button.active { 
-            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); 
-            color: white; 
-            border-color: #007bff;
-            box-shadow: 0 4px 20px rgba(0, 123, 255, 0.4);
-        }
+    .banner-image {
+      width: 200%;
+      max-width: none;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 8px;
+      display: block;
+      position: relative;
+      left: 50%;
+      transform: translateX(-50%);
+      animation: pulseGlow 2.5s infinite ease-in-out;
+    }
 
-        .sub-tabs { display: flex; flex-wrap: wrap; margin-top: 10px; margin-bottom: 10px; border-bottom: 1px solid #444; }
-        .sub-tab-button {
-            padding: 8px 16px;
-            cursor: pointer;
-            background: linear-gradient(135deg, #444 0%, #333 100%);
-            border: 1px solid #555;
-            border-bottom: none;
-            border-radius: 6px 6px 0 0;
-            margin-right: 5px;
-            color: #ccc;
-            transition: all 0.3s ease;
-            font-size: 0.85em;
-        }
-        .sub-tab-button:hover { 
-            background: linear-gradient(135deg, #666 0%, #555 100%); 
-            transform: translateY(-1px);
-        }
-        .sub-tab-button.active { 
-            background: linear-gradient(135deg, #5bc0de 0%, #46a7c7 100%); 
-            color: white; 
-            border-color: #5bc0de;
-            box-shadow: 0 2px 10px rgba(91, 192, 222, 0.4);
-        }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      padding: 15px;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100vh - 180px - 50px);
+      box-sizing: border-box;
+      backdrop-filter: blur(10px);
+    }
 
-        .tab-content { display: none; padding: 15px 0; border-top: 2px solid #007bff; flex-grow: 1; overflow-y: auto; }
-        .tab-content.active { display: block; }
-        .sub-tab-content { display: none; padding: 10px 0; border-top: 1px solid #5bc0de; flex-grow: 1; overflow-y: auto; }
-        .sub-tab-content.active { display: block; }
+    h1,
+    h2 {
+      color: #00d4ff;
+      margin-top: 0;
+      margin-bottom: 10px;
+      text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    }
 
-        .results-grid { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 10px; margin: 0 auto; max-width: 90%; }
-        .result-card {
-            background: linear-gradient(135deg, rgba(42, 42, 58, 0.9) 0%, rgba(30, 30, 46, 0.9) 100%);
-            border: 1px solid rgba(68, 68, 68, 0.5); border-radius: 12px; padding: 16px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden;
-            backdrop-filter: blur(5px); cursor: pointer; min-height: 16px;
-            display: flex; align-items: center;
-        }
-        .result-card::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-            background: linear-gradient(90deg, transparent, var(--priority-color, #666), transparent);
-            transform: translateX(-100%); transition: transform 0.6s ease;
-        }
-        .result-card:hover::before { transform: translateX(100%); }
-        .result-card:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 30px var(--priority-glow, rgba(102, 102, 102, 0.3));
-            border-color: var(--priority-color, #666);
-        }
-        .result-card.red-priority { --priority-color: #ff4d4d; --priority-glow: rgba(255, 77, 77, 0.4); }
-        .result-card.yellow-priority { --priority-color: #FFD700; --priority-glow: rgba(255, 215, 0, 0.4); }
-        .result-card.green-priority { --priority-color: #90EE90; --priority-glow: rgba(144, 238, 144, 0.4); }
-        .result-card.cyan-priority { --priority-color: #00FFFF; --priority-glow: rgba(0, 255, 255, 0.4); }
-        .result-card.orange-priority { --priority-color: #FFA500; --priority-glow: rgba(255, 165, 0, 0.4); }
-        .result-card.gray-priority { --priority-color: #888; --priority-glow: rgba(136, 136, 136, 0.3); }
+    h3 {
+      color: #5bc0de;
+      margin-top: 15px;
+      margin-bottom: 8px;
+    }
 
-        .result-header { display: flex; align-items: center; width: 100%; }
-        .result-icon { font-size: 1.5em; margin-right: 12px; filter: drop-shadow(0 0 8px currentColor); }
-        .result-url {
-            color: #e0e0e0; font-weight: 500; font-size: 0.95em; word-break: break-all;
-            flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .result-url a { color: inherit; text-decoration: none; }
-        .result-url a:hover { text-decoration: underline; }
+    .main-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      border-bottom: 2px solid #333;
+      justify-content: center;
+    }
 
-        .result-meta-info { display: flex; align-items: center; gap: 12px; margin-left: auto; }
-        .status-code {
-            background-color: var(--priority-color, #666); color: #1a1a2e; padding: 4px 12px;
-            border-radius: 20px; font-size: 0.85em; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-        
-        .last-modified-date {
-            background-color: #555; color: #e0e0e0; padding: 4px 10px; border-radius: 20px;
-            font-size: 0.75em; font-weight: normal; display: flex; align-items: center; gap: 5px;
-        }
-        .last-modified-date.old-asset {
-            background-color: #d9534f;
-            color: white;
-            font-weight: bold;
-        }
+    .main-tab-button {
+      padding: 12px 20px;
+      cursor: pointer;
+      background: linear-gradient(135deg, #2a2a3a 0%, #1e1e2e 100%);
+      border: 1px solid #444;
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      margin: 0 4px 0 4px;
+      color: #e0e0e0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-size: 1em;
+      font-weight: bold;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
 
-        pre.output {
-            background: linear-gradient(135deg, #111 0%, #1a1a1a 100%); color: #e0e0e0; padding: 15px;
-            border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-break: break-all;
-            font-family: 'Courier New', Courier, monospace; border: 1px solid #333;
-            max-height: calc(100vh - 350px); box-sizing: border-box; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
-        }
-        .summary-item, .osint-item { 
-            margin-bottom: 8px; font-size: 0.95em; background: rgba(0, 123, 255, 0.1);
-            padding: 8px 12px; border-radius: 6px; border-left: 3px solid #007bff;
-        }
-        .summary-item strong, .osint-item strong { color: #00d4ff; }
-        .footer { text-align: center; margin-top: 20px; padding-top: 10px; border-top: 1px solid #333; color: #888; font-size: 0.8em; }
-        .footer-logo { height: 25px; vertical-align: middle; margin-left: 5px; }
-        .filter-section {
-            margin-bottom: 15px; display: flex; align-items: center; gap: 15px;
-            background: rgba(0, 123, 255, 0.1); padding: 12px; border-radius: 8px;
-            border: 1px solid rgba(0, 123, 255, 0.3); margin: 0 auto 15px auto; max-width: 90%;
-        }
-        .filter-section label { font-size: 0.95em; color: #e0e0e0; cursor: pointer; user-select: none; }
-        .filter-section input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #00d4ff; }
-        @keyframes iconPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-        .result-card:hover .result-icon { animation: iconPulse 0.6s ease-in-out; }
-        .copy-notification {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background-color: #00d4ff;
-            color: #1a1a2e; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
-            z-index: 1000; opacity: 0; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
-        }
-        .copy-notification.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
-        
-        .port-scan-grid { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 10px; margin: 0 auto; max-width: 95%; }
-        .port-card {
-            background: linear-gradient(135deg, #2a2a3a, #1e1e2e); border: 1px solid #444; border-radius: 8px;
-            padding: 15px; transition: all 0.3s ease;
-        }
-        .port-card h4 { margin-top: 0; color: #00d4ff; }
-        .port-card-grid {
-            display: grid;
-            grid-template-columns: 1fr 1.2fr;
-            gap: 20px;
-        }
-        .port-details, .nse-results {
-            padding: 10px;
-            background: rgba(10, 10, 10, 0.3);
-            border-radius: 6px;
-        }
-        .port-details h5, .nse-results h5 {
-            margin-top: 0;
-            color: #5bc0de;
-            border-bottom: 1px solid #333;
-            padding-bottom: 5px;
-        }
-        .port-list { list-style: none; padding-left: 0; }
-        .port-list-item { background: #333; margin-bottom: 5px; padding: 8px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
-        .port-number { color: #e0e0e0; font-weight: bold; }
-        .port-status { font-size: 0.9em; padding: 3px 8px; border-radius: 10px; }
-        .port-status.open { background-color: #28a745; color: white; }
-        .port-status.filtered { background-color: #ffc107; color: black; }
-        .port-status.closed { background-color: #dc3545; color: white; }
-        .nse-script-output {
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
-            color: #ccc;
-        }
-        .nse-script-output ul { padding-left: 15px; margin: 5px 0 0 0; list-style-type: none; }
-        .nse-script-output li { margin-bottom: 5px; }
-        .nse-script-name { color: #ffc107; font-weight: bold; }
-        .nse-key { color: #00d4ff; }
+    .main-tab-button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      transition: left 0.5s;
+    }
 
-        .tech-container {
-            background: linear-gradient(135deg, #111 0%, #1a1a1a 100%);
-            color: #e0e0e0; padding: 15px; border-radius: 8px; margin-top: 5px;
-            border: 1px solid #333; box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
-        }
-        .tech-columns { display: flex; justify-content: space-between; }
-        .tech-columns ul { flex: 1; padding-left: 25px; margin: 0; min-width: 0; list-style-type: disc; }
-        .tech-columns li { padding-bottom: 5px; }
-        .tech-columns li:last-child { padding-bottom: 0; }
-        .tech-container p { margin: 0; font-style: italic; color: #999; }
-        
-        .exploit-container details {
-            background-color: rgba(255, 77, 77, 0.05);
-            border: 1px solid rgba(255, 77, 77, 0.3);
-            border-radius: 6px;
-            margin-bottom: 8px;
-            transition: background-color 0.3s;
-        }
-        .exploit-container details[open] {
-            background-color: rgba(255, 77, 77, 0.1);
-        }
-        .exploit-container summary {
-            padding: 10px;
-            font-weight: bold;
-            cursor: pointer;
-            color: #ff8a8a;
-            outline: none;
-        }
-        .exploit-container summary::-webkit-details-marker {
-            color: #ff8a8a;
-        }
-        .exploit-list {
-            list-style-type: none;
-            padding: 0 10px 10px 10px;
-            margin: 0;
-        }
-        .exploit-list li {
-            padding: 8px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .exploit-list a {
-            color: #e0e0e0;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        .exploit-list a:hover {
-            color: #00d4ff;
-            text-decoration: underline;
-        }
-        .exploit-id {
-            font-weight: bold;
-            color: #ffc107;
-            margin-right: 10px;
-        }
+    .main-tab-button:hover::before {
+      left: 100%;
+    }
 
-        @media (max-width: 768px) {
-            body { padding: 5px; } .container { padding: 10px; border-radius: 8px; }
-            .main-tab-button, .sub-tab-button { flex: 1 1 auto; margin-right: 0; margin-bottom: 5px; border-radius: 5px; }
-            .main-tabs, .sub-tabs { flex-direction: column; }
-            .results-grid, .port-scan-grid { grid-template-columns: 1fr; padding: 5px; max-width: 95%; }
-            .filter-section { padding: 8px; max-width: 95%; }
-            .result-card { padding: 12px; height: auto; }
-            .port-card-grid { grid-template-columns: 1fr; }
-        }
-    </style>
+    .main-tab-button:hover {
+      background: linear-gradient(135deg, #3a3a4a 0%, #2e2e3e 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+    }
+
+    .main-tab-button.active {
+      background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+      color: white;
+      border-color: #007bff;
+      box-shadow: 0 4px 20px rgba(0, 123, 255, 0.4);
+    }
+
+    .sub-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #444;
+    }
+
+    .sub-tab-button {
+      padding: 8px 16px;
+      cursor: pointer;
+      background: linear-gradient(135deg, #444 0%, #333 100%);
+      border: 1px solid #555;
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      margin-right: 5px;
+      color: #ccc;
+      transition: all 0.3s ease;
+      font-size: 0.85em;
+    }
+
+    .sub-tab-button:hover {
+      background: linear-gradient(135deg, #666 0%, #555 100%);
+      transform: translateY(-1px);
+    }
+
+    .sub-tab-button.active {
+      background: linear-gradient(135deg, #5bc0de 0%, #46a7c7 100%);
+      color: white;
+      border-color: #5bc0de;
+      box-shadow: 0 2px 10px rgba(91, 192, 222, 0.4);
+    }
+
+    .tab-content {
+      display: none;
+      padding: 15px 0;
+      border-top: 2px solid #007bff;
+      flex-grow: 1;
+      overflow-y: auto;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .sub-tab-content {
+      display: none;
+      padding: 10px 0;
+      border-top: 1px solid #5bc0de;
+      flex-grow: 1;
+      overflow-y: auto;
+    }
+
+    .sub-tab-content.active {
+      display: block;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      padding: 10px;
+      margin: 0 auto;
+      max-width: 90%;
+    }
+
+    .result-card {
+      background: linear-gradient(135deg, rgba(42, 42, 58, 0.9) 0%, rgba(30, 30, 46, 0.9) 100%);
+      border: 1px solid rgba(68, 68, 68, 0.5);
+      border-radius: 12px;
+      padding: 16px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(5px);
+      cursor: pointer;
+      min-height: 16px;
+      display: flex;
+      align-items: center;
+    }
+
+    .result-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--priority-color, #666), transparent);
+      transform: translateX(-100%);
+      transition: transform 0.6s ease;
+    }
+
+    .result-card:hover::before {
+      transform: translateX(100%);
+    }
+
+    .result-card:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 30px var(--priority-glow, rgba(102, 102, 102, 0.3));
+      border-color: var(--priority-color, #666);
+    }
+
+    .result-card.red-priority {
+      --priority-color: #ff4d4d;
+      --priority-glow: rgba(255, 77, 77, 0.4);
+    }
+
+    .result-card.yellow-priority {
+      --priority-color: #FFD700;
+      --priority-glow: rgba(255, 215, 0, 0.4);
+    }
+
+    .result-card.green-priority {
+      --priority-color: #90EE90;
+      --priority-glow: rgba(144, 238, 144, 0.4);
+    }
+
+    .result-card.cyan-priority {
+      --priority-color: #00FFFF;
+      --priority-glow: rgba(0, 255, 255, 0.4);
+    }
+
+    .result-card.orange-priority {
+      --priority-color: #FFA500;
+      --priority-glow: rgba(255, 165, 0, 0.4);
+    }
+
+    .result-card.gray-priority {
+      --priority-color: #888;
+      --priority-glow: rgba(136, 136, 136, 0.3);
+    }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+
+    .result-icon {
+      font-size: 1.5em;
+      margin-right: 12px;
+      filter: drop-shadow(0 0 8px currentColor);
+    }
+
+    .result-url {
+      color: #e0e0e0;
+      font-weight: 500;
+      font-size: 0.95em;
+      word-break: break-all;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .result-url a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .result-url a:hover {
+      text-decoration: underline;
+    }
+
+    .result-meta-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-left: auto;
+    }
+
+    .status-code {
+      background-color: var(--priority-color, #666);
+      color: #1a1a2e;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85em;
+      font-weight: bold;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .last-modified-date {
+      background-color: #555;
+      color: #e0e0e0;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75em;
+      font-weight: normal;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .last-modified-date.old-asset {
+      background-color: #d9534f;
+      color: white;
+      font-weight: bold;
+    }
+
+    pre.output {
+      background: linear-gradient(135deg, #111 0%, #1a1a1a 100%);
+      color: #e0e0e0;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-family: 'Courier New', Courier, monospace;
+      border: 1px solid #333;
+      max-height: calc(100vh - 350px);
+      box-sizing: border-box;
+      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .summary-item,
+    .osint-item {
+      margin-bottom: 8px;
+      font-size: 0.95em;
+      background: rgba(0, 123, 255, 0.1);
+      padding: 8px 12px;
+      border-radius: 6px;
+      border-left: 3px solid #007bff;
+    }
+
+    .summary-item strong,
+    .osint-item strong {
+      color: #00d4ff;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      padding-top: 10px;
+      border-top: 1px solid #333;
+      color: #888;
+      font-size: 0.8em;
+    }
+
+    .footer-logo {
+      height: 25px;
+      vertical-align: middle;
+      margin-left: 5px;
+    }
+
+    .filter-section {
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      background: rgba(0, 123, 255, 0.1);
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(0, 123, 255, 0.3);
+      margin: 0 auto 15px auto;
+      max-width: 90%;
+    }
+
+    .filter-section label {
+      font-size: 0.95em;
+      color: #e0e0e0;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .filter-section input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #00d4ff;
+    }
+
+    @keyframes iconPulse {
+
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.1);
+      }
+    }
+
+    .result-card:hover .result-icon {
+      animation: iconPulse 0.6s ease-in-out;
+    }
+
+    .copy-notification {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #00d4ff;
+      color: #1a1a2e;
+      padding: 10px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(0, 212, 255, 0.4);
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      pointer-events: none;
+    }
+
+    .copy-notification.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-10px);
+    }
+
+    .port-scan-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      padding: 10px;
+      margin: 0 auto;
+      max-width: 95%;
+    }
+
+    .port-card {
+      background: linear-gradient(135deg, #2a2a3a, #1e1e2e);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 15px;
+      transition: all 0.3s ease;
+    }
+
+    .port-card h4 {
+      margin-top: 0;
+      color: #00d4ff;
+    }
+
+    .port-card-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 20px;
+    }
+
+    .port-details,
+    .nse-results {
+      padding: 10px;
+      background: rgba(10, 10, 10, 0.3);
+      border-radius: 6px;
+    }
+
+    .port-details h5,
+    .nse-results h5 {
+      margin-top: 0;
+      color: #5bc0de;
+      border-bottom: 1px solid #333;
+      padding-bottom: 5px;
+    }
+
+    .port-list {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .port-list-item {
+      background: #333;
+      margin-bottom: 5px;
+      padding: 8px;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .port-number {
+      color: #e0e0e0;
+      font-weight: bold;
+    }
+
+    .port-status {
+      font-size: 0.9em;
+      padding: 3px 8px;
+      border-radius: 10px;
+    }
+
+    .port-status.open {
+      background-color: #28a745;
+      color: white;
+    }
+
+    .port-status.filtered {
+      background-color: #ffc107;
+      color: black;
+    }
+
+    .port-status.closed {
+      background-color: #dc3545;
+      color: white;
+    }
+
+    .nse-script-output {
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .nse-script-output ul {
+      padding-left: 15px;
+      margin: 5px 0 0 0;
+      list-style-type: none;
+    }
+
+    .nse-script-output li {
+      margin-bottom: 5px;
+    }
+
+    .nse-script-name {
+      color: #ffc107;
+      font-weight: bold;
+    }
+
+    .nse-key {
+      color: #00d4ff;
+    }
+
+    .tech-container {
+      background: linear-gradient(135deg, #111 0%, #1a1a1a 100%);
+      color: #e0e0e0;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 5px;
+      border: 1px solid #333;
+      box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .tech-columns {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .tech-columns ul {
+      flex: 1;
+      padding-left: 25px;
+      margin: 0;
+      min-width: 0;
+      list-style-type: disc;
+    }
+
+    .tech-columns li {
+      padding-bottom: 5px;
+    }
+
+    .tech-columns li:last-child {
+      padding-bottom: 0;
+    }
+
+    .tech-container p {
+      margin: 0;
+      font-style: italic;
+      color: #999;
+    }
+
+    .exploit-container details {
+      background-color: rgba(255, 77, 77, 0.05);
+      border: 1px solid rgba(255, 77, 77, 0.3);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      transition: background-color 0.3s;
+    }
+
+    .exploit-container details[open] {
+      background-color: rgba(255, 77, 77, 0.1);
+    }
+
+    .exploit-container summary {
+      padding: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #ff8a8a;
+      outline: none;
+    }
+
+    .exploit-container summary::-webkit-details-marker {
+      color: #ff8a8a;
+    }
+
+    .exploit-list {
+      list-style-type: none;
+      padding: 0 10px 10px 10px;
+      margin: 0;
+    }
+
+    .exploit-list li {
+      padding: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .exploit-list a {
+      color: #e0e0e0;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .exploit-list a:hover {
+      color: #00d4ff;
+      text-decoration: underline;
+    }
+
+    .exploit-id {
+      font-weight: bold;
+      color: #ffc107;
+      margin-right: 10px;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 5px;
+      }
+
+      .container {
+        padding: 10px;
+        border-radius: 8px;
+      }
+
+      .main-tab-button,
+      .sub-tab-button {
+        flex: 1 1 auto;
+        margin-right: 0;
+        margin-bottom: 5px;
+        border-radius: 5px;
+      }
+
+      .main-tabs,
+      .sub-tabs {
+        flex-direction: column;
+      }
+
+      .results-grid,
+      .port-scan-grid {
+        grid-template-columns: 1fr;
+        padding: 5px;
+        max-width: 95%;
+      }
+
+      .filter-section {
+        padding: 8px;
+        max-width: 95%;
+      }
+
+      .result-card {
+        padding: 12px;
+        height: auto;
+      }
+
+      .port-card-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
+
 <body>
-    <div class="header">
-        <img src="https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/shadowmap.png" alt="ShadowMap Banner" class="banner-image">
+  <div class="header">
+    <img src="https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/shadowmap.png" alt="ShadowMap Banner" class="banner-image">
+  </div>
+
+  <div class="container">
+    <h1>ShadowMap Scan Report for {{DOMAIN}}</h1>
+    <div class="main-tabs">
+      <div class="main-tab-button active" onclick="openMainTab(this, 'summary')">Podsumowanie</div>
+      <div class="main-tab-button" onclick="openMainTab(this, 'phase0')">Faza 0: OSINT</div>
+      <div class="main-tab-button" onclick="openMainTab(this, 'phase1')">Faza 1: Subdomeny</div>
+      <div class="main-tab-button" onclick="openMainTab(this, 'phase2')">Faza 2: Porty</div>
+      <div class="main-tab-button" onclick="openMainTab(this, 'phase3')">Faza 3: Katalogi</div>
+      <div class="main-tab-button" onclick="openMainTab(this, 'phase4')">Faza 4: Web Crawling</div>
+      <div class="main-tab-button" onclick="openMainTab(this, 'all_results')">Wszystkie wyniki</div>
     </div>
 
-    <div class="container">
-        <h1>ShadowMap Scan Report for {{DOMAIN}}</h1>
-        <div class="main-tabs">
-            <div class="main-tab-button active" onclick="openMainTab(this, 'summary')">Podsumowanie</div>
-            <div class="main-tab-button" onclick="openMainTab(this, 'phase0')">Faza 0: OSINT</div>
-            <div class="main-tab-button" onclick="openMainTab(this, 'phase1')">Faza 1: Subdomeny</div>
-            <div class="main-tab-button" onclick="openMainTab(this, 'phase2')">Faza 2: Porty</div>
-            <div class="main-tab-button" onclick="openMainTab(this, 'phase3')">Faza 3: Katalogi</div>
-            <div class="main-tab-button" onclick="openMainTab(this, 'phase4')">Faza 4: Web Crawling</div>
-            <div class="main-tab-button" onclick="openMainTab(this, 'all_results')">Wszystkie wyniki</div>
-        </div>
-
-        <div id="summary" class="tab-content active">
-            <h2>Podsumowanie skanowania</h2>
-            <div class="summary-item"><strong>Domena:</strong> {{DOMAIN}}</div>
-            <div class="summary-item"><strong>Całkowita liczba znalezionych subdomen (Faza 1):</strong> {{COUNT_ALL_SUBDOMAINS}}</div>
-            <div class="summary-item"><strong>Liczba aktywnych subdomen HTTP/S (Faza 1):</strong> {{COUNT_HTTPX}}</div>
-            <div class="summary-item"><strong>Liczba otwartych portów (Faza 2):</strong> {{COUNT_OPEN_PORTS}}</div>
-            <div class="summary-item"><strong>Liczba znalezionych katalogów/plików (Faza 3):</strong> {{COUNT_DIR_SEARCH}}</div>
-            <div class="summary-item"><strong>Liczba unikalnych URL-i z crawlera (Faza 4):</strong> {{COUNT_ALL_URLS_P4}}</div>
-        </div>
-
-        <div id="phase0" class="tab-content">
-            <h2>Faza 0: Zwiad Pasywny (OSINT)</h2>
-            <div class="osint-item"><strong>Adres IP:</strong> {{OSINT_IP}}</div>
-            <div class="osint-item"><strong>ASN / Dostawca:</strong> {{OSINT_ASN_DETAILS}}</div>
-            <div class="osint-item"><strong>CDN:</strong> {{OSINT_CDN}}</div>
-            <div class="osint-item"><strong>Rejestrator Domeny:</strong> {{OSINT_REGISTRAR}}</div>
-            <div class="osint-item"><strong>Data Utworzenia:</strong> {{OSINT_CREATION_DATE}}</div>
-            <div class="osint-item"><strong>Data Wygaśnięcia:</strong> {{OSINT_EXPIRATION_DATE}}</div>
-            <div class="osint-item"><strong>Serwery Nazw (NS):</strong> <pre class="output" style="margin-top: 5px;">{{OSINT_NAME_SERVERS}}</pre></div>
-            <div class="osint-item"><strong>Technologie (strona główna):</strong> <div class="tech-container">{{OSINT_TECHNOLOGIES_HTML}}</div></div>
-            <div class="osint-item"><strong>Potencjalne Exploity (Searchsploit):</strong><div class="exploit-container">{{SEARCHSPLOIT_RESULTS_HTML}}</div></div>
-        </div>
-
-        <div id="phase1" class="tab-content">
-            <h2>Faza 1: Enumeracja Subdomen</h2>
-            <div class="sub-tabs">
-                <div class="sub-tab-button active" onclick="openSubTab(this, 'phase1', 'httpx')">HTTPX</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'subfinder')">Subfinder</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'assetfinder')">Assetfinder</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'findomain')">Findomain</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'puredns')">Puredns</div>
-            </div>
-
-            <div id="phase1-httpx" class="sub-tab-content active">
-                <h3>HTTPX Output ({{COUNT_HTTPX}} aktywnych)</h3>
-                <div class="filter-section">
-                    <input type="checkbox" id="showOnlyCriticalP1" onchange="renderResults(httpxDataP1, 'httpx-results', this.checked)">
-                    <label for="showOnlyCriticalP1">Pokaż tylko krytyczne 🔥</label>
-                </div>
-                <div id="httpx-results" class="results-grid"></div>
-            </div>
-            <div id="phase1-subfinder" class="sub-tab-content"><h3>Subfinder Output</h3><pre class="output">{{SUBFINDER_OUTPUT}}</pre></div>
-            <div id="phase1-assetfinder" class="sub-tab-content"><h3>Assetfinder Output</h3><pre class="output">{{ASSETFINDER_OUTPUT}}</pre></div>
-            <div id="phase1-findomain" class="sub-tab-content"><h3>Findomain Output</h3><pre class="output">{{FINDOMAIN_OUTPUT}}</pre></div>
-            <div id="phase1-puredns" class="sub-tab-content"><h3>Puredns Output</h3><pre class="output">{{PUREDNS_OUTPUT}}</pre></div>
-        </div>
-
-        <div id="phase2" class="tab-content">
-            <h2>Faza 2: Skanowanie Portów</h2>
-            <div class="sub-tabs">
-                <div class="sub-tab-button active" onclick="openSubTab(this, 'phase2', 'summary_ports')">Podsumowanie Portów</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'nmap_raw')">Nmap (Surowe)</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'naabu_raw')">Naabu (Surowe)</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'masscan_raw')">Masscan (Surowe)</div>
-            </div>
-            <div id="phase2-summary_ports" class="sub-tab-content active">
-                <h3>Wizualne podsumowanie otwartych portów (Wyniki Nmap)</h3>
-                <div id="port-scan-results" class="port-scan-grid"></div>
-            </div>
-            <div id="phase2-nmap_raw" class="sub-tab-content">
-                <h3>Surowe wyniki Nmap</h3>
-                <div id="nmap-raw-output"></div>
-            </div>
-            <div id="phase2-naabu_raw" class="sub-tab-content"><h3>Surowe wyniki Naabu</h3><pre class="output" id="naabu-raw-output">Brak danych</pre></div>
-            <div id="phase2-masscan_raw" class="sub-tab-content"><h3>Surowe wyniki Masscan</h3><pre class="output" id="masscan-raw-output">Brak danych</pre></div>
-        </div>
-        
-        <div id="phase3" class="tab-content">
-            <h2>Faza 3: Wyszukiwanie Katalogów</h2>
-             <div class="sub-tabs">
-                <div class="sub-tab-button active" onclick="openSubTab(this, 'phase3', 'verified_httpx')">HTTPX</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'ffuf')">Ffuf</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'feroxbuster')">Feroxbuster</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'dirsearch')">Dirsearch</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'gobuster')">Gobuster</div>
-             </div>
-             <div id="phase3-verified_httpx" class="sub-tab-content active">
-                <h3>Wyniki z Fazy 3 zweryfikowane przez HTTPX ({{COUNT_DIR_SEARCH}} znalezionych)</h3>
-                <div class="filter-section">
-                    <input type="checkbox" id="showOnlyCriticalP3" onchange="renderResults(httpxDataP3, 'verified-httpx-results', this.checked)">
-                    <label for="showOnlyCriticalP3">Pokaż tylko krytyczne 🔥</label>
-                </div>
-                <div id="verified-httpx-results" class="results-grid"></div>
-            </div>
-            <div id="phase3-ffuf" class="sub-tab-content"><h3>Ffuf Output</h3><pre class="output">{{FFUF_OUTPUT}}</pre></div>
-            <div id="phase3-feroxbuster" class="sub-tab-content"><h3>Feroxbuster Output</h3><pre class="output">{{FEROXBUSTER_OUTPUT}}</pre></div>
-            <div id="phase3-dirsearch" class="sub-tab-content"><h3>Dirsearch Output</h3><pre class="output">{{DIRSEARCH_P3_OUTPUT}}</pre></div>
-            <div id="phase3-gobuster" class="sub-tab-content"><h3>Gobuster Output</h3><pre class="output">{{GOBUSTER_OUTPUT}}</pre></div>
-        </div>
-
-        <div id="phase4" class="tab-content">
-            <h2>Faza 4: Web Crawling i Link Discovery</h2>
-            <div class="sub-tabs">
-                <div class="sub-tab-button active" onclick="openSubTab(this, 'phase4', 'all_crawled')">Wszystkie URL-e</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'parameters')">Parametry</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'js_files')">Pliki JS</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'api_endpoints')">Endpointy API</div>
-                <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'interesting_paths')">Interesujące ścieżki</div>
-            </div>
-
-            <div id="phase4-all_crawled" class="sub-tab-content active">
-                <h3>Wszystkie znalezione URL-e ({{COUNT_ALL_URLS_P4}})</h3>
-                <div class="filter-section">
-                    <input type="checkbox" id="showOnlyCriticalP4All" onchange="renderResults(p4AllUrlsData, 'phase4-all-results', this.checked)">
-                    <label for="showOnlyCriticalP4All">Pokaż tylko krytyczne 🔥</label>
-                </div>
-                <div id="phase4-all-results" class="results-grid"></div>
-            </div>
-            <div id="phase4-parameters" class="sub-tab-content">
-                <h3>Znalezione parametry ({{COUNT_PARAMETERS}})</h3>
-                <div class="filter-section">
-                    <input type="checkbox" id="showOnlyCriticalP4Params" onchange="renderResults(p4ParamsData, 'phase4-params-results', this.checked)">
-                    <label for="showOnlyCriticalP4Params">Pokaż tylko krytyczne 🔥</label>
-                </div>
-                <div id="phase4-params-results" class="results-grid"></div>
-            </div>
-            <div id="phase4-js_files" class="sub-tab-content">
-                <h3>Pliki JavaScript ({{COUNT_JS_FILES}})</h3>
-                <div class="filter-section">
-                    <input type="checkbox" id="showOnlyCriticalP4Js" onchange="renderResults(p4JsData, 'phase4-js-results', this.checked)">
-                    <label for="showOnlyCriticalP4Js">Pokaż tylko krytyczne 🔥</label>
-                </div>
-                <div id="phase4-js-results" class="results-grid"></div>
-            </div>
-            <div id="phase4-api_endpoints" class="sub-tab-content">
-                <h3>Endpointy API ({{COUNT_API_ENDPOINTS}})</h3>
-                <div class="filter-section">
-                    <input type="checkbox" id="showOnlyCriticalP4Api" onchange="renderResults(p4ApiData, 'phase4-api-results', this.checked)">
-                    <label for="showOnlyCriticalP4Api">Pokaż tylko krytyczne 🔥</label>
-                </div>
-                <div id="phase4-api-results" class="results-grid"></div>
-            </div>
-            <div id="phase4-interesting_paths" class="sub-tab-content">
-                <h3>Interesujące ścieżki ({{COUNT_INTERESTING_PATHS}})</h3>
-                <div class="filter-section">
-                    <input type="checkbox" id="showOnlyCriticalP4Interesting" onchange="renderResults(p4InterestingData, 'phase4-interesting-results', this.checked)">
-                    <label for="showOnlyCriticalP4Interesting">Pokaż tylko krytyczne 🔥</label>
-                </div>
-                <div id="phase4-interesting-results" class="results-grid"></div>
-            </div>
-        </div>
-        
-        <div id="all_results" class="tab-content">
-            <h2>Wszystkie znalezione subdomeny i URL-e</h2>
-            <h3>Wszystkie subdomeny ({{COUNT_ALL_SUBDOMAINS}})</h3>
-            <pre class="output">{{ALL_SUBDOMAINS_OUTPUT}}</pre>
-            <h3>Wszystkie URL-e z Faz 1, 3 i 4 ({{COUNT_ALL_URLS_COMBINED}})</h3>
-            <pre class="output">{{ALL_URLS_COMBINED_OUTPUT}}</pre>
-        </div>
+    <div id="summary" class="tab-content active">
+      <h2>Podsumowanie skanowania</h2>
+      <div class="summary-item"><strong>Domena:</strong> {{DOMAIN}}</div>
+      <div class="summary-item"><strong>Całkowita liczba znalezionych subdomen (Faza 1):</strong> {{COUNT_ALL_SUBDOMAINS}}</div>
+      <div class="summary-item"><strong>Liczba aktywnych subdomen HTTP/S (Faza 1):</strong> {{COUNT_HTTPX}}</div>
+      <div class="summary-item"><strong>Liczba otwartych portów (Faza 2):</strong> {{COUNT_OPEN_PORTS}}</div>
+      <div class="summary-item"><strong>Liczba znalezionych katalogów/plików (Faza 3):</strong> {{COUNT_DIR_SEARCH}}</div>
+      <div class="summary-item"><strong>Liczba unikalnych URL-i z crawlera (Faza 4):</strong> {{COUNT_ALL_URLS_P4}}</div>
     </div>
 
-    <div class="footer">
-        Made by Xzar
-        <img src="https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/logo.png" alt="Logo" class="footer-logo">
+    <div id="phase0" class="tab-content">
+      <h2>Faza 0: Zwiad Pasywny (OSINT)</h2>
+      <div class="osint-item"><strong>Adres IP:</strong> {{OSINT_IP}}</div>
+      <div class="osint-item"><strong>ASN / Dostawca:</strong> {{OSINT_ASN_DETAILS}}</div>
+      <div class="osint-item"><strong>CDN:</strong> {{OSINT_CDN}}</div>
+      <div class="osint-item"><strong>Rejestrator Domeny:</strong> {{OSINT_REGISTRAR}}</div>
+      <div class="osint-item"><strong>Data Utworzenia:</strong> {{OSINT_CREATION_DATE}}</div>
+      <div class="osint-item"><strong>Data Wygaśnięcia:</strong> {{OSINT_EXPIRATION_DATE}}</div>
+      <div class="osint-item"><strong>Serwery Nazw (NS):</strong>
+        <pre class="output" style="margin-top: 5px;">{{OSINT_NAME_SERVERS}}</pre>
+      </div>
+      <div class="osint-item"><strong>Technologie (strona główna):</strong>
+        <div class="tech-container">{{OSINT_TECHNOLOGIES_HTML}}</div>
+      </div>
+      <div class="osint-item"><strong>Potencjalne Exploity (Searchsploit):</strong>
+        <div class="exploit-container">{{SEARCHSPLOIT_RESULTS_HTML}}</div>
+      </div>
     </div>
 
-    <div id="copy-notification" class="copy-notification"></div>
+    <div id="phase1" class="tab-content">
+      <h2>Faza 1: Enumeracja Subdomen</h2>
+      <div class="sub-tabs">
+        <div class="sub-tab-button active" onclick="openSubTab(this, 'phase1', 'httpx')">HTTPX</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'subfinder')">Subfinder</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'assetfinder')">Assetfinder</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'findomain')">Findomain</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'puredns')">Puredns</div>
+      </div>
 
-    <script>
-        // --- Globalne dane ---
-        const httpxDataP1 = {{HTTPX_OUTPUT_JSON_P1}};
-        const httpxDataP3 = {{HTTPX_OUTPUT_JSON_P3}};
-        const nmapRawResults = {{NMAP_RESULTS_RAW_JSON}};
-        const naabuRawOutput = `{{NAABU_RAW_OUTPUT}}`;
-        const masscanRawOutput = `{{MASSCAN_RAW_OUTPUT}}`;
-        const p4AllUrlsData = {{PHASE4_ALL_URLS_JSON}};
-        const p4ParamsData = {{PHASE4_PARAMETERS_JSON}};
-        const p4JsData = {{PHASE4_JS_FILES_JSON}};
-        const p4ApiData = {{PHASE4_API_ENDPOINTS_JSON}};
-        const p4InterestingData = {{PHASE4_INTERESTING_PATHS_JSON}};
+      <div id="phase1-httpx" class="sub-tab-content active">
+        <h3>HTTPX Output ({{COUNT_HTTPX}} aktywnych)</h3>
+        <div class="filter-section">
+          <input type="checkbox" id="showOnlyCriticalP1" onchange="renderResults(httpxDataP1, 'httpx-results', this.checked)">
+          <label for="showOnlyCriticalP1">Pokaż tylko krytyczne 🔥</label>
+        </div>
+        <div id="httpx-results" class="results-grid"></div>
+      </div>
+      <div id="phase1-subfinder" class="sub-tab-content">
+        <h3>Subfinder Output</h3>
+        <pre class="output">{{SUBFINDER_OUTPUT}}</pre>
+      </div>
+      <div id="phase1-assetfinder" class="sub-tab-content">
+        <h3>Assetfinder Output</h3>
+        <pre class="output">{{ASSETFINDER_OUTPUT}}</pre>
+      </div>
+      <div id="phase1-findomain" class="sub-tab-content">
+        <h3>Findomain Output</h3>
+        <pre class="output">{{FINDOMAIN_OUTPUT}}</pre>
+      </div>
+      <div id="phase1-puredns" class="sub-tab-content">
+        <h3>Puredns Output</h3>
+        <pre class="output">{{PUREDNS_OUTPUT}}</pre>
+      </div>
+    </div>
 
-        function copyToClipboard(text) {
-            const notification = document.getElementById('copy-notification');
-            if (!text || !notification) return;
-            navigator.clipboard.writeText(text).then(() => {
-                notification.textContent = 'Skopiowano: ' + text;
-                notification.style.backgroundColor = '#00d4ff';
-                notification.classList.add('show');
-                setTimeout(() => notification.classList.remove('show'), 2000);
-            }, (err) => {
-                console.error('Błąd podczas kopiowania', err);
-                notification.textContent = 'Błąd kopiowania!';
-                notification.style.backgroundColor = '#ff4d4d';
-                notification.classList.add('show');
-                setTimeout(() => notification.classList.remove('show'), 2000);
-            });
-        }
+    <div id="phase2" class="tab-content">
+      <h2>Faza 2: Skanowanie Portów</h2>
+      <div class="sub-tabs">
+        <div class="sub-tab-button active" onclick="openSubTab(this, 'phase2', 'summary_ports')">Podsumowanie Portów</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'nmap_raw')">Nmap (Surowe)</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'naabu_raw')">Naabu (Surowe)</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'masscan_raw')">Masscan (Surowe)</div>
+      </div>
+      <div id="phase2-summary_ports" class="sub-tab-content active">
+        <h3>Wizualne podsumowanie otwartych portów (Wyniki Nmap)</h3>
+        <div id="port-scan-results" class="port-scan-grid"></div>
+      </div>
+      <div id="phase2-nmap_raw" class="sub-tab-content">
+        <h3>Surowe wyniki Nmap</h3>
+        <div id="nmap-raw-output"></div>
+      </div>
+      <div id="phase2-naabu_raw" class="sub-tab-content">
+        <h3>Surowe wyniki Naabu</h3>
+        <pre class="output" id="naabu-raw-output">Brak danych</pre>
+      </div>
+      <div id="phase2-masscan_raw" class="sub-tab-content">
+        <h3>Surowe wyniki Masscan</h3>
+        <pre class="output" id="masscan-raw-output">Brak danych</pre>
+      </div>
+    </div>
 
-        function createResultCard(itemData) {
-            const { url, status_code, last_modified, priority, icon } = itemData;
-            const card = document.createElement('div');
-            card.className = `result-card ${priority}-priority`;
-            card.addEventListener('click', () => copyToClipboard(url));
-            
-            let metaInfo = '';
-            let statusCodeHtml = status_code ? `<span class="status-code">[${status_code}]</span>` : '';
-            let lastModifiedHtml = '';
+    <div id="phase3" class="tab-content">
+      <h2>Faza 3: Wyszukiwanie Katalogów</h2>
+      <div class="sub-tabs">
+        <div class="sub-tab-button active" onclick="openSubTab(this, 'phase3', 'verified_httpx')">HTTPX</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'ffuf')">Ffuf</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'feroxbuster')">Feroxbuster</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'dirsearch')">Dirsearch</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'gobuster')">Gobuster</div>
+      </div>
+      <div id="phase3-verified_httpx" class="sub-tab-content active">
+        <h3>Wyniki z Fazy 3 zweryfikowane przez HTTPX ({{COUNT_DIR_SEARCH}} znalezionych)</h3>
+        <div class="filter-section">
+          <input type="checkbox" id="showOnlyCriticalP3" onchange="renderResults(httpxDataP3, 'verified-httpx-results', this.checked)">
+          <label for="showOnlyCriticalP3">Pokaż tylko krytyczne 🔥</label>
+        </div>
+        <div id="verified-httpx-results" class="results-grid"></div>
+      </div>
+      <div id="phase3-ffuf" class="sub-tab-content">
+        <h3>Ffuf Output</h3>
+        <pre class="output">{{FFUF_OUTPUT}}</pre>
+      </div>
+      <div id="phase3-feroxbuster" class="sub-tab-content">
+        <h3>Feroxbuster Output</h3>
+        <pre class="output">{{FEROXBUSTER_OUTPUT}}</pre>
+      </div>
+      <div id="phase3-dirsearch" class="sub-tab-content">
+        <h3>Dirsearch Output</h3>
+        <pre class="output">{{DIRSEARCH_P3_OUTPUT}}</pre>
+      </div>
+      <div id="phase3-gobuster" class="sub-tab-content">
+        <h3>Gobuster Output</h3>
+        <pre class="output">{{GOBUSTER_OUTPUT}}</pre>
+      </div>
+    </div>
 
-            if (last_modified) {
-                const date = new Date(last_modified);
-                const formattedDate = date.toISOString().split('T')[0];
-                const isOld = date.getFullYear() < (new Date().getFullYear() - 3);
-                lastModifiedHtml = `
+    <div id="phase4" class="tab-content">
+      <h2>Faza 4: Web Crawling i Link Discovery</h2>
+      <div class="sub-tabs">
+        <div class="sub-tab-button active" onclick="openSubTab(this, 'phase4', 'all_crawled')">Wszystkie URL-e</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'parameters')">Parametry</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'js_files')">Pliki JS</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'api_endpoints')">Endpointy API</div>
+        <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'interesting_paths')">Interesujące ścieżki</div>
+      </div>
+
+      <div id="phase4-all_crawled" class="sub-tab-content active">
+        <h3>Wszystkie znalezione URL-e ({{COUNT_ALL_URLS_P4}})</h3>
+        <div class="filter-section">
+          <input type="checkbox" id="showOnlyCriticalP4All" onchange="renderResults(p4AllUrlsData, 'phase4-all-results', this.checked)">
+          <label for="showOnlyCriticalP4All">Pokaż tylko krytyczne 🔥</label>
+        </div>
+        <div id="phase4-all-results" class="results-grid"></div>
+      </div>
+      <div id="phase4-parameters" class="sub-tab-content">
+        <h3>Znalezione parametry ({{COUNT_PARAMETERS}})</h3>
+        <div class="filter-section">
+          <input type="checkbox" id="showOnlyCriticalP4Params" onchange="renderResults(p4ParamsData, 'phase4-params-results', this.checked)">
+          <label for="showOnlyCriticalP4Params">Pokaż tylko krytyczne 🔥</label>
+        </div>
+        <div id="phase4-params-results" class="results-grid"></div>
+      </div>
+      <div id="phase4-js_files" class="sub-tab-content">
+        <h3>Pliki JavaScript ({{COUNT_JS_FILES}})</h3>
+        <div class="filter-section">
+          <input type="checkbox" id="showOnlyCriticalP4Js" onchange="renderResults(p4JsData, 'phase4-js-results', this.checked)">
+          <label for="showOnlyCriticalP4Js">Pokaż tylko krytyczne 🔥</label>
+        </div>
+        <div id="phase4-js-results" class="results-grid"></div>
+      </div>
+      <div id="phase4-api_endpoints" class="sub-tab-content">
+        <h3>Endpointy API ({{COUNT_API_ENDPOINTS}})</h3>
+        <div class="filter-section">
+          <input type="checkbox" id="showOnlyCriticalP4Api" onchange="renderResults(p4ApiData, 'phase4-api-results', this.checked)">
+          <label for="showOnlyCriticalP4Api">Pokaż tylko krytyczne 🔥</label>
+        </div>
+        <div id="phase4-api-results" class="results-grid"></div>
+      </div>
+      <div id="phase4-interesting_paths" class="sub-tab-content">
+        <h3>Interesujące ścieżki ({{COUNT_INTERESTING_PATHS}})</h3>
+        <div class="filter-section">
+          <input type="checkbox" id="showOnlyCriticalP4Interesting" onchange="renderResults(p4InterestingData, 'phase4-interesting-results', this.checked)">
+          <label for="showOnlyCriticalP4Interesting">Pokaż tylko krytyczne 🔥</label>
+        </div>
+        <div id="phase4-interesting-results" class="results-grid"></div>
+      </div>
+    </div>
+
+    <div id="all_results" class="tab-content">
+      <h2>Wszystkie znalezione subdomeny i URL-e</h2>
+      <h3>Wszystkie subdomeny ({{COUNT_ALL_SUBDOMAINS}})</h3>
+      <pre class="output">{{ALL_SUBDOMAINS_OUTPUT}}</pre>
+      <h3>Wszystkie URL-e z Faz 1, 3 i 4 ({{COUNT_ALL_URLS_COMBINED}})</h3>
+      <pre class="output">{{ALL_URLS_COMBINED_OUTPUT}}</pre>
+    </div>
+  </div>
+
+  <div class="footer">
+    Made by Xzar
+    <img src="https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/logo.png" alt="Logo" class="footer-logo">
+  </div>
+
+  <div id="copy-notification" class="copy-notification"></div>
+
+  <script>
+    // --- Globalne dane ---
+    const httpxDataP1 = {{ HTTPX_OUTPUT_JSON_P1 }};
+    const httpxDataP3 = {{ HTTPX_OUTPUT_JSON_P3 }};
+    const nmapRawResults = {{ NMAP_RESULTS_RAW_JSON }};
+    const naabuRawOutput = `{{NAABU_RAW_OUTPUT}}`;
+    const masscanRawOutput = `{{MASSCAN_RAW_OUTPUT}}`;
+    const p4AllUrlsData = {{ PHASE4_ALL_URLS_JSON }};
+    const p4ParamsData = {{ PHASE4_PARAMETERS_JSON }};
+    const p4JsData = {{ PHASE4_JS_FILES_JSON }};
+    const p4ApiData = {{ PHASE4_API_ENDPOINTS_JSON }};
+    const p4InterestingData = {{ PHASE4_INTERESTING_PATHS_JSON }};
+
+    function copyToClipboard(text) {
+      const notification = document.getElementById('copy-notification');
+      if (!text || !notification) return;
+      navigator.clipboard.writeText(text).then(() => {
+        notification.textContent = 'Skopiowano: ' + text;
+        notification.style.backgroundColor = '#00d4ff';
+        notification.classList.add('show');
+        setTimeout(() => notification.classList.remove('show'), 2000);
+      }, (err) => {
+        console.error('Błąd podczas kopiowania', err);
+        notification.textContent = 'Błąd kopiowania!';
+        notification.style.backgroundColor = '#ff4d4d';
+        notification.classList.add('show');
+        setTimeout(() => notification.classList.remove('show'), 2000);
+      });
+    }
+
+    function createResultCard(itemData) {
+      const {
+        url,
+        status_code,
+        last_modified,
+        priority,
+        icon
+      } = itemData;
+      const card = document.createElement('div');
+      card.className = `result-card ${priority}-priority`;
+      card.addEventListener('click', () => copyToClipboard(url));
+
+      let metaInfo = '';
+      let statusCodeHtml = status_code ? `<span class="status-code">[${status_code}]</span>` : '';
+      let lastModifiedHtml = '';
+
+      if (last_modified) {
+        const date = new Date(last_modified);
+        const formattedDate = date.toISOString().split('T')[0];
+        const isOld = date.getFullYear() < (new Date().getFullYear() - 3);
+        lastModifiedHtml = `
                     <div class="last-modified-date ${isOld ? 'old-asset' : ''}" title="${last_modified}">
                         <span>📅</span>
                         <span>${formattedDate}</span>
                     </div>`;
-            }
-            if (statusCodeHtml || lastModifiedHtml) {
-                metaInfo = `<div class="result-meta-info">${lastModifiedHtml}${statusCodeHtml}</div>`;
-            }
+      }
+      if (statusCodeHtml || lastModifiedHtml) {
+        metaInfo = `<div class="result-meta-info">${lastModifiedHtml}${statusCodeHtml}</div>`;
+      }
 
-            card.innerHTML = `
+      card.innerHTML = `
                 <div class="result-header">
                     <div class="result-icon">${icon}</div>
                     <div class="result-url"><a href="${url}" target="_blank" title="${url}" onclick="event.stopPropagation()">${url}</a></div>
                     ${metaInfo}
                 </div>
             `;
-            return card;
+      return card;
+    }
+
+    function processAndCategorize(data) {
+      const sensitiveKeywords = ['admin', 'login', 'panel', 'dashboard', 'config', 'backup', 'db', '.git', '.env', 'secret', 'token', 'api', 'graphql', 'password', 'key', 'jwt', 'phpinfo', 'debug', 'staging'];
+      const url = data.url;
+      const code = data.status_code;
+
+      let priority = 'gray',
+        icon = '🔗',
+        isCritical = false;
+
+      if (code) {
+        if ([500, 502, 503, 401, 403].includes(code)) {
+          priority = 'red';
+          icon = '🔥';
+          isCritical = true;
+        } else if ([301, 302, 307].includes(code)) {
+          priority = 'orange';
+          icon = '👉';
+        } else if (code === 200) {
+          priority = 'green';
+          icon = '✅';
         }
-        
-        function processAndCategorize(data) {
-            const sensitiveKeywords = ['admin', 'login', 'panel', 'dashboard', 'config', 'backup', 'db', '.git', '.env', 'secret', 'token', 'api', 'graphql', 'password', 'key', 'jwt', 'phpinfo', 'debug', 'staging'];
-            const url = data.url;
-            const code = data.status_code;
-            
-            let priority = 'gray', icon = '🔗', isCritical = false;
+      }
+      if (sensitiveKeywords.some(kw => url.toLowerCase().includes(kw))) {
+        priority = 'red';
+        icon = '🔥';
+        isCritical = true;
+      }
+      return { ...data,
+        priority,
+        icon,
+        isCritical
+      };
+    }
 
-            if (code) {
-                if ([500, 502, 503, 401, 403].includes(code)) { priority = 'red'; icon = '🔥'; isCritical = true; }
-                else if ([301, 302, 307].includes(code)) { priority = 'orange'; icon = '👉'; }
-                else if (code === 200) { priority = 'green'; icon = '✅'; }
+    function renderResults(dataArray, containerId, showOnlyCritical = false) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = '';
+
+      let parsedData;
+      try {
+        parsedData = typeof dataArray === 'string' ? JSON.parse(dataArray) : dataArray;
+      } catch (e) {
+        container.innerHTML = '<p style="text-align: center;">Błąd parsowania danych.</p>';
+        return;
+      }
+
+      if (!Array.isArray(parsedData) || parsedData.length === 0) {
+        container.innerHTML = '<p style="text-align: center;">Brak wyników do wyświetlenia.</p>';
+        return;
+      }
+
+      let itemsToRender = parsedData.map(processAndCategorize);
+      if (showOnlyCritical) {
+        itemsToRender = itemsToRender.filter(item => item.isCritical);
+      }
+
+      if (itemsToRender.length === 0) {
+        container.innerHTML = '<p style="text-align: center;">Brak wyników spełniających kryteria.</p>';
+        return;
+      }
+
+      itemsToRender.forEach(item => {
+        const card = createResultCard(item);
+        container.appendChild(card);
+      });
+    }
+
+    function renderPortScanResults(nmapData) {
+      const container = document.getElementById('port-scan-results');
+      if (!container) return;
+      container.innerHTML = '';
+
+      let parsedNmap;
+      try {
+        parsedNmap = typeof nmapData === 'string' ? JSON.parse(nmapData) : nmapData;
+      } catch (e) {
+        container.innerHTML = '<p style="text-align: center;">Błąd parsowania danych Nmap.</p>';
+        return;
+      }
+
+      if (Object.keys(parsedNmap).length === 0) {
+        container.innerHTML = '<p style="text-align: center;">Brak wyników skanowania portów.</p>';
+        return;
+      }
+
+      for (const host in parsedNmap) {
+        const card = document.createElement('div');
+        card.className = 'port-card';
+        card.innerHTML = `<h4>${host}</h4><div class="port-card-grid"><div class="port-details"><h5>Otwarte Porty</h5><ul class="port-list"></ul></div><div class="nse-results"><h5>Wyniki Skryptów NSE</h5><div class="nse-script-output"></div></div></div>`;
+
+        const portList = card.querySelector('.port-list');
+        const nseOutputContainer = card.querySelector('.nse-script-output');
+
+        let portInfo = {};
+
+        (parsedNmap[host] || "").split('\n').forEach(line => {
+          const portMatch = line.match(/^(\d+)\/tcp\s+(open|filtered|closed)\s+(.*)/);
+          if (portMatch) {
+            const port = portMatch[1];
+            portInfo[port] = {
+              status: portMatch[2],
+              service: portMatch[3].trim(),
+              nse: []
+            };
+          } else if (Object.keys(portInfo).length > 0) {
+            const lastPort = Object.keys(portInfo).pop();
+            if (line.trim().startsWith('|') || line.trim().startsWith('_')) {
+              portInfo[lastPort].nse.push(line);
             }
-            if (sensitiveKeywords.some(kw => url.toLowerCase().includes(kw))) { 
-                priority = 'red'; icon = '🔥'; isCritical = true; 
-            }
-            return { ...data, priority, icon, isCritical };
-        }
-
-        function renderResults(dataArray, containerId, showOnlyCritical = false) {
-            const container = document.getElementById(containerId);
-            if (!container) return;
-            container.innerHTML = '';
-            
-            let parsedData;
-            try {
-                parsedData = typeof dataArray === 'string' ? JSON.parse(dataArray) : dataArray;
-            } catch(e) {
-                container.innerHTML = '<p style="text-align: center;">Błąd parsowania danych.</p>';
-                return;
-            }
-
-            if (!Array.isArray(parsedData) || parsedData.length === 0) {
-                container.innerHTML = '<p style="text-align: center;">Brak wyników do wyświetlenia.</p>';
-                return;
-            }
-
-            let itemsToRender = parsedData.map(processAndCategorize);
-            if (showOnlyCritical) {
-                itemsToRender = itemsToRender.filter(item => item.isCritical);
-            }
-            
-            if (itemsToRender.length === 0) {
-                container.innerHTML = '<p style="text-align: center;">Brak wyników spełniających kryteria.</p>';
-                return;
-            }
-
-            itemsToRender.forEach(item => {
-                const card = createResultCard(item);
-                container.appendChild(card);
-            });
-        }
-        
-       function renderPortScanResults(nmapData) {
-            const container = document.getElementById('port-scan-results');
-            if (!container) return;
-            container.innerHTML = '';
-
-            let parsedNmap;
-            try {
-                parsedNmap = typeof nmapData === 'string' ? JSON.parse(nmapData) : nmapData;
-            } catch (e) {
-                container.innerHTML = '<p style="text-align: center;">Błąd parsowania danych Nmap.</p>';
-                return;
-            }
-
-            if (Object.keys(parsedNmap).length === 0) {
-                container.innerHTML = '<p style="text-align: center;">Brak wyników skanowania portów.</p>';
-                return;
-            }
-
-            for (const host in parsedNmap) {
-                const card = document.createElement('div');
-                card.className = 'port-card';
-                card.innerHTML = `<h4>${host}</h4><div class="port-card-grid"><div class="port-details"><h5>Otwarte Porty</h5><ul class="port-list"></ul></div><div class="nse-results"><h5>Wyniki Skryptów NSE</h5><div class="nse-script-output"></div></div></div>`;
-                
-                const portList = card.querySelector('.port-list');
-                const nseOutputContainer = card.querySelector('.nse-script-output');
-                
-                let portInfo = {};
-                
-                (parsedNmap[host] || "").split('\n').forEach(line => {
-                    const portMatch = line.match(/^(\d+)\/tcp\s+(open|filtered|closed)\s+(.*)/);
-                    if (portMatch) {
-                        const port = portMatch[1];
-                        portInfo[port] = {
-                            status: portMatch[2],
-                            service: portMatch[3].trim(),
-                            nse: []
-                        };
-                    } else if(Object.keys(portInfo).length > 0) {
-                         const lastPort = Object.keys(portInfo).pop();
-                         if (line.trim().startsWith('|') || line.trim().startsWith('_')) {
-                            portInfo[lastPort].nse.push(line);
-                         }
-                    }
-                });
-
-                Object.keys(portInfo).forEach(port => {
-                    const info = portInfo[port];
-                    const listItem = document.createElement('li');
-                    listItem.className = 'port-list-item';
-                    listItem.innerHTML = `<div><span class="port-number">${port}/tcp</span> - ${info.service}</div><span class="port-status ${info.status}">${info.status}</span>`;
-                    portList.appendChild(listItem);
-
-                    if (info.nse.length > 0) {
-                        let nseHTML = `<p><strong>Port ${port}:</strong></p>`;
-                        let currentScriptName = '';
-                        let scriptDetails = '<ul>';
-
-                        info.nse.forEach(line => {
-                            let cleanedLine = line.trim().replace(/^\|_?\s*/, '');
-                            const scriptNameMatch = cleanedLine.match(/^([a-zA-Z0-9_-]+):/);
-                            
-                            if (scriptNameMatch) {
-                                if (currentScriptName) scriptDetails += '</ul>'; 
-                                currentScriptName = scriptNameMatch[1];
-                                scriptDetails += `<li><span class="nse-script-name">${currentScriptName}:</span><ul>`;
-                                cleanedLine = cleanedLine.substring(scriptNameMatch[0].length).trim();
-                            }
-                            
-                            if (cleanedLine) {
-                                let indentedLine = cleanedLine.replace(/\s\s/g, '&nbsp;&nbsp;')
-                                const keyValueMatch = indentedLine.match(/^\s*([\w\s-]+):\s(.*)/);
-                                if(keyValueMatch) {
-                                     scriptDetails += `<li><span class="nse-key">${keyValueMatch[1].trim()}:</span> ${keyValueMatch[2].trim()}</li>`;
-                                } else {
-                                    scriptDetails += `<li>${indentedLine}</li>`;
-                                }
-                            }
-                        });
-
-                        scriptDetails += '</ul></li>'; 
-                        nseOutputContainer.innerHTML += nseHTML + scriptDetails;
-                    }
-                });
-
-                if (!nseOutputContainer.innerHTML) {
-                    nseOutputContainer.textContent = 'Brak wyników ze skryptów NSE.';
-                }
-                
-                container.appendChild(card);
-            }
-        }
-
-        function renderRawText(data, elementId) {
-            const element = document.getElementById(elementId);
-            if (element && data && data.trim() !== 'Brak danych') {
-                element.textContent = data;
-            }
-        }
-        
-        function renderNmapRawResults(nmapData) {
-            const container = document.getElementById('nmap-raw-output');
-            if (!container) return;
-            container.innerHTML = '';
-             let parsedNmap;
-            try {
-                parsedNmap = typeof nmapData === 'string' ? JSON.parse(nmapData) : nmapData;
-            } catch (e) {
-                container.innerHTML = '<pre class="output">Błąd parsowania danych Nmap.</pre>';
-                return;
-            }
-            if (Object.keys(parsedNmap).length === 0) {
-                container.innerHTML = '<pre class="output">Brak surowych wyników Nmap.</pre>';
-                return;
-            }
-
-            for (const host in parsedNmap) {
-                const pre = document.createElement('pre');
-                pre.className = 'output';
-                pre.textContent = `--- ${host} ---\n\n` + parsedNmap[host];
-                container.appendChild(pre);
-            }
-        }
-
-        function openMainTab(buttonElement, tabId) {
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            document.querySelectorAll('.main-tab-button').forEach(button => button.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            buttonElement.classList.add('active');
-        }
-
-        function openSubTab(buttonElement, mainTabId, subTabId) {
-            const mainTabContent = document.getElementById(mainTabId);
-            if (!mainTabContent) return;
-            mainTabContent.querySelectorAll('.sub-tab-content').forEach(content => content.classList.remove('active'));
-            mainTabContent.querySelectorAll('.sub-tab-button').forEach(button => button.classList.remove('active'));
-            const subTabContent = document.getElementById(`${mainTabId}-${subTabId}`);
-            if(subTabContent) subTabContent.classList.add('active');
-            buttonElement.classList.add('active');
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            renderResults(httpxDataP1, 'httpx-results', false);
-            renderResults(httpxDataP3, 'verified-httpx-results', false);
-            renderPortScanResults(nmapRawResults);
-            renderNmapRawResults(nmapRawResults);
-            renderRawText(naabuRawOutput, 'naabu-raw-output');
-            renderRawText(masscanRawOutput, 'masscan-raw-output');
-            
-            // Render phase 4 results
-            renderResults(p4AllUrlsData, 'phase4-all-results', false);
-            renderResults(p4ParamsData, 'phase4-params-results', false);
-            renderResults(p4JsData, 'phase4-js-results', false);
-            renderResults(p4ApiData, 'phase4-api-results', false);
-            renderResults(p4InterestingData, 'phase4-interesting-results', false);
+          }
         });
-    </script>
+
+        Object.keys(portInfo).forEach(port => {
+          const info = portInfo[port];
+          const listItem = document.createElement('li');
+          listItem.className = 'port-list-item';
+          listItem.innerHTML = `<div><span class="port-number">${port}/tcp</span> - ${info.service}</div><span class="port-status ${info.status}">${info.status}</span>`;
+          portList.appendChild(listItem);
+
+          if (info.nse.length > 0) {
+            let nseHTML = `<p><strong>Port ${port}:</strong></p>`;
+            let currentScriptName = '';
+            let scriptDetails = '<ul>';
+
+            info.nse.forEach(line => {
+              let cleanedLine = line.trim().replace(/^\|_?\s*/, '');
+              const scriptNameMatch = cleanedLine.match(/^([a-zA-Z0-9_-]+):/);
+
+              if (scriptNameMatch) {
+                if (currentScriptName) scriptDetails += '</ul>';
+                currentScriptName = scriptNameMatch[1];
+                scriptDetails += `<li><span class="nse-script-name">${currentScriptName}:</span><ul>`;
+                cleanedLine = cleanedLine.substring(scriptNameMatch[0].length).trim();
+              }
+
+              if (cleanedLine) {
+                let indentedLine = cleanedLine.replace(/\s\s/g, '&nbsp;&nbsp;')
+                const keyValueMatch = indentedLine.match(/^\s*([\w\s-]+):\s(.*)/);
+                if (keyValueMatch) {
+                  scriptDetails += `<li><span class="nse-key">${keyValueMatch[1].trim()}:</span> ${keyValueMatch[2].trim()}</li>`;
+                } else {
+                  scriptDetails += `<li>${indentedLine}</li>`;
+                }
+              }
+            });
+
+            scriptDetails += '</ul></li>';
+            nseOutputContainer.innerHTML += nseHTML + scriptDetails;
+          }
+        });
+
+        if (!nseOutputContainer.innerHTML) {
+          nseOutputContainer.textContent = 'Brak wyników ze skryptów NSE.';
+        }
+
+        container.appendChild(card);
+      }
+    }
+
+    function renderRawText(data, elementId) {
+      const element = document.getElementById(elementId);
+      if (element && data && data.trim() !== 'Brak danych') {
+        element.textContent = data;
+      }
+    }
+
+    function renderNmapRawResults(nmapData) {
+      const container = document.getElementById('nmap-raw-output');
+      if (!container) return;
+      container.innerHTML = '';
+      let parsedNmap;
+      try {
+        parsedNmap = typeof nmapData === 'string' ? JSON.parse(nmapData) : nmapData;
+      } catch (e) {
+        container.innerHTML = '<pre class="output">Błąd parsowania danych Nmap.</pre>';
+        return;
+      }
+      if (Object.keys(parsedNmap).length === 0) {
+        container.innerHTML = '<pre class="output">Brak surowych wyników Nmap.</pre>';
+        return;
+      }
+
+      for (const host in parsedNmap) {
+        const pre = document.createElement('pre');
+        pre.className = 'output';
+        pre.textContent = `--- ${host} ---\n\n` + parsedNmap[host];
+        container.appendChild(pre);
+      }
+    }
+
+    function openMainTab(buttonElement, tabId) {
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      document.querySelectorAll('.main-tab-button').forEach(button => button.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      buttonElement.classList.add('active');
+    }
+
+    function openSubTab(buttonElement, mainTabId, subTabId) {
+      const mainTabContent = document.getElementById(mainTabId);
+      if (!mainTabContent) return;
+      mainTabContent.querySelectorAll('.sub-tab-content').forEach(content => content.classList.remove('active'));
+      mainTabContent.querySelectorAll('.sub-tab-button').forEach(button => button.classList.remove('active'));
+      const subTabContent = document.getElementById(`${mainTabId}-${subTabId}`);
+      if (subTabContent) subTabContent.classList.add('active');
+      buttonElement.classList.add('active');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      renderResults(httpxDataP1, 'httpx-results', false);
+      renderResults(httpxDataP3, 'verified-httpx-results', false);
+      renderPortScanResults(nmapRawResults);
+      renderNmapRawResults(nmapRawResults);
+      renderRawText(naabuRawOutput, 'naabu-raw-output');
+      renderRawText(masscanRawOutput, 'masscan-raw-output');
+
+      // Render phase 4 results
+      renderResults(p4AllUrlsData, 'phase4-all-results', false);
+      renderResults(p4ParamsData, 'phase4-params-results', false);
+      renderResults(p4JsData, 'phase4-js-results', false);
+      renderResults(p4ApiData, 'phase4-api-results', false);
+      renderResults(p4InterestingData, 'phase4-interesting-results', false);
+    });
+  </script>
 </body>
+
 </html>
