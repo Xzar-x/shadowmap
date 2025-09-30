@@ -1,6 +1,6 @@
 ShadowMap: Automated Reconnaissance Toolkit
 
-https://www.githubub.com/Xzar-x/images/shadowmap.png
+https://github.com/Xzar-x/images/blob/main/shadowmap.png
 
 ShadowMap to zaawansowany, zautomatyzowany zestaw narzędzi do rekonesansu bezpieczeństwa, który przeprowadza kompleksowe skanowanie celów w pięciu zintegrowanych fazach.
 
