@@ -1,6 +1,6 @@
 ShadowMap: Automated Reconnaissance Toolkit
 
-https://github.com/Xzar-x/images/blob/main/shadowmap.png
+![Tekst alternatywny](https://github.com/Xzar-x/images/blob/main/shadowmap.png)
 
 ShadowMap to zaawansowany, zautomatyzowany zestaw narzędzi do rekonesansu bezpieczeństwa, który przeprowadza kompleksowe skanowanie celów w pięciu zintegrowanych fazach.
 
@@ -54,8 +54,8 @@ Projekt rozwiązuje problem fragmentacji narzędzi rekonesansu - zamiast urucham
 
 🐍 Języki Programowania
 
-https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white
-https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white
+​![Tekst alternatywny](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Tekst alternatywny](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)
 
 📚 Biblioteki Python
 
