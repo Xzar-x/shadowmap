@@ -1,95 +1,280 @@
-<div align="center">
-<img src="https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/shadowmap.png" alt="ShadowMap Banner" width="700"/>
-</div>
-<h1 align="center">ShadowMap</h1>
-<p align="center">
-<strong>An automated and interactive reconnaissance toolkit.</strong>
-</p>
-<p align="center">
-<img src="https://www.google.com/search?q=https://img.shields.io/badge/Python-3.9%2B-blue.svg" alt="Python Version">
-<img src="https://www.google.com/search?q=https://img.shields.io/badge/License-MIT-green.svg" alt="License">
-<img src="https://www.google.com/search?q=https://img.shields.io/badge/Status-Active-brightgreen.svg" alt="Status">
-</p>
-ShadowMap is an advanced reconnaissance tool that orchestrates and automates the workflow of numerous popular security tools. It was designed to simplify and accelerate the process of gathering information about a target, from initial OSINT and subdomain scanning to in-depth web application crawling. All findings are aggregated and presented in a clean, interactive HTML report.
-🚀 Key Features
- * 🧩 Phased Scanning: The reconnaissance process is divided into logical phases, giving you full control over the scope and depth of the scan.
- * 🖥️ Interactive CLI Menu: Manage the entire scanning process through an intuitive terminal menu, built with the rich library.
- * 🛡️ WAF Detection & Safe Mode: The tool automatically detects Web Application Firewalls (WAFs) and suggests a "Safe Mode," which slows down the scan and applies evasion techniques.
- * 🔗 Tool Integration: ShadowMap integrates over a dozen popular tools, such as Nmap, Subfinder, Httpx, Ffuf, Katana, and many more.
- * 📊 Dynamic HTML Reports: Results from each phase are collected and presented in a single, well-designed, and interactive HTML report that simplifies data analysis.
- * ⚙️ High Configurability: Customize numerous scan parameters, including wordlists, recursion depth, timeouts, and proxy usage.
-🗺️ Scan Structure
-ShadowMap divides the reconnaissance process into five main phases, which can be run sequentially or individually.
-| Phase | Description | Tools Used |
-|---|---|---|
-| Phase 0: OSINT | Gathers basic information about the target (WHOIS, IP, ASN, web technologies). | whois, httpx, whatweb, webtech |
-| Phase 1: Subdomains | Discovers and verifies the target's active subdomains. | subfinder, assetfinder, findomain, puredns, httpx |
-| Phase 2: Ports | Scans discovered hosts for open ports and services. | naabu, masscan, nmap |
-| Phase 3: Directories | Fuzzes web servers to find hidden files and directories. | ffuf, feroxbuster, dirsearch, gobuster |
-| Phase 4: Web Crawling | Performs deep crawling of web applications to find links, parameters, and API endpoints. | katana, hakrawler, paramspider, linkfinder, gauplus |
-🛠️ Installation
-The installation process is automated with the install.py script. The script will check for and install missing system dependencies and Go tools, then copy the ShadowMap files to the appropriate system directories.
- * Clone the repository:
-   git clone [https://github.com/your-username/ShadowMap.git](https://github.com/your-username/ShadowMap.git)
-cd ShadowMap
+ShadowMap: Automated Reconnaissance Toolkit
 
- * Run the installation script:
-   > Note: The script requires sudo privileges to install packages and copy files.
-   > 
-   sudo python3 install.py
+https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/shadowmap.png
 
-   The script will install all required apt and pip packages, as well as the Go-based tools.
- * Run ShadowMap:
-   After a successful installation, the tool will be available globally.
-   shadowmap <target>
+https://img.shields.io/badge/version-1.0.0-blue.svg
+https://img.shields.io/badge/license-MIT-green.svg
+https://img.shields.io/badge/python-3.8%2B-blue
+https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey
 
-⚙️ Usage
-The tool can be run in interactive mode by providing a target as an argument, or in a fully automated mode for multiple targets.
-Basic Interactive Scan
+ShadowMap to zaawansowany, zautomatyzowany zestaw narzędzi do rekonesansu bezpieczeństwa, który przeprowadza kompleksowe skanowanie celów w pięciu zintegrowanych fazach.
+
+---
+
+📖 Spis Treści
+
+· O Projekcie
+· ✨ Kluczowe Funkcjonalności
+· 🛠️ Zbudowano przy użyciu
+· 🚀 Pierwsze Kroki
+  · Wymagania
+  · Instalacja
+· 💻 Sposób Użycia
+  · Podstawowe Użycie
+  · Tryb Automatyczny
+  · Przykładowe Komendy
+· 📊 Fazy Skanowania
+· 📁 Struktura Projektu
+· 🤝 Kontrybucja
+· 📄 Licencja
+· 👤 Kontakt i Autor
+
+---
+
+🎯 O Projekcie
+
+ShadowMap powstał z myślą o automatyzacji czasochłonnych procesów rekonesansu bezpieczeństwa. Narzędzie łączy w sobie dziesiątki specjalistycznych narzędzi open-source w spójny, wielofazowy pipeline, który przeprowadza użytkownika od podstawowego zwiadu pasywnego (OSINT) aż do zaawansowanego web crawlingu.
+
+Projekt rozwiązuje problem fragmentacji narzędzi rekonesansu - zamiast uruchamiać dziesiątki oddzielnych skryptów, ShadowMap zarządza całym procesem, agreguje wyniki i generuje szczegółowy, interaktywny raport HTML.
+
+[TUTAJ WSTAW ZRZUT EKRANU LUB GIF PREZENTUJĄCY APLIKACJĘ]
+
+---
+
+✨ Kluczowe Funkcjonalności
+
+· 🔍 Wielofazowy Rekonesans - 5 zintegrowanych faz skanowania (OSINT, subdomeny, porty, katalogi, web crawling)
+· 🎯 Inteligentna Detekcja - Automatyczne wykrywanie technologii i dostosowywanie skanowania
+· 🛡️ Tryb Bezpieczny - Konfigurowalne ograniczenia prędkości i agresywności skanowania
+· 📊 Interaktywne Raporty - Zaawansowane raporty HTML z filtrowaniem i kategoryzacją wyników
+· 🔄 Rotacja User-Agent - Automatyczna rotacja nagłówków dla uniknięcia detekcji
+· ⚡ Równoległe Przetwarzanie - Wielowątkowe wykonanie narzędzi dla maksymalnej wydajności
+· 🎨 Intuicyjny Interfejs - Kolorowy interfejs konsolowy z Rich oraz menu wyboru
+· 🤖 Tryb Automatyczny - Pełna automatyzacja bez interakcji użytkownika
+· 🕵️ Monitor WAF - Detekcja i monitorowanie systemów ochrony WAF/IPS
+
+---
+
+🛠️ Zbudowano przy użyciu
+
+🐍 Języki Programowania
+
+https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white
+https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white
+
+📚 Biblioteki Python
+
+· Rich - 🎨 Zaawansowane formatowanie konsoli
+· Typer - ⚡ Nowoczesne CLI framework
+· Questionary - ❓ Interaktywne pytania użytkownika
+· Requests - 🌐 Żądania HTTP
+· WebTech - 🔍 Detekcja technologii web
+
+🛠️ Narzędzia Rekonesansu
+
+· Subfinder/Assetfinder - 🔎 Odkrywanie subdomen
+· Naabu/Masscan/Nmap - 🚪 Skanowanie portów
+· FFuf/Feroxbuster/Dirsearch - 📁 Bruteforce katalogów
+· Katana/Hakrawler - 🕸️ Web crawling
+· Httpx - 🌐 Weryfikacja hostów HTTP
+· WhatWeb - 🔍 Analiza technologii web
+
+---
+
+🚀 Pierwsze Kroki
+
+Wymagania
+
+Przed instalacją upewnij się, że masz zainstalowane:
+
+· Python 3.8+
+· Go 1.19+
+· System Linux lub macOS
+
+```bash
+# Sprawdzenie wersji Python
+python3 --version
+
+# Sprawdzenie wersji Go
+go version
+```
+
+Instalacja
+
+1. Sklonuj repozytorium
+
+```bash
+git clone https://github.com/Xzar-x/shadowmap.git
+cd shadowmap
+```
+
+1. Uruchom skrypt instalacyjny
+
+```bash
+sudo python3 install.py
+```
+
+Skrypt instalacyjny automatycznie:
+
+· ✅ Sprawdzi dostępne zależności systemowe
+· 📦 Zainstaluje brakujące pakiety (nmap, masscan, whois, whatweb)
+· 🔧 Zainstaluje narzędzia Go (subfinder, assetfinder, httpx, naabu, ffuf, itd.)
+· 🐍 Zainstaluje pakiety Python (rich, questionary, requests, itp.)
+· 📁 Skopiuje pliki do /usr/local/bin/ i /usr/local/share/shadowmap/
+
+1. Weryfikacja instalacji
+
+```bash
+shadowmap --help
+```
+
+---
+
+💻 Sposób Użycia
+
+Podstawowe Użycie
+
+```bash
+# Podstawowe skanowanie pojedynczego celu
 shadowmap example.com
 
-This will launch the interactive menu, which will guide you through the scanning phases.
+# Skanowanie z listy celów
+shadowmap -l targets.txt
+
+# Określenie katalogu wyjściowego
+shadowmap -o /path/to/reports example.com
+
+# Włączenie trybu bezpiecznego
+shadowmap --safe-mode example.com
+
+# Użycie proxy
+shadowmap --proxy socks5://127.0.0.1:9050 example.com
+```
+
+Tryb Automatyczny
+
+```bash
+# Pełna automatyzacja - uruchamia wszystkie fazy bez interakcji
+shadowmap -y example.com
+
+# Automatyczne skanowanie listy celów
+shadowmap -y -l targets.txt -o reports/
+```
+
+Przykładowe Komendy
+
+```bash
+# Kompleksowe skanowanie z raportem w custom katalogu
+shadowmap -y --safe-mode -o /home/user/scan-reports target-company.com
+
+# Szybkie skanowanie bez trybu bezpiecznego
+shadowmap -q --proxy http://proxy:8080 example.org
+
+# Skanowanie z wykluczeniem określonych subdomen
+shadowmap -e "dev.example.com" -e "test.example.com" example.com
+```
+
+---
+
+📊 Fazy Skanowania
+
+ShadowMap przeprowadza skanowanie w 5 następujących fazach:
+
+🎯 Faza 0: OSINT (Open Source Intelligence)
+
+· WHOIS information gathering
+· Detekcja technologii (WhatWeb, WebTech)
+· Analiza ASN i CDN
+· Wyszukiwanie publicznych exploitów (SearchSploit)
+· Zbieranie informacji o IP i infrastrukturze
+
+🔍 Faza 1: Odkrywanie Subdomen
+
+· Subfinder, Assetfinder, Findomain (pasywne)
+· Puredns bruteforce (aktywne)
+· Weryfikacja hostów HTTP/S (Httpx)
+· Filtrowanie i agregacja wyników
+
+🚪 Faza 2: Skanowanie Portów
+
+· Naabu (szybkie odkrywanie portów)
+· Masscan (super szybkie skanowanie dużych zakresów)
+· Nmap (szczegółowa analiza usług i wersji)
+· Agregacja i kategoryzacja otwartych portów
+
+📁 Faza 3: Wyszukiwanie Katalogów
+
+· FFuf, Feroxbuster, Dirsearch, Gobuster
+· Inteligentne filtrowanie wyników (rozmiar, status)
+· Detekcja odpowiedzi wildcard
+· Rekurencyjne przeszukiwanie
+· Weryfikacja wyników przez Httpx
+
+🕸️ Faza 4: Web Crawling & Discovery
+
+· Katana (zaawansowany crawler)
+· Hakrawler (szybki crawler)
+· ParamSpider (odkrywanie parametrów URL)
+· LinkFinder (analiza plików JavaScript)
+· Gauplus (pasywne zbieranie URL z archiwów)
+· Kategoryzacja znalezionych URL (API, parametry, pliki JS, itp.)
+
+---
+
+📁 Struktura Projektu
+
+```
+/usr/local/share/shadowmap/
+├── shadowmap.py              # Główny skrypt
+├── config.py                 # Konfiguracja i stałe
+├── utils.py                  # Narzędzia pomocnicze
+├── phase0_osint.py           # Faza 0: OSINT
+├── phase1_subdomain.py       # Faza 1: Subdomeny
+├── phase2_port_scanning.py   # Faza 2: Porty
+├── phase3_dirsearch.py       # Faza 3: Katalogi
+├── phase4_webcrawling.py     # Faza 4: Web Crawling
+├── report_template.html      # Szablon raportu HTML
+├── resolvers.txt            # Lista resolverów DNS
+├── user_agents.txt          # Lista User-Agentów
+└── install.py               # Skrypt instalacyjny
+```
+
+---
+
+🤝 Kontrybucja
+
+Contributions są mile widziane! Jeśli chcesz przyczynić się do rozwoju ShadowMap:
+
+1. 🍴 Sforkuj repozytorium
+2. 🌿 Stwórz branch dla swojej funkcjonalności (git checkout -b feature/amazing-feature)
+3. 💾 Commit swoich zmian (git commit -m 'Add some amazing feature')
+4. 📤 Push do brancha (git push origin feature/amazing-feature)
+5. 🔄 Otwórz Pull Request
+
+Zgłaszanie błędów:
+
+· Użyj sekcji Issues
+· Dołącz szczegółowy opis problemu, kroki reprodukcji i logi błędów
+
+---
+
+📄 Licencja
+
+Ten projekt jest dystrybuowany na licencji MIT. Zobacz plik LICENSE.txt po więcej informacji.
+
+---
+
+👤 Kontakt i Autor
+
+· Autor: Xzar
+· GitHub: https://github.com/Xzar-x
+· Email: [TWÓJ EMAIL]
+· Repozytorium: https://github.com/Xzar-x/shadowmap
+
+---
+
 <div align="center">
-<img src="https://www.google.com/search?q=https://raw.githubusercontent.com/Xzar-x/images/main/shadowmap_menu.gif" alt="ShadowMap Demo" width="800"/>
+
+ShadowMap - Your Automated Reconnaissance Companion 🔍
+
 </div>
-Command-Line Options
-Usage: shadowmap [OPTIONS] [TARGET]
-
-  ShadowMap: An automated reconnaissance toolkit.
-
-Arguments:
-  [TARGET]   The domain or IP address to scan.
-
-Options:
-  --target-list, -l FILE   File containing a list of targets.
-  --output-dir, -o PATH    Directory to save reports in.
-  --exclude, -e TEXT       Exclude subdomains (e.g., -e *.dev.example.com).
-  --safe-mode              Enable Safe Mode (slower, less aggressive scanning).
-  --proxy TEXT             Use a proxy (e.g., socks5://127.0.0.1:9050).
-  --quiet, -q              Quiet mode, minimizes output.
-  --help, -h               Show this message and exit.
-
-Example: Scanning from a file and saving to a directory
-shadowmap -l targets.txt -o /path/to/reports/
-
-📊 HTML Report
-After the scan is complete (or when you exit the menu), ShadowMap generates a detailed HTML report.
-<div align="center">
-<img src="https://www.google.com/search?q=https://raw.githubusercontent.com/Xzar-x/images/main/shadowmap_report.png" alt="HTML Report Example" width="800"/>
-</div>
-The report includes:
- * A summary with key statistics.
- * Detailed OSINT data, including WHOIS info and detected technologies.
- * Lists of active subdomains with their status codes.
- * Port scanning results from Nmap.
- * Raw output from every tool used, organized in separate tabs.
-🤝 Contributing
-Want to help improve ShadowMap? We are open to all suggestions, bug reports, and pull requests.
- * Fork the repository.
- * Create a new branch (git checkout -b feature/your-feature).
- * Make your changes.
- * Commit your changes (git commit -m 'Add a new feature').
- * Push to the branch (git push origin feature/your-feature).
- * Open a Pull Request.
-📄 License
-This project is licensed under the MIT License. See the LICENSE file for more details.
