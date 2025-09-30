@@ -263,7 +263,7 @@ Ten projekt jest dystrybuowany na licencji MIT. Zobacz plik LICENSE.txt po więc
 
 · Autor: Xzar
 · GitHub: https://github.com/Xzar-x
-· Email: [TWÓJ EMAIL]
+· Email: xzar12@gmail.com
 · Repozytorium: https://github.com/Xzar-x/shadowmap
 
 ---
