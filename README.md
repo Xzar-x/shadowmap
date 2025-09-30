@@ -1,11 +1,6 @@
 ShadowMap: Automated Reconnaissance Toolkit
 
-https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/shadowmap.png
-
-https://img.shields.io/badge/version-1.0.0-blue.svg
-https://img.shields.io/badge/license-MIT-green.svg
-https://img.shields.io/badge/python-3.8%2B-blue
-https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey
+https://www.githubub.com/Xzar-x/images/shadowmap.png
 
 ShadowMap to zaawansowany, zautomatyzowany zestaw narzędzi do rekonesansu bezpieczeństwa, który przeprowadza kompleksowe skanowanie celów w pięciu zintegrowanych fazach.
 
