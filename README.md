@@ -106,7 +106,7 @@ cd shadowmap
 1. Uruchom skrypt instalacyjny
 
 ```bash
-sudo python3 install.py
+./install.py
 ```
 
 Skrypt instalacyjny automatycznie:
