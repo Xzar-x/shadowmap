@@ -265,8 +265,6 @@ def main():
         "report_template.html",
         "resolvers.txt",
         "user_agents.txt",
-        "subdomen_wordlist.txt",
-        "dir_wordlist.txt",
     ]
     for f_name in files_to_copy:
         src = os.path.join(base_dir, f_name)
