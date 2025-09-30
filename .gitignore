@@ -1,6 +1,7 @@
 # Ignoruj katalogi z raportami generowane przez ShadowMap
 report_*/
 reports/
+.gitignore
 
 # Ignoruj pliki tymczasowe i cache Pythona
 __pycache__/
