@@ -622,23 +622,50 @@
     .exploit-list li {
       padding: 8px;
       border-top: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+    }
+    
+    .exploit-list a {
+        color: #e0e0e0;
+        text-decoration: none;
+        transition: color 0.2s;
+        display: flex;
+        align-items: center;
+        width: 100%;
     }
 
-    .exploit-list a {
-      color: #e0e0e0;
-      text-decoration: none;
-      transition: color 0.2s;
-    }
 
     .exploit-list a:hover {
       color: #00d4ff;
-      text-decoration: underline;
     }
 
+    .exploit-score {
+      font-weight: bold;
+      color: #1a1a2e;
+      border-radius: 5px;
+      padding: 2px 8px;
+      margin-right: 10px;
+      min-width: 30px;
+      text-align: center;
+    }
+    
     .exploit-id {
       font-weight: bold;
       color: #ffc107;
       margin-right: 10px;
+      white-space: nowrap;
+    }
+    
+    .exploit-type {
+        background-color: #444;
+        color: #00d4ff;
+        border-radius: 5px;
+        padding: 2px 8px;
+        margin-right: 10px;
+        font-size: 0.8em;
+        font-weight: bold;
+        white-space: nowrap;
     }
 
     @media (max-width: 768px) {

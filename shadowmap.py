@@ -321,26 +321,35 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         col1 = "".join(f"<li>{t}</li>" for t in tech_list[:mid])
         col2 = "".join(f"<li>{t}</li>" for t in tech_list[mid:])
         tech_html = f'<div class="tech-columns"><ul>{col1}</ul><ul>{col2}</ul></div>'
-
+    
+    # NOWA logika generowania HTML dla Searchsploit
     searchsploit_html = "<p>Brak danych lub nie znaleziono exploitów.</p>"
     sploit_data = p0_data.get("searchsploit_results")
     if sploit_data and "Error" not in sploit_data and any(sploit_data.values()):
         html_parts = []
         for tech, exploits in sploit_data.items():
             if exploits:
-                exploit_items = "".join(
-                    f'<li><a href="https://www.exploit-db.com/exploits/{e["id"]}" '
-                    'target="_blank">'
-                    f'<span class="exploit-id">EDB-ID: {e["id"]}</span>'
-                    f'{e["title"]}</a></li>'
-                    for e in exploits
-                )
+                exploit_items = ""
+                for e in exploits:
+                    score = e.get("score", 0)
+                    score_color = "red" if score >= 80 else "orange" if score >= 40 else "green"
+                    exploit_items += (
+                        f'<li>'
+                        f'<a href="https://www.exploit-db.com/exploits/{e["id"]}" target="_blank">'
+                        f'<span class="exploit-score" style="background-color:{score_color}">{score}</span>'
+                        f'<span class="exploit-id">EDB-ID: {e["id"]}</span>'
+                        f'<span class="exploit-type">{e.get("type", "Info")}</span>'
+                        f'{e["title"]}'
+                        f'</a></li>'
+                    )
+
                 html_parts.append(
                     f"<details><summary>{tech} ({len(exploits)})</summary>"
                     f'<ul class="exploit-list">{exploit_items}</ul></details>'
                 )
         if html_parts:
             searchsploit_html = "".join(html_parts)
+
 
     def convert_urls_to_objects(
         urls: List[str],

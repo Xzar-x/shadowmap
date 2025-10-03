@@ -267,18 +267,82 @@ def get_webtech_info(target_url: str) -> List[str]:
     return sorted(list(set(techs)))
 
 
+def _extract_version(tech_string: str) -> Tuple[str, List[str]]:
+    """Wyciąga nazwę technologii i numery wersji."""
+    name = tech_string.split("(")[0].strip()
+    # Wzorzec do znalezienia numerów wersji (np. 1.2.3, v5.1, 10.0)
+    version_pattern = re.compile(r"(\d+(\.\d+){1,3})")
+    versions = version_pattern.findall(tech_string)
+    # `findall` zwraca krotki, więc musimy je spłaszczyć
+    return name, [v[0] for v in versions]
+
+
+def _score_exploit(exploit: Dict[str, str], version: str) -> Tuple[int, str]:
+    """Ocenia exploit na podstawie jego typu i tytułu."""
+    title = exploit.get("Title", "").lower()
+    type_ = exploit.get("Type", "").lower()
+    path = exploit.get("Path", "").lower()
+    score = 0
+    inferred_type = "Info"
+
+    # Ocenianie na podstawie typu
+    if "rce" in title or "remote code execution" in title or type_ == "webapps":
+        score += 100
+        inferred_type = "RCE"
+    elif "sqli" in title or "sql injection" in title:
+        score += 80
+        inferred_type = "SQLi"
+    elif "lfi" in title or "local file inclusion" in title:
+        score += 60
+        inferred_type = "LFI/Path Traversal"
+    elif "xss" in title:
+        score += 40
+        inferred_type = "XSS"
+    elif "dos" in title or "denial of service" in title:
+        score -= 50
+        inferred_type = "DoS"
+
+    # Modyfikatory
+    if "remote" in title:
+        score += 20
+    if "unauthenticated" in title or "unauth" in title:
+        score += 30
+    if "authenticated" in title or "auth" in title:
+        score -= 10
+    if "local" in title or "privilege escalation" in title:
+        score -= 70
+        if inferred_type == "Info":
+            inferred_type = "LPE"
+            
+    # Sprawdzenie, czy wersja jest w tytule
+    if version and version in title:
+        score += 50
+        
+    # Bonus za skrypty Metasploit, bo są często wiarygodne
+    if "metasploit" in path:
+        score += 15
+
+    return score, inferred_type
+
+
 def get_searchsploit_info(
     technologies: List[str],
-) -> Union[Dict[str, List[Dict[str, str]]], Dict[str, str]]:
-    """Używa searchsploit do znalezienia exploitów."""
-    results: Dict[str, List[Dict[str, str]]] = {}
+) -> Union[Dict[str, List[Dict[str, Any]]], Dict[str, str]]:
+    """Używa searchsploit do znalezienia i ocenienia exploitów."""
+    results: Dict[str, List[Dict[str, Any]]] = {}
     phase0_dir = os.path.join(config.REPORT_DIR, "faza0_osint")
     raw_output_path = os.path.join(phase0_dir, "searchsploit_raw.txt")
 
     with open(raw_output_path, "w", encoding="utf-8") as raw_f:
         for tech in technologies:
             try:
-                search_terms = re.findall(r"[\w.-]+", tech.split("(")[0].strip())
+                tech_name, versions = _extract_version(tech)
+                search_terms = re.findall(r"[\w.-]+", tech_name)
+                
+                # Dodaj pierwszą znalezioną wersję do wyszukiwania
+                if versions:
+                    search_terms.append(versions[0])
+
                 if not search_terms:
                     continue
 
@@ -299,17 +363,19 @@ def get_searchsploit_info(
                         if tech not in results:
                             results[tech] = []
 
-                        existing_ids = {e["id"] for e in results[tech]}
+                        scored_exploits = []
                         for exploit in exploits:
-                            if exploit.get("EDB-ID") not in existing_ids:
-                                results[tech].append(
-                                    {
-                                        "title": exploit.get("Title", "N/A"),
-                                        "path": exploit.get("Path", "N/A"),
-                                        "id": exploit.get("EDB-ID", "N/A"),
-                                    }
-                                )
-                                existing_ids.add(exploit["EDB-ID"])
+                            score, inferred_type = _score_exploit(exploit, versions[0] if versions else "")
+                            scored_exploits.append({
+                                "title": exploit.get("Title", "N/A"),
+                                "path": exploit.get("Path", "N/A"),
+                                "id": exploit.get("EDB-ID", "N/A"),
+                                "score": score,
+                                "type": inferred_type,
+                            })
+                        
+                        # Sortuj exploity od najwyższego do najniższego wyniku
+                        results[tech] = sorted(scored_exploits, key=lambda x: x['score'], reverse=True)
 
             except FileNotFoundError:
                 msg = "Polecenie 'searchsploit' nie jest zainstalowane."
@@ -405,8 +471,16 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
             count = len(exploit_list)
             if count:
                 total_exploits += count
-                summary = f"[yellow]{tech}[/yellow]: [bold red]{count}[/bold red]"
+                # Pokaż tylko top 3 exploity w podsumowaniu CLI
+                top_exploits_summary = []
+                for exploit in exploit_list[:3]:
+                    score = exploit.get('score', 0)
+                    color = "green" if score < 40 else "yellow" if score < 80 else "red"
+                    top_exploits_summary.append(f"  - [[{color}]{score}[/{color}]] {exploit['title'][:60]}...")
+                
+                summary = f"[yellow]{tech}[/yellow]: [bold red]{count}[/bold red] znalezionych\n" + "\n".join(top_exploits_summary)
                 exploits_summary.append(summary)
+
         if total_exploits > 0:
             table.add_row(
                 f"Znalezione Exploity ({total_exploits})",

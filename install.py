@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+from typing import List, Dict, Tuple
 
 try:
     import questionary
@@ -29,17 +30,21 @@ DRY_RUN = "-d" in sys.argv or "--dry-run" in sys.argv
 NONINTERACTIVE = "-n" in sys.argv or "--non-interactive" in sys.argv
 IS_ROOT = os.geteuid() == 0
 
-SYSTEM_DEPS = [
-    "go",
-    "python3",
-    "pip3",
-    "nmap",
-    "masscan",
-    "whois",
-    "whatweb",
-    "exploitdb",
-]
-GO_TOOLS = {
+# Zależności systemowe (bez Pythona/Go)
+SYSTEM_DEPS: List[str] = ["go", "nmap", "masscan", "whois", "git"]
+
+# Narzędzia Python - mapowanie polecenia na pakiet apt
+PYTHON_APT_TOOLS: Dict[str, str] = {
+    "python3": "python3",
+    "pip3": "python3-pip",
+    "whatweb": "whatweb",
+    "wafw00f": "wafw00f",
+    "pipx": "python3-pipx",
+    "searchsploit": "exploitdb",
+}
+
+# Narzędzia Go
+GO_TOOLS: Dict[str, str] = {
     "subfinder": "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest",
     "assetfinder": "github.com/tomnomnom/assetfinder@latest",
     "puredns": "github.com/d3mondev/puredns/v2@latest",
@@ -51,28 +56,63 @@ GO_TOOLS = {
     "katana": "github.com/projectdiscovery/katana/cmd/katana@latest",
     "hakrawler": "github.com/hakluke/hakrawler@latest",
     "gauplus": "github.com/bp0lr/gauplus@latest",
+    "dirsearch": "github.com/maurosoria/dirsearch@latest"
 }
-PYTHON_PKGS = [
+
+# Narzędzia Python instalowane przez pipx
+PIPX_TOOLS: Dict[str, str] = {
+    "paramspider": "paramspider"
+}
+
+# Narzędzia Python wymagające specjalnej instalacji (pip3)
+MANUAL_PYTHON_TOOLS: Dict[str, str] = {
+    "linkfinder": "git+https://github.com/GerbenJavado/LinkFinder.git"
+}
+
+# Pakiety Python (pip)
+PYTHON_PKGS: List[str] = [
     "rich",
     "questionary",
     "pyfiglet",
     "typer",
-    "psutil",
-    "webtech",
     "requests",
+    "webtech",
+    "urllib3",
 ]
 
 
 def display_banner():
+    """Wyświetla banner powitalny."""
     f = Figlet(font="slant")
     banner_text = f.renderText("ShadowMap\nInstaller")
     console.print(Align.center(Text(banner_text, style="bold cyan")))
 
 
-def run_command(command, description, sudo=False, live_output=False):
+def _get_path_with_go_and_pipx(env: Dict[str, str]) -> str:
+    """Konstruuje zmienną PATH z uwzględnieniem ścieżek dla Go i Pipx."""
+    path_list = [env.get("PATH", "")]
+    home = env.get("HOME", "")
+    
+    if home:
+        path_list.insert(0, f"{home}/.local/bin")
+    
+    go_path = env.get("GOPATH", f"{home}/go")
+    if go_path:
+        path_list.insert(0, os.path.join(go_path, "bin"))
+        
+    return ":".join(filter(None, path_list))
+
+
+def run_command(
+    command: List[str], description: str, sudo: bool = False, live_output: bool = False
+) -> bool:
+    """Uruchamia podane polecenie i obsługuje błędy."""
+    env = os.environ.copy()
+    env["PATH"] = _get_path_with_go_and_pipx(env)
+
     sudo_prefix = ["sudo"] if sudo and not IS_ROOT else []
     full_command = sudo_prefix + command
-    cmd_str = " ".join(full_command)
+    cmd_str = " ".join(f'"{p}"' if " " in p and "'" not in p else p for p in full_command)
 
     if DRY_RUN:
         console.print(f"[blue]DRY RUN[/blue] Wykonuję: {cmd_str}")
@@ -84,205 +124,178 @@ def run_command(command, description, sudo=False, live_output=False):
         )
     )
     try:
-        if live_output:
-            process = subprocess.Popen(
-                full_command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True,
-            )
-            for line in process.stdout:  # type: ignore
-                console.print(Align.center(f"[dim]  {line.strip()}[/dim]"))
-            process.wait()
-            if process.returncode != 0:
-                msg = f"Błąd podczas '{description}': Kod {process.returncode}"
-                console.print(Align.center(f"[red]{msg}[/red]"))
-                return False
-        else:
-            subprocess.run(full_command, check=True, capture_output=True, text=True)
-        return True
-    except FileNotFoundError:
-        msg = f"Błąd: Polecenie '{full_command[0]}' nie znalezione."
-        console.print(Align.center(f"[red]{msg}[/red]"))
-        return False
-    except subprocess.CalledProcessError as e:
-        msg = f"Błąd podczas '{description}': Kod {e.returncode}."
-        console.print(Align.center(f"[red]{msg}[/red]"))
-        console.print(
-            Align.center(
-                Panel(
-                    e.stderr,
-                    title="[red]STDERR[/red]",
-                    border_style="red",
-                    expand=False,
-                )
-            )
+        process = subprocess.Popen(
+            full_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True,
+            env=env,
         )
+        for line in process.stdout:
+            stripped_line = line.strip()
+            if stripped_line and live_output:
+                console.print(Align.center(f"[dim]  {stripped_line}[/dim]"))
+        process.wait()
+        
+        if process.returncode != 0:
+            msg = f"Błąd podczas '{description}': Kod {process.returncode}"
+            console.print(Align.center(f"[bold red]{msg}[/bold red]"))
+            return False
+        return True
+
+    except FileNotFoundError:
+        tool_name = full_command[0]
+        msg = f"BŁĄD: Polecenie '{tool_name}' nie znalezione. Upewnij się, że jest w PATH."
+        console.print(Align.center(f"[bold red]{msg}[/bold red]"))
         return False
     except Exception as e:
-        msg = f"Nieoczekiwany błąd podczas '{description}': {e}"
-        console.print(Align.center(f"[red]{msg}[/red]"))
+        msg = f"Nieoczekiwany błąd podczas '{description}': {type(e).__name__}: {e}"
+        console.print(Align.center(f"[bold red]{msg}[/bold red]"))
         return False
 
 
-def check_dependencies():
-    missing_system, missing_go = [], []
-
-    system_table = Table(
-        title="Zależności Systemowe",
-        box=box.ROUNDED,
-        show_header=True,
-        header_style="bold magenta",
-        title_justify="left",
-    )
-    system_table.add_column("Narzędzie", style="cyan")
-    system_table.add_column("Status", justify="center")
-
-    for dep in SYSTEM_DEPS:
-        if shutil.which(dep):
-            system_table.add_row(dep, "[bold green]✓ ZNALEZIONO[/bold green]")
+def check_dependencies() -> Tuple[List[str], List[str], List[str], List[str]]:
+    """Sprawdza obecność narzędzi i zwraca listę brakujących w każdej kategorii."""
+    missing_system, missing_go, missing_python_apt, missing_pipx_manual = [], [], [], []
+    env = os.environ.copy()
+    env["PATH"] = _get_path_with_go_and_pipx(env)
+    
+    system_table = Table(title="System & APT", box=box.ROUNDED, show_header=False, title_style="bold magenta")
+    all_system_tools = SYSTEM_DEPS + list(PYTHON_APT_TOOLS.keys())
+    for dep in sorted(all_system_tools):
+        if shutil.which(dep, path=env["PATH"]):
+            system_table.add_row(f"[bold green]✓[/bold green] {dep}")
         else:
-            system_table.add_row(dep, "[bold red]✗ BRAK[/bold red]")
-            missing_system.append(dep)
+            if dep in SYSTEM_DEPS: missing_system.append(dep)
+            elif dep in PYTHON_APT_TOOLS: missing_python_apt.append(dep)
+            system_table.add_row(f"[bold red]✗[/bold red] {dep}")
 
-    go_table = Table(
-        title="Narzędzia Rekonesansu (Go)",
-        box=box.ROUNDED,
-        show_header=True,
-        header_style="bold magenta",
-        title_justify="left",
-    )
-    go_table.add_column("Narzędzie", style="cyan")
-    go_table.add_column("Status", justify="center")
-
-    for tool in GO_TOOLS:
-        if shutil.which(tool):
-            go_table.add_row(tool, "[bold green]✓ ZNALEZIONO[/bold green]")
+    go_table = Table(title="Narzędzia Go", box=box.ROUNDED, show_header=False, title_style="bold magenta")
+    for tool in sorted(GO_TOOLS.keys()):
+        if shutil.which(tool, path=env["PATH"]):
+            go_table.add_row(f"[bold green]✓[/bold green] {tool}")
         else:
-            go_table.add_row(tool, "[bold red]✗ BRAK[/bold red]")
             missing_go.append(tool)
+            go_table.add_row(f"[bold red]✗[/bold red] {tool}")
 
-    grid = Columns([system_table, go_table], align="center", expand=True)
-    console.print(Align.center(grid))
+    pipx_table = Table(title="Narzędzia Python", box=box.ROUNDED, show_header=False, title_style="bold magenta")
+    all_python_cli_tools = {**PIPX_TOOLS, **MANUAL_PYTHON_TOOLS}
+    for tool in sorted(all_python_cli_tools.keys()):
+        if shutil.which(tool, path=env["PATH"]):
+            pipx_table.add_row(f"[bold green]✓[/bold green] {tool}")
+        else:
+            missing_pipx_manual.append(tool)
+            pipx_table.add_row(f"[bold red]✗[/bold red] {tool}")
+    
+    console.print(
+        Panel(
+            Columns([system_table, go_table, pipx_table], align="center", expand=True),
+            title="[bold]Status Zależności[/bold]",
+            border_style="blue"
+        )
+    )
 
-    return missing_system, missing_go
+    return missing_system, missing_go, missing_python_apt, missing_pipx_manual
 
 
 def main():
+    """Główna funkcja instalacyjna."""
     display_banner()
     panel_text = "[bold]Instalator ShadowMap sprawdzi i zainstaluje zależności.[/bold]"
     console.print(Align.center(Panel.fit(panel_text, border_style="green")))
-
-    missing_system_deps, missing_go_tools = check_dependencies()
-
-    if not missing_system_deps and not missing_go_tools:
+    
+    if not IS_ROOT and not DRY_RUN:
         console.print(
             Align.center(
-                "\n[bold green]Wszystkie zależności są zainstalowane![/bold green]"
+                Panel(
+                    "[bold yellow]UWAGA:[/bold yellow] Uruchomienie z `sudo` jest "
+                    "zalecane do instalacji w /usr/local/.",
+                    border_style="yellow"
+                )
             )
         )
+
+    missing_system, missing_go, missing_python_apt, missing_pipx_manual = check_dependencies()
+
+    all_missing = missing_system + missing_go + missing_python_apt + missing_pipx_manual
+    if not any(all_missing):
+        console.print(Align.center("\n[bold green]Wszystkie narzędzia CLI są zainstalowane![/bold green]"))
     else:
-        console.print(
-            Align.center("\n[bold yellow]Wykryto brakujące zależności.[/bold yellow]")
-        )
+        console.print(Align.center("\n[bold yellow]Wykryto brakujące narzędzia CLI.[/bold yellow]"))
         install_confirmed = (
             ASSUME_YES
             or NONINTERACTIVE
             or questionary.confirm("Zainstalować brakujące pakiety?").ask()
         )
-
         if install_confirmed:
-            if missing_system_deps:
-                deps = ", ".join(missing_system_deps)
-                console.print(
-                    Align.center(f"\n[blue]Instaluję zależności: {deps}...[/blue]")
-                )
-                run_command(
-                    ["apt-get", "update"],
-                    "Aktualizacja listy pakietów",
-                    sudo=True,
-                )
-                run_command(
-                    ["apt-get", "install", "-y"] + missing_system_deps,
-                    "Instalacja pakietów systemowych",
-                    sudo=True,
-                    live_output=True,
-                )
+            apt_packages_to_install = [p for p in missing_system if p in SYSTEM_DEPS] + \
+                                     [PYTHON_APT_TOOLS[t] for t in missing_python_apt if t in PYTHON_APT_TOOLS]
+            
+            if apt_packages_to_install:
+                deps = ", ".join(apt_packages_to_install)
+                console.print(f"\n[blue]Instaluję zależności systemowe (apt): {deps}...[/blue]")
+                if not IS_ROOT: console.print(Align.center("[bold yellow]Wprowadź hasło do sudo...[/bold yellow]"))
+                run_command(["apt-get", "update"], "Aktualizacja listy pakietów", sudo=True)
+                run_command(["apt-get", "install", "-y"] + apt_packages_to_install, "Instalacja pakietów", sudo=True, live_output=True)
 
-            if missing_go_tools:
-                tools = ", ".join(missing_go_tools)
-                console.print(
-                    Align.center(f"\n[blue]Instaluję narzędzia Go: {tools}...[/blue]")
-                )
-                for tool in missing_go_tools:
-                    run_command(
-                        ["go", "install", "-v", GO_TOOLS[tool]],
-                        f"Instalacja {tool}",
-                        live_output=True,
-                    )
+            if missing_go:
+                console.print(f"\n[blue]Instaluję narzędzia Go: {', '.join(missing_go)}...[/blue]")
+                for tool in missing_go:
+                    run_command(["go", "install", "-v", GO_TOOLS[tool]], f"Instalacja {tool}", live_output=True)
 
-    console.print(
-        Align.center("\n[blue]Instaluję/aktualizuję pakiety Python...[/blue]")
-    )
-    run_command(
-        ["pip3", "install", "--upgrade"] + PYTHON_PKGS,
-        "Instalacja pakietów pip",
-        live_output=True,
-    )
+            if missing_pipx_manual:
+                console.print(f"\n[blue]Instaluję narzędzia Python CLI: {', '.join(missing_pipx_manual)}...[/blue]")
+                for tool in missing_pipx_manual:
+                    if tool in PIPX_TOOLS:
+                        run_command(["pipx", "install", "--force", PIPX_TOOLS[tool]], f"Instalacja {tool}", live_output=True)
+                    elif tool in MANUAL_PYTHON_TOOLS:
+                        console.print(Align.center(f"[cyan]Instalacja specjalna dla {tool} za pomocą pip3...[/cyan]"))
+                        if run_command(["pip3", "install", "--user", MANUAL_PYTHON_TOOLS[tool]], f"Instalacja {tool}", live_output=True):
+                            # KROK NAPRAWCZY: Utwórz symlink
+                            console.print(Align.center("[cyan]Konfiguruję dowiązanie symboliczne dla LinkFinder...[/cyan]"))
+                            home = os.path.expanduser("~")
+                            source_path = os.path.join(home, ".local", "bin", "linkfinder.py")
+                            target_path = os.path.join(home, ".local", "bin", "linkfinder")
+                            
+                            if os.path.exists(source_path):
+                                if os.path.lexists(target_path):
+                                    os.remove(target_path)
+                                run_command(["ln", "-s", source_path, target_path], "Tworzenie symlinka dla linkfinder")
+                            else:
+                                console.print(f"[bold red]BŁĄD: Nie znaleziono {source_path} po instalacji.[/bold red]")
 
-    console.print(
-        Align.center(f"\n[blue]Kopiuję pliki do {BIN_DIR} i {SHARE_DIR}...[/blue]")
-    )
-    run_command(["mkdir", "-p", SHARE_DIR], f"Tworzenie {SHARE_DIR}", sudo=True)
 
+    console.print("\n[blue]Instaluję/aktualizuję podstawowe pakiety Python (pip)...[/blue]")
+    run_command(["pip3", "install", "--upgrade"] + PYTHON_PKGS, "Instalacja pakietów pip", live_output=True)
+
+    console.print(f"\n[blue]Kopiuję pliki do {BIN_DIR} i {SHARE_DIR}...[/blue]")
     base_dir = os.path.dirname(os.path.abspath(__file__))
-
-    run_command(
-        [
-            "cp",
-            os.path.join(base_dir, "shadowmap.py"),
-            os.path.join(BIN_DIR, "shadowmap"),
-        ],
-        "Kopiowanie głównego skryptu",
-        sudo=True,
-    )
-    run_command(
-        ["chmod", "+x", os.path.join(BIN_DIR, "shadowmap")],
-        "Nadawanie uprawnień wykonywalnych",
-        sudo=True,
-    )
-
+    
+    run_command(["mkdir", "-p", SHARE_DIR], f"Tworzenie {SHARE_DIR}", sudo=True)
+    
+    script_path = os.path.join(base_dir, "shadowmap.py")
+    bin_path = os.path.join(BIN_DIR, "shadowmap")
+    run_command(["cp", script_path, bin_path], "Kopiowanie głównego skryptu", sudo=True)
+    run_command(["chmod", "+x", bin_path], "Nadawanie uprawnień wykonywalnych", sudo=True)
+    
     files_to_copy = [
-        "config.py",
-        "utils.py",
-        "phase0_osint.py",
-        "phase1_subdomain.py",
-        "phase2_port_scanning.py",
-        "phase3_dirsearch.py",
-        "phase4_webcrawling.py",
-        "report_template.html",
-        "resolvers.txt",
-        "user_agents.txt",
+        "config.py", "utils.py", "phase0_osint.py", "phase1_subdomain.py",
+        "phase2_port_scanning.py", "phase3_dirsearch.py", "phase4_webcrawling.py",
+        "report_template.html", "resolvers.txt", "user_agents.txt",
     ]
     for f_name in files_to_copy:
         src = os.path.join(base_dir, f_name)
         if os.path.exists(src):
             run_command(["cp", src, SHARE_DIR], f"Kopiowanie {f_name}", sudo=True)
 
-    final_message_text = (
+    final_text = (
         "[bold green]Instalacja ShadowMap zakończona pomyślnie![/bold green]\n\n"
         "Uruchom narzędzie wpisując: [bold cyan]shadowmap <cel>[/bold cyan]\n\n"
-        "[yellow]Uwaga:[/yellow] Może być konieczne ponowne "
-        "uruchomienie terminala."
+        "[yellow]Uwaga:[/yellow] Może być konieczne ponowne uruchomienie terminala, aby zmiany w PATH były widoczne."
     )
-    final_message = Panel(
-        Text.from_markup(final_message_text, justify="center"),
-        title="[bold]Gotowe![/bold]",
-        border_style="green",
-    )
-    console.print(Align.center(final_message))
+    console.print(Align.center(Panel(final_text, title="[bold]Gotowe![/bold]", border_style="green")))
 
 
 if __name__ == "__main__":
