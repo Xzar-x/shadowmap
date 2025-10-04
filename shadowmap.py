@@ -75,7 +75,6 @@ def display_banner():
 def ask_scan_scope(
     all_results: List[str], critical_results: List[str], phase_name: str
 ) -> List[str]:
-    # ZMIANA: Dodano obsługę trybu auto
     if config.AUTO_MODE:
         utils.console.print(
             Align.center(
@@ -287,7 +286,11 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
 
     def read_file(path: Optional[str]) -> str:
         if path and os.path.exists(path):
-            return open(path, "r", errors="ignore").read()
+            try:
+                with open(path, "r", errors="ignore") as f:
+                    return f.read()
+            except Exception:
+                return "Błąd odczytu pliku"
         return "Brak danych"
 
     try:
@@ -300,12 +303,12 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
 
     p0_data = scan_results.get("phase0_osint", {})
     p1_files = scan_results.get("phase1_raw_files", {})
-    active_urls_data = scan_results.get("phase1_active_urls", [])
+    active_urls_data = scan_results.get("phase1_active_urls", []) or []
     p2_results = scan_results.get("phase2_results", {})
     p3_results = scan_results.get("phase3_results", {})
-    p3_verified_data = scan_results.get("phase3_verified_urls", [])
-    p4_results = scan_results.get("phase4_results", {})
-    all_subdomains_list = scan_results.get("phase1_all_subdomains", [])
+    p3_verified_data = scan_results.get("phase3_verified_urls", []) or []
+    p4_results = scan_results.get("phase4_results", {}) or {}
+    all_subdomains_list = scan_results.get("phase1_all_subdomains", []) or []
 
     p1_urls = [item["url"] for item in active_urls_data]
     p3_urls = [item["url"] for item in p3_verified_data]
@@ -323,7 +326,7 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         col1 = "".join(f"<li>{t}</li>" for t in tech_list[:mid])
         col2 = "".join(f"<li>{t}</li>" for t in tech_list[mid:])
         tech_html = f'<div class="tech-columns"><ul>{col1}</ul><ul>{col2}</ul></div>'
-    
+
     searchsploit_html = "<p>Brak danych lub nie znaleziono exploitów.</p>"
     sploit_data = p0_data.get("searchsploit_results")
     if sploit_data and "Error" not in sploit_data and any(sploit_data.values()):
@@ -336,11 +339,11 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
                     score_color = "red" if score >= 80 else "orange" if score >= 40 else "green"
                     exploit_items += (
                         f'<li>'
-                        f'<a href="https://www.exploit-db.com/exploits/{e["id"]}" target="_blank">'
+                        f'<a href="https://www.exploit-db.com/exploits/{e.get("id", "")}" target="_blank">'
                         f'<span class="exploit-score" style="background-color:{score_color}">{score}</span>'
-                        f'<span class="exploit-id">EDB-ID: {e["id"]}</span>'
+                        f'<span class="exploit-id">EDB-ID: {e.get("id", "N/A")}</span>'
                         f'<span class="exploit-type">{e.get("type", "Info")}</span>'
-                        f'{e["title"]}'
+                        f'{e.get("title", "N/A")}'
                         f'</a></li>'
                     )
 
@@ -351,12 +354,11 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         if html_parts:
             searchsploit_html = "".join(html_parts)
 
-
     def convert_urls_to_objects(
         urls: List[str],
     ) -> List[Dict[str, Any]]:
         return [
-            {"url": url, "status_code": None, "last_modified": None} for url in urls
+            {"url": url, "status_code": None, "last_modified": None} for url in (urls or [])
         ]
 
     p4_all_urls_obj = convert_urls_to_objects(p4_results.get("all_urls", []))
@@ -368,56 +370,43 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
     )
 
     nmap_files = p2_results.get("nmap_files", {})
+    
     replacements = {
-        "{{DOMAIN}}": config.HOSTNAME_TARGET,
-        "{{OSINT_IP}}": p0_data.get("ip", "Brak"),
-        "{{OSINT_ASN_DETAILS}}": p0_data.get("asn_details", "Brak"),
-        "{{OSINT_CDN}}": p0_data.get("cdn_name", "Brak"),
-        "{{OSINT_REGISTRAR}}": p0_data.get("registrar", "Brak"),
-        "{{OSINT_CREATION_DATE}}": p0_data.get("creation_date", "Brak"),
-        "{{OSINT_EXPIRATION_DATE}}": p0_data.get("expiration_date", "Brak"),
+        "{{DOMAIN}}": str(config.HOSTNAME_TARGET or "Brak"),
+        "{{OSINT_IP}}": str(p0_data.get("ip", "Brak")),
+        "{{OSINT_ASN_DETAILS}}": str(p0_data.get("asn_details", "Brak")),
+        "{{OSINT_CDN}}": str(p0_data.get("cdn_name", "Brak")),
+        "{{OSINT_REGISTRAR}}": str(p0_data.get("registrar", "Brak")),
+        "{{OSINT_CREATION_DATE}}": str(p0_data.get("creation_date", "Brak")),
+        "{{OSINT_EXPIRATION_DATE}}": str(p0_data.get("expiration_date", "Brak")),
         "{{OSINT_NAME_SERVERS}}": "\n".join(p0_data.get("name_servers", [])),
         "{{OSINT_TECHNOLOGIES_HTML}}": tech_html,
         "{{SEARCHSPLOIT_RESULTS_HTML}}": searchsploit_html,
-        "{{COUNT_ALL_SUBDOMAINS}}": len(all_subdomains_list),
-        "{{COUNT_HTTPX}}": len(active_urls_data),
-        "{{COUNT_OPEN_PORTS}}": open_ports_count,
-        "{{COUNT_DIR_SEARCH}}": len(p3_verified_data),
+        "{{COUNT_ALL_SUBDOMAINS}}": str(len(all_subdomains_list)),
+        "{{COUNT_HTTPX}}": str(len(active_urls_data)),
+        "{{COUNT_OPEN_PORTS}}": str(open_ports_count),
+        "{{COUNT_DIR_SEARCH}}": str(len(p3_verified_data)),
         "{{ALL_URLS_COMBINED_OUTPUT}}": "\n".join(all_urls_combined),
-        "{{COUNT_ALL_URLS_COMBINED}}": len(all_urls_combined),
+        "{{COUNT_ALL_URLS_COMBINED}}": str(len(all_urls_combined)),
+        "{{ALL_SUBDOMAINS_OUTPUT}}": "\n".join(all_subdomains_list),
         "{{HTTPX_OUTPUT_JSON_P1}}": json.dumps(active_urls_data),
         "{{HTTPX_OUTPUT_JSON_P3}}": json.dumps(p3_verified_data),
-        "{{NMAP_RESULTS_RAW_JSON}}": json.dumps(
-            {t: read_file(f) for t, f in nmap_files.items()}
-        ),
-        "{{NAABU_RAW_OUTPUT}}": read_file(p2_results.get("naabu_file")).replace(
-            "`", "\\`"
-        ),
-        "{{MASSCAN_RAW_OUTPUT}}": read_file(p2_results.get("masscan_file")).replace(
-            "`", "\\`"
-        ),
+        "{{NMAP_RESULTS_RAW_JSON}}": json.dumps({t: read_file(f) for t, f in (nmap_files or {}).items()}),
+        "{{NAABU_RAW_OUTPUT}}": read_file(p2_results.get("naabu_file")).replace("`", "\\`"),
+        "{{MASSCAN_RAW_OUTPUT}}": read_file(p2_results.get("masscan_file")).replace("`", "\\`"),
         "{{SUBFINDER_OUTPUT}}": read_file(p1_files.get("Subfinder")),
         "{{ASSETFINDER_OUTPUT}}": read_file(p1_files.get("Assetfinder")),
         "{{FINDOMAIN_OUTPUT}}": read_file(p1_files.get("Findomain")),
         "{{PUREDNS_OUTPUT}}": read_file(p1_files.get("Puredns")),
-        "{{ALL_SUBDOMAINS_OUTPUT}}": "\n".join(all_subdomains_list),
-        "{{FFUF_OUTPUT}}": "\n".join(
-            p3_results.get("results_by_tool", {}).get("Ffuf", [])
-        ),
-        "{{FEROXBUSTER_OUTPUT}}": "\n".join(
-            p3_results.get("results_by_tool", {}).get("Feroxbuster", [])
-        ),
-        "{{DIRSEARCH_P3_OUTPUT}}": "\n".join(
-            p3_results.get("results_by_tool", {}).get("Dirsearch", [])
-        ),
-        "{{GOBUSTER_OUTPUT}}": "\n".join(
-            p3_results.get("results_by_tool", {}).get("Gobuster", [])
-        ),
-        "{{COUNT_ALL_URLS_P4}}": len(p4_results.get("all_urls", [])),
-        "{{COUNT_PARAMETERS}}": len(p4_results.get("parameters", [])),
-        "{{COUNT_JS_FILES}}": len(p4_results.get("js_files", [])),
-        "{{COUNT_API_ENDPOINTS}}": len(p4_results.get("api_endpoints", [])),
-        "{{COUNT_INTERESTING_PATHS}}": len(p4_results.get("interesting_paths", [])),
+        "{{FFUF_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Ffuf", [])),
+        "{{FEROXBUSTER_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Feroxbuster", [])),
+        "{{DIRSEARCH_P3_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Dirsearch", [])),
+        "{{GOBUSTER_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Gobuster", [])),
+        "{{COUNT_ALL_URLS_P4}}": str(len(p4_results.get("all_urls", []))),
+        "{{COUNT_PARAMETERS}}": str(len(p4_results.get("parameters", []))),
+        "{{COUNT_JS_FILES}}": str(len(p4_results.get("js_files", []))),
+        "{{COUNT_API_ENDPOINTS}}": str(len(p4_results.get("api_endpoints", []))),
+        "{{COUNT_INTERESTING_PATHS}}": str(len(p4_results.get("interesting_paths", []))),
         "{{PHASE4_ALL_URLS_JSON}}": json.dumps(p4_all_urls_obj),
         "{{PHASE4_PARAMETERS_JSON}}": json.dumps(p4_params_obj),
         "{{PHASE4_JS_FILES_JSON}}": json.dumps(p4_js_obj),
@@ -426,8 +415,7 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
     }
 
     for placeholder, value in replacements.items():
-        str_value = str(value) if value is not None else "Brak danych"
-        template = template.replace(placeholder, str_value)
+        template = template.replace(placeholder, value)
 
     report_path = os.path.join(config.REPORT_DIR, "report.html")
     with open(report_path, "w", encoding="utf-8") as f:
@@ -447,9 +435,6 @@ def cleanup_temp_files():
 
 
 def run_full_auto_scan(scan_results: Dict[str, Any], p0_data: Dict[str, Any], best_target_url: str):
-    """
-    Wykonuje pełny, zautomatyzowany skan od Fazy 1 do 4.
-    """
     utils.console.print(Align.center(Panel("[bold cyan]Uruchamiam pełny skan automatyczny[/bold cyan]")))
     
     p1_files, active_urls, all_subdomains = phase1_subdomain.start_phase1_scan()
@@ -534,7 +519,6 @@ def main(
         rich_help_panel="Execution",
     ),
 ):
-    # ZMIANA: Sprawdzanie narzędzi nie przerywa już programu
     config.MISSING_TOOLS = utils.check_required_tools()
     if config.MISSING_TOOLS:
         missing_str = "\n".join(f" - {tool}" for tool in config.MISSING_TOOLS)
@@ -554,7 +538,7 @@ def main(
                 )
             )
         )
-        time.sleep(3) # Daj użytkownikowi czas na przeczytanie
+        time.sleep(3)
 
     targets_to_scan: List[str] = []
     if target_list and target_list.is_file():

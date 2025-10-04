@@ -723,13 +723,13 @@
   <div class="container">
     <h1>ShadowMap Scan Report for {{DOMAIN}}</h1>
     <div class="main-tabs">
-      <div class="main-tab-button active" onclick="openMainTab(this, 'summary')">Podsumowanie</div>
-      <div class="main-tab-button" onclick="openMainTab(this, 'phase0')">Faza 0: OSINT</div>
-      <div class="main-tab-button" onclick="openMainTab(this, 'phase1')">Faza 1: Subdomeny</div>
-      <div class="main-tab-button" onclick="openMainTab(this, 'phase2')">Faza 2: Porty</div>
-      <div class="main-tab-button" onclick="openMainTab(this, 'phase3')">Faza 3: Katalogi</div>
-      <div class="main-tab-button" onclick="openMainTab(this, 'phase4')">Faza 4: Web Crawling</div>
-      <div class="main-tab-button" onclick="openMainTab(this, 'all_results')">Wszystkie wyniki</div>
+      <div class="main-tab-button active" data-tab="summary">Podsumowanie</div>
+      <div class="main-tab-button" data-tab="phase0">Faza 0: OSINT</div>
+      <div class="main-tab-button" data-tab="phase1">Faza 1: Subdomeny</div>
+      <div class="main-tab-button" data-tab="phase2">Faza 2: Porty</div>
+      <div class="main-tab-button" data-tab="phase3">Faza 3: Katalogi</div>
+      <div class="main-tab-button" data-tab="phase4">Faza 4: Web Crawling</div>
+      <div class="main-tab-button" data-tab="all_results">Wszystkie wyniki</div>
     </div>
 
     <div id="summary" class="tab-content active">
@@ -764,11 +764,11 @@
     <div id="phase1" class="tab-content">
       <h2>Faza 1: Enumeracja Subdomen</h2>
       <div class="sub-tabs">
-        <div class="sub-tab-button active" onclick="openSubTab(this, 'phase1', 'httpx')">HTTPX</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'subfinder')">Subfinder</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'assetfinder')">Assetfinder</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'findomain')">Findomain</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase1', 'puredns')">Puredns</div>
+        <div class="sub-tab-button active" data-main-tab="phase1" data-sub-tab="httpx">HTTPX</div>
+        <div class="sub-tab-button" data-main-tab="phase1" data-sub-tab="subfinder">Subfinder</div>
+        <div class="sub-tab-button" data-main-tab="phase1" data-sub-tab="assetfinder">Assetfinder</div>
+        <div class="sub-tab-button" data-main-tab="phase1" data-sub-tab="findomain">Findomain</div>
+        <div class="sub-tab-button" data-main-tab="phase1" data-sub-tab="puredns">Puredns</div>
       </div>
 
       <div id="phase1-httpx" class="sub-tab-content active">
@@ -800,10 +800,10 @@
     <div id="phase2" class="tab-content">
       <h2>Faza 2: Skanowanie Portów</h2>
       <div class="sub-tabs">
-        <div class="sub-tab-button active" onclick="openSubTab(this, 'phase2', 'summary_ports')">Podsumowanie Portów</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'nmap_raw')">Nmap (Surowe)</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'naabu_raw')">Naabu (Surowe)</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase2', 'masscan_raw')">Masscan (Surowe)</div>
+        <div class="sub-tab-button active" data-main-tab="phase2" data-sub-tab="summary_ports">Podsumowanie Portów</div>
+        <div class="sub-tab-button" data-main-tab="phase2" data-sub-tab="nmap_raw">Nmap (Surowe)</div>
+        <div class="sub-tab-button" data-main-tab="phase2" data-sub-tab="naabu_raw">Naabu (Surowe)</div>
+        <div class="sub-tab-button" data-main-tab="phase2" data-sub-tab="masscan_raw">Masscan (Surowe)</div>
       </div>
       <div id="phase2-summary_ports" class="sub-tab-content active">
         <h3>Wizualne podsumowanie otwartych portów (Wyniki Nmap)</h3>
@@ -826,11 +826,11 @@
     <div id="phase3" class="tab-content">
       <h2>Faza 3: Wyszukiwanie Katalogów</h2>
       <div class="sub-tabs">
-        <div class="sub-tab-button active" onclick="openSubTab(this, 'phase3', 'verified_httpx')">HTTPX</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'ffuf')">Ffuf</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'feroxbuster')">Feroxbuster</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'dirsearch')">Dirsearch</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase3', 'gobuster')">Gobuster</div>
+        <div class="sub-tab-button active" data-main-tab="phase3" data-sub-tab="verified_httpx">HTTPX</div>
+        <div class="sub-tab-button" data-main-tab="phase3" data-sub-tab="ffuf">Ffuf</div>
+        <div class="sub-tab-button" data-main-tab="phase3" data-sub-tab="feroxbuster">Feroxbuster</div>
+        <div class="sub-tab-button" data-main-tab="phase3" data-sub-tab="dirsearch">Dirsearch</div>
+        <div class="sub-tab-button" data-main-tab="phase3" data-sub-tab="gobuster">Gobuster</div>
       </div>
       <div id="phase3-verified_httpx" class="sub-tab-content active">
         <h3>Wyniki z Fazy 3 zweryfikowane przez HTTPX ({{COUNT_DIR_SEARCH}} znalezionych)</h3>
@@ -861,11 +861,11 @@
     <div id="phase4" class="tab-content">
       <h2>Faza 4: Web Crawling i Link Discovery</h2>
       <div class="sub-tabs">
-        <div class="sub-tab-button active" onclick="openSubTab(this, 'phase4', 'all_crawled')">Wszystkie URL-e</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'parameters')">Parametry</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'js_files')">Pliki JS</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'api_endpoints')">Endpointy API</div>
-        <div class="sub-tab-button" onclick="openSubTab(this, 'phase4', 'interesting_paths')">Interesujące ścieżki</div>
+        <div class="sub-tab-button active" data-main-tab="phase4" data-sub-tab="all_crawled">Wszystkie URL-e</div>
+        <div class="sub-tab-button" data-main-tab="phase4" data-sub-tab="parameters">Parametry</div>
+        <div class="sub-tab-button" data-main-tab="phase4" data-sub-tab="js_files">Pliki JS</div>
+        <div class="sub-tab-button" data-main-tab="phase4" data-sub-tab="api_endpoints">Endpointy API</div>
+        <div class="sub-tab-button" data-main-tab="phase4" data-sub-tab="interesting_paths">Interesujące ścieżki</div>
       </div>
 
       <div id="phase4-all_crawled" class="sub-tab-content active">
@@ -928,16 +928,16 @@
 
   <script>
     // --- Globalne dane ---
-    const httpxDataP1 = {{ HTTPX_OUTPUT_JSON_P1 }};
-    const httpxDataP3 = {{ HTTPX_OUTPUT_JSON_P3 }};
-    const nmapRawResults = {{ NMAP_RESULTS_RAW_JSON }};
+    const httpxDataP1 = {{ HTTPX_OUTPUT_JSON_P1 }} || [];
+    const httpxDataP3 = {{ HTTPX_OUTPUT_JSON_P3 }} || [];
+    const nmapRawResults = {{ NMAP_RESULTS_RAW_JSON }} || {};
     const naabuRawOutput = `{{NAABU_RAW_OUTPUT}}`;
     const masscanRawOutput = `{{MASSCAN_RAW_OUTPUT}}`;
-    const p4AllUrlsData = {{ PHASE4_ALL_URLS_JSON }};
-    const p4ParamsData = {{ PHASE4_PARAMETERS_JSON }};
-    const p4JsData = {{ PHASE4_JS_FILES_JSON }};
-    const p4ApiData = {{ PHASE4_API_ENDPOINTS_JSON }};
-    const p4InterestingData = {{ PHASE4_INTERESTING_PATHS_JSON }};
+    const p4AllUrlsData = {{ PHASE4_ALL_URLS_JSON }} || [];
+    const p4ParamsData = {{ PHASE4_PARAMETERS_JSON }} || [];
+    const p4JsData = {{ PHASE4_JS_FILES_JSON }} || [];
+    const p4ApiData = {{ PHASE4_API_ENDPOINTS_JSON }} || [];
+    const p4InterestingData = {{ PHASE4_INTERESTING_PATHS_JSON }} || [];
 
     function copyToClipboard(text) {
       const notification = document.getElementById('copy-notification');
@@ -1187,62 +1187,61 @@
       }
     }
 
-    // ZMIANA: Zrefaktoryzowane funkcje zakładek
+    // --- Tab Switching Logic ---
     function openMainTab(buttonElement, tabId) {
-        const allTabContents = document.getElementsByClassName('tab-content');
-        for (const content of allTabContents) {
-            content.classList.remove('active');
-        }
-
-        const allTabButtons = document.getElementsByClassName('main-tab-button');
-        for (const button of allTabButtons) {
-            button.classList.remove('active');
-        }
-
-        const targetContent = document.getElementById(tabId);
-        if (targetContent) {
-            targetContent.classList.add('active');
-        }
-        buttonElement.classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.main-tab-button').forEach(b => b.classList.remove('active'));
+      
+      const content = document.getElementById(tabId);
+      if(content) content.classList.add('active');
+      if(buttonElement) buttonElement.classList.add('active');
     }
 
     function openSubTab(buttonElement, mainTabId, subTabId) {
-        const mainTabContent = document.getElementById(mainTabId);
-        if (!mainTabContent) return;
-        
-        const subTabContents = mainTabContent.getElementsByClassName('sub-tab-content');
-        for (const content of subTabContents) {
-            content.classList.remove('active');
-        }
-        
-        const subTabButtons = mainTabContent.getElementsByClassName('sub-tab-button');
-        for (const button of subTabButtons) {
-            button.classList.remove('active');
-        }
-        
-        const subTabContent = document.getElementById(`${mainTabId}-${subTabId}`);
-        if (subTabContent) {
-            subTabContent.classList.add('active');
-        }
-        buttonElement.classList.add('active');
-    }
+      const mainTabContent = document.getElementById(mainTabId);
+      if (!mainTabContent) return;
 
+      mainTabContent.querySelectorAll('.sub-tab-content').forEach(c => c.classList.remove('active'));
+      mainTabContent.querySelectorAll('.sub-tab-button').forEach(b => b.classList.remove('active'));
+
+      const subTabContent = document.getElementById(`${mainTabId}-${subTabId}`);
+      if (subTabContent) subTabContent.classList.add('active');
+      if (buttonElement) buttonElement.classList.add('active');
+    }
+    
+    // --- Event Listeners and Initial Rendering ---
     document.addEventListener('DOMContentLoaded', () => {
+      // Render all data first
       renderResults(httpxDataP1, 'httpx-results', false);
       renderResults(httpxDataP3, 'verified-httpx-results', false);
       renderPortScanResults(nmapRawResults);
       renderNmapRawResults(nmapRawResults);
       renderRawText(naabuRawOutput, 'naabu-raw-output');
       renderRawText(masscanRawOutput, 'masscan-raw-output');
-
       renderResults(p4AllUrlsData, 'phase4-all-results', false);
       renderResults(p4ParamsData, 'phase4-params-results', false);
       renderResults(p4JsData, 'phase4-js-results', false);
       renderResults(p4ApiData, 'phase4-api-results', false);
       renderResults(p4InterestingData, 'phase4-interesting-results', false);
+
+      // Attach event listeners for main tabs
+      document.querySelectorAll('.main-tab-button').forEach(button => {
+        button.addEventListener('click', () => {
+          const tabId = button.dataset.tab;
+          openMainTab(button, tabId);
+        });
+      });
+
+      // Attach event listeners for sub tabs
+      document.querySelectorAll('.sub-tab-button').forEach(button => {
+        button.addEventListener('click', () => {
+          const mainTabId = button.dataset.mainTab;
+          const subTabId = button.dataset.subTab;
+          openSubTab(button, mainTabId, subTabId);
+        });
+      });
     });
   </script>
 </body>
-
 </html>
 
