@@ -37,11 +37,34 @@ TECH_SPECIFIC_WORDLISTS: Dict[str, str] = {
     "apache tomcat": TOMCAT_WORDLIST,
 }
 
+# Mapa nazw wyświetlanych w menu na nazwy plików wykonywalnych
+TOOL_EXECUTABLE_MAP: Dict[str, str] = {
+    # Faza 1
+    "Subfinder": "subfinder",
+    "Assetfinder": "assetfinder",
+    "Findomain": "findomain",
+    "Puredns (bruteforce)": "puredns",
+    # Faza 2
+    "Nmap (szczegóły)": "nmap",
+    "Naabu (szybkie odkrywanie)": "naabu",
+    "Masscan (super szybkie)": "masscan",
+    # Faza 3
+    "Ffuf": "ffuf",
+    "Feroxbuster": "feroxbuster",
+    "Dirsearch": "dirsearch",
+    "Gobuster": "gobuster",
+    # Faza 4
+    "Katana (Aktywny crawler)": "katana",
+    "Hakrawler (Aktywny crawler)": "hakrawler",
+    "ParamSpider (Parametry)": "paramspider",
+    "LinkFinder (Analiza JS)": "linkfinder",
+    "Gauplus (Pasywne z archiwów)": "gauplus",
+}
+
 
 # --- Globalne zmienne stanu i konfiguracji ---
 LOG_FILE: Optional[str] = None
 QUIET_MODE: bool = False
-# ZMIANA: Dodano nową flagę dla trybu automatycznego
 AUTO_MODE: bool = False
 OUTPUT_BASE_DIR: str = os.getcwd()
 REPORT_DIR: str = ""
@@ -50,6 +73,7 @@ SAFE_MODE: bool = False
 CUSTOM_HEADER: str = ""
 PROXY: Optional[str] = None
 EXCLUSION_PATTERNS: List[str] = []
+MISSING_TOOLS: List[str] = []  # Nowa zmienna przechowująca brakujące narzędzia
 
 # --- Filtrowanie OSINT ---
 OSINT_TECH_BLOCKLIST: List[str] = [
@@ -89,6 +113,7 @@ HTTPX_P1_RATE_LIMIT: int = 150
 # --- Ustawienia Fazy 2 ---
 NMAP_USE_SCRIPTS: bool = False
 NMAP_AGGRESSIVE_SCAN: bool = False
+NMAP_CUSTOM_SCRIPTS: str = ""  # Nowa opcja dla własnych skryptów Nmap
 NAABU_SOURCE_PORT: Optional[str] = None
 MASSCAN_RATE: int = 300
 NAABU_RATE: int = 1000
@@ -125,10 +150,10 @@ WAF_CHECK_INTERVAL_MAX_SAFE: int = 60
 
 
 # --- Wybrane narzędzia ---
-selected_phase1_tools: List[int] = [0, 0, 0, 0]
-selected_phase2_tools: List[int] = [0, 0, 0]
-selected_phase3_tools: List[int] = [0, 0, 0, 0]
-selected_phase4_tools: List[int] = [0, 0, 0, 0, 0]
+selected_phase1_tools: List[int] = [1, 1, 1, 1]
+selected_phase2_tools: List[int] = [1, 1, 0]
+selected_phase3_tools: List[int] = [1, 1, 1, 0]
+selected_phase4_tools: List[int] = [1, 0, 0, 0, 1]
 
 # --- Flagi ręcznych zmian przez użytkownika ---
 USER_CUSTOMIZED_WORDLIST_PHASE1: bool = False
@@ -145,7 +170,9 @@ USER_CUSTOMIZED_NAABU_SOURCE_PORT: bool = False
 USER_CUSTOMIZED_MASSCAN_RATE: bool = False
 USER_CUSTOMIZED_NAABU_RATE: bool = False
 USER_CUSTOMIZED_NMAP_SOLO_SCAN_MODE: bool = False
+USER_CUSTOMIZED_NMAP_SCRIPTS: bool = False  # Nowa flaga
 USER_CUSTOMIZED_USE_HEADLESS: bool = False
 USER_CUSTOMIZED_PUREDNS_RATE_LIMIT: bool = False
 USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT: bool = False
 USER_CUSTOMIZED_IGNORED_EXTENSIONS: bool = False
+

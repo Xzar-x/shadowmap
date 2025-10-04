@@ -47,14 +47,22 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
         console=utils.console,
         transient=True,
     ) as progress:
-        tools_enabled = config.selected_phase1_tools
-        task1_total = sum(
-            1
-            for i, en in enumerate(tools_enabled)
-            if en and not (config.TARGET_IS_IP and i < 3)
-        )
+        # Filtruj narzędzia, które są dostępne
+        tool_names = ["Subfinder", "Assetfinder", "Findomain", "Puredns (bruteforce)"]
+        enabled_tools_indices = [
+            i for i, enabled in enumerate(config.selected_phase1_tools) if enabled
+        ]
+        
+        available_tools_count = 0
+        for i in enabled_tools_indices:
+            tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_names[i])
+            if tool_exe and tool_exe not in config.MISSING_TOOLS:
+                 # Pomiń pasywne dla IP
+                if not (config.TARGET_IS_IP and i < 3):
+                    available_tools_count += 1
+
         task1 = progress.add_task(
-            "[green]Faza 1 (Subdomeny)[/green]", total=task1_total or 1
+            "[green]Faza 1 (Subdomeny)[/green]", total=available_tools_count or 1
         )
 
         current_wordlist_p1 = config.WORDLIST_PHASE1
@@ -81,6 +89,7 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
             config.RESOLVERS_FILE,
             "--rate-limit",
             str(puredns_rate),
+            "-t", str(config.THREADS), # ZMIANA: Dodano liczbę wątków
             "-q",
         ]
 
@@ -111,17 +120,16 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                     "-q",
                 ],
             },
-            {"name": "Puredns", "cmd_template": puredns_cmd},
+            {"name": "Puredns", "cmd_template": puredns_cmd, "display_name": "Puredns (bruteforce)"},
         ]
 
         tasks_to_run = []
         for i, tool_cfg in enumerate(tool_configurations):
-            if config.selected_phase1_tools[i]:
-                is_passive = tool_cfg["name"] in [
-                    "Subfinder",
-                    "Assetfinder",
-                    "Findomain",
-                ]
+            tool_display_name = tool_cfg.get("display_name", tool_cfg["name"])
+            tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_display_name)
+            
+            if config.selected_phase1_tools[i] and tool_exe and tool_exe not in config.MISSING_TOOLS:
+                is_passive = tool_cfg["name"] in ["Subfinder", "Assetfinder", "Findomain"]
                 if config.TARGET_IS_IP and is_passive:
                     continue
                 output_path = os.path.join(
@@ -132,8 +140,9 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                 )
 
         if not tasks_to_run:
-            msg = "Nie wybrano narzędzi, pomijam."
+            msg = "Brak dostępnych narzędzi do uruchomienia, pomijam Fazę 1."
             utils.console.print(Align.center(msg, style="bold yellow"))
+            progress.update(task1, completed=1)
             return {}, [], []
 
         output_files: Dict[str, str] = {}
@@ -181,68 +190,67 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
 
     active_urls_meta: List[Dict[str, Any]] = []
     status_msg = "[bold green]Weryfikuję subdomeny (HTTPX)...[/bold green]"
-    with utils.console.status(status_msg):
-        httpx_output_file = os.path.join(config.REPORT_DIR, "httpx_results_phase1.txt")
+    if "httpx" not in config.MISSING_TOOLS:
+        with utils.console.status(status_msg):
+            httpx_output_file = os.path.join(config.REPORT_DIR, "httpx_results_phase1.txt")
+            httpx_rate_limit = config.HTTPX_P1_RATE_LIMIT
+            if config.SAFE_MODE and not config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT:
+                httpx_rate_limit = 10
+            httpx_command = [
+                "httpx",
+                "-l",
+                unique_subdomains_file,
+                "-silent",
+                "-fc",
+                "404",
+                "-json",
+                "-irh",
+                "-rate-limit",
+                str(httpx_rate_limit),
+            ]
+            current_ua = config.CUSTOM_HEADER or utils.user_agent_rotator.get()
+            httpx_command.extend(["-H", f"User-Agent: {current_ua}"])
+            if config.SAFE_MODE:
+                httpx_command.extend(["-p", "80,443,8000,8080,8443"])
+                for header in utils.get_random_browser_headers():
+                    httpx_command.extend(["-H", header])
+            if (
+                os.path.exists(unique_subdomains_file)
+                and os.path.getsize(unique_subdomains_file) > 0
+            ):
+                httpx_result_file = utils.execute_tool_command(
+                    "Httpx (Faza 1)",
+                    httpx_command,
+                    httpx_output_file,
+                    config.TOOL_TIMEOUT_SECONDS,
+                )
+                if httpx_result_file:
+                    output_files["Httpx"] = httpx_result_file
+                    with open(httpx_result_file, "r", encoding="utf-8") as f:
+                        for line in f:
+                            if not line.strip():
+                                continue
+                            try:
+                                data = json.loads(line)
+                                url = data.get("url")
+                                if url:
+                                    headers = {
+                                        k.lower(): v
+                                        for k, v in data.get("header", {}).items()
+                                    }
+                                    last_mod = headers.get("last-modified")
+                                    result_obj: Dict[str, Any] = {
+                                        "url": url,
+                                        "status_code": data.get("status_code"),
+                                    }
+                                    if last_mod:
+                                        result_obj["last_modified"] = last_mod
+                                    active_urls_meta.append(result_obj)
+                            except (json.JSONDecodeError, TypeError):
+                                continue
+    else:
+        utils.console.print(Align.center("[yellow]Ostrzeżenie: httpx nie jest dostępny. Pomijam weryfikację subdomen.[/yellow]"))
 
-        httpx_rate_limit = config.HTTPX_P1_RATE_LIMIT
-        if config.SAFE_MODE and not config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT:
-            httpx_rate_limit = 10
-
-        httpx_command = [
-            "httpx",
-            "-l",
-            unique_subdomains_file,
-            "-silent",
-            "-fc",
-            "404",
-            "-json",
-            "-irh",
-            "-rate-limit",
-            str(httpx_rate_limit),
-        ]
-
-        current_ua = config.CUSTOM_HEADER or utils.user_agent_rotator.get()
-        httpx_command.extend(["-H", f"User-Agent: {current_ua}"])
-
-        if config.SAFE_MODE:
-            httpx_command.extend(["-p", "80,443,8000,8080,8443"])
-            for header in utils.get_random_browser_headers():
-                httpx_command.extend(["-H", header])
-
-        if (
-            os.path.exists(unique_subdomains_file)
-            and os.path.getsize(unique_subdomains_file) > 0
-        ):
-            httpx_result_file = utils.execute_tool_command(
-                "Httpx (Faza 1)",
-                httpx_command,
-                httpx_output_file,
-                config.TOOL_TIMEOUT_SECONDS,
-            )
-            if httpx_result_file:
-                output_files["Httpx"] = httpx_result_file
-                with open(httpx_result_file, "r", encoding="utf-8") as f:
-                    for line in f:
-                        if not line.strip():
-                            continue
-                        try:
-                            data = json.loads(line)
-                            url = data.get("url")
-                            if url:
-                                headers = {
-                                    k.lower(): v
-                                    for k, v in data.get("header", {}).items()
-                                }
-                                last_mod = headers.get("last-modified")
-                                result_obj: Dict[str, Any] = {
-                                    "url": url,
-                                    "status_code": data.get("status_code"),
-                                }
-                                if last_mod:
-                                    result_obj["last_modified"] = last_mod
-                                active_urls_meta.append(result_obj)
-                        except (json.JSONDecodeError, TypeError):
-                            continue
 
     sorted_active_urls = sorted(active_urls_meta, key=lambda x: x["url"])
     return output_files, sorted_active_urls, unique_lines
@@ -277,21 +285,27 @@ def display_phase1_tool_selection_menu(display_banner_func):
             "Puredns (bruteforce)",
         ]
         for i, tool_name in enumerate(tool_names):
+            tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_name)
+            is_missing = tool_exe and tool_exe in config.MISSING_TOOLS
+            
             status = (
                 "[bold green]✓[/bold green]"
                 if config.selected_phase1_tools[i]
                 else "[bold red]✗[/bold red]"
             )
-            if config.TARGET_IS_IP and i < 3:
-                table.add_row(
-                    f"[bold cyan][{i+1}][/bold cyan]",
-                    f"[dim]{status}[/dim] "
-                    f"[dim]{tool_name} (pominięto dla IP)[/dim]",
-                )
-            else:
-                table.add_row(
-                    f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}"
-                )
+            
+            row_style = ""
+            display_name = f"{status} {tool_name}"
+            
+            if is_missing:
+                display_name = f"[dim]✗ {tool_name} (niedostępne)[/dim]"
+                row_style = "dim"
+            elif config.TARGET_IS_IP and i < 3:
+                display_name = f"[dim]{status} {tool_name} (pominięto dla IP)[/dim]"
+                row_style = "dim"
+
+            table.add_row(f"[bold cyan][{i+1}][/bold cyan]", display_name, style=row_style)
+
 
         table.add_section()
         table.add_row(
@@ -310,9 +324,15 @@ def display_phase1_tool_selection_menu(display_banner_func):
 
         if choice.isdigit() and 1 <= int(choice) <= 4:
             idx = int(choice) - 1
-            if config.TARGET_IS_IP and idx < 3:
+            tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_names[idx])
+            
+            if tool_exe and tool_exe in config.MISSING_TOOLS:
+                utils.console.print(Align.center("[red]To narzędzie nie jest zainstalowane.[/red]"))
+                time.sleep(1)
+            elif config.TARGET_IS_IP and idx < 3:
                 msg = "[yellow]Nie można włączyć narzędzi pasywnych dla IP.[/yellow]"
                 utils.console.print(Align.center(msg, style="bold"))
+                time.sleep(1)
             else:
                 config.selected_phase1_tools[idx] ^= 1
         elif choice.lower() == "s":
@@ -322,16 +342,24 @@ def display_phase1_tool_selection_menu(display_banner_func):
         elif choice.lower() == "b":
             return False
         elif choice == "\r":
-            if any(config.selected_phase1_tools):
+            active_and_available = False
+            for i, selected in enumerate(config.selected_phase1_tools):
+                if selected:
+                    tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_names[i])
+                    if tool_exe and tool_exe not in config.MISSING_TOOLS:
+                        active_and_available = True
+                        break
+            if active_and_available:
                 return True
             else:
-                msg = "[bold yellow]Wybierz co najmniej jedno narzędzie.[/bold yellow]"
+                msg = "[bold yellow]Wybierz co najmniej jedno dostępne narzędzie.[/bold yellow]"
                 utils.console.print(Align.center(msg))
+                time.sleep(1)
         else:
             utils.console.print(
                 Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]")
             )
-        time.sleep(0.1)
+            time.sleep(0.5)
 
 
 def display_phase1_settings_menu(display_banner_func):
@@ -469,3 +497,4 @@ def display_phase1_settings_menu(display_banner_func):
                 config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT = True
         elif choice.lower() == "b":
             break
+

@@ -157,9 +157,9 @@ def start_port_scan(
     }
     open_ports_by_host_set: Dict[str, Set[int]] = {}
 
-    nmap_enabled = config.selected_phase2_tools[0] == 1
-    naabu_enabled = config.selected_phase2_tools[1] == 1
-    masscan_enabled = config.selected_phase2_tools[2] == 1
+    nmap_enabled = config.selected_phase2_tools[0] == 1 and "nmap" not in config.MISSING_TOOLS
+    naabu_enabled = config.selected_phase2_tools[1] == 1 and "naabu" not in config.MISSING_TOOLS
+    masscan_enabled = config.selected_phase2_tools[2] == 1 and "masscan" not in config.MISSING_TOOLS
     discovery_tools = [
         t for t, e in zip(["Naabu", "Masscan"], [naabu_enabled, masscan_enabled]) if e
     ]
@@ -192,7 +192,8 @@ def start_port_scan(
         return final_results
 
     nmap_scan_type = config.NMAP_SOLO_SCAN_MODE
-    if nmap_enabled and not discovery_tools:
+    # ZMIANA: Pytaj o tryb Nmap tylko jeśli nie został ustawiony w menu
+    if nmap_enabled and not discovery_tools and not config.USER_CUSTOMIZED_NMAP_SOLO_SCAN_MODE:
         panel_msg = (
             "[cyan]Nmap będzie działał samodzielnie.[/cyan]\n"
             "Jaki rodzaj skanowania portów chcesz przeprowadzić?"
@@ -206,6 +207,8 @@ def start_port_scan(
             choices=["default", "full", "fast"],
             default=config.NMAP_SOLO_SCAN_MODE,
         )
+        config.NMAP_SOLO_SCAN_MODE = nmap_scan_type # Zapisz wybór do późniejszego użytku
+        
 
     total_tasks = (len(targets_to_scan) * len(discovery_tools)) + (
         len(targets_to_scan) if nmap_enabled else 0
@@ -318,10 +321,14 @@ def start_port_scan(
 
         if nmap_enabled:
             nmap_base_cmd = ["nmap", "-sV", "-Pn"]
-            if config.NMAP_AGGRESSIVE_SCAN:
+            # ZMIANA: Logika dodawania skryptów
+            if config.NMAP_CUSTOM_SCRIPTS:
+                nmap_base_cmd.extend(["--script", config.NMAP_CUSTOM_SCRIPTS])
+            elif config.NMAP_AGGRESSIVE_SCAN:
                 nmap_base_cmd.append("-A")
             elif config.NMAP_USE_SCRIPTS:
                 nmap_base_cmd.append("-sC")
+
             nmap_base_cmd.extend(["-T2" if config.SAFE_MODE else "-T4"])
 
             with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
@@ -341,11 +348,12 @@ def start_port_scan(
                     if target_ports:
                         ports_str = ",".join(map(str, target_ports))
                         cmd.extend(["-p", ports_str])
-                    else:
+                    else: # Nmap działa solo
                         if nmap_scan_type == "full":
                             cmd.extend(["-p-"])
                         elif nmap_scan_type == "fast":
                             cmd.extend(["-F"])
+                        # 'default' nie wymaga dodatkowych flag
 
                     out_file = os.path.join(
                         phase2_dir, f"nmap_{target.replace('.', '_')}.txt"
@@ -403,12 +411,24 @@ def display_phase2_tool_selection_menu(display_banner_func):
             "Masscan (super szybkie)",
         ]
         for i, tool_name in enumerate(tool_names):
+            tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_name)
+            is_missing = tool_exe and tool_exe in config.MISSING_TOOLS
+            
             status = (
                 "[bold green]✓[/bold green]"
                 if config.selected_phase2_tools[i]
                 else "[bold red]✗[/bold red]"
             )
-            table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
+            
+            display_name = f"{status} {tool_name}"
+            row_style = ""
+
+            if is_missing:
+                display_name = f"[dim]✗ {tool_name} (niedostępne)[/dim]"
+                row_style = "dim"
+            
+            table.add_row(f"[bold cyan][{i+1}][/bold cyan]", display_name, style=row_style)
+
         table.add_section()
         table.add_row(
             "[bold cyan][\fs][/bold cyan]",
@@ -427,7 +447,13 @@ def display_phase2_tool_selection_menu(display_banner_func):
         choice = utils.get_single_char_input_with_prompt(prompt_text)
 
         if choice.isdigit() and 1 <= int(choice) <= 3:
-            config.selected_phase2_tools[int(choice) - 1] ^= 1
+            idx = int(choice) - 1
+            tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_names[idx])
+            if tool_exe and tool_exe in config.MISSING_TOOLS:
+                utils.console.print(Align.center("[red]To narzędzie nie jest zainstalowane.[/red]"))
+                time.sleep(1)
+            else:
+                config.selected_phase2_tools[idx] ^= 1
         elif choice.lower() == "s":
             display_phase2_settings_menu(display_banner_func)
         elif choice.lower() == "q":
@@ -435,16 +461,24 @@ def display_phase2_tool_selection_menu(display_banner_func):
         elif choice.lower() == "b":
             return False
         elif choice == "\r":
-            if any(config.selected_phase2_tools):
+            active_and_available = False
+            for i, selected in enumerate(config.selected_phase2_tools):
+                if selected:
+                    tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_names[i])
+                    if tool_exe and tool_exe not in config.MISSING_TOOLS:
+                        active_and_available = True
+                        break
+            if active_and_available:
                 return True
             else:
-                msg = "[bold yellow]Wybierz co najmniej jedno narzędzie.[/bold yellow]"
+                msg = "[bold yellow]Wybierz co najmniej jedno dostępne narzędzie.[/bold yellow]"
                 utils.console.print(Align.center(msg))
+                time.sleep(1)
         else:
             utils.console.print(
                 Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]")
             )
-        time.sleep(0.1)
+            time.sleep(0.5)
 
 
 def display_phase2_settings_menu(display_banner_func):
@@ -485,6 +519,11 @@ def display_phase2_settings_menu(display_banner_func):
             if config.USER_CUSTOMIZED_NMAP_SOLO_SCAN_MODE
             else f"[dim]{nmap_solo_map[config.NMAP_SOLO_SCAN_MODE]}[/dim]"
         )
+        nmap_scripts_str = (
+             f"[bold green]{config.NMAP_CUSTOM_SCRIPTS} (Użytkownika)[/bold green]"
+             if config.USER_CUSTOMIZED_NMAP_SCRIPTS
+             else "[dim]Brak[/dim]"
+        )
         safe_mode = (
             "[bold green]✓[/bold green]"
             if config.SAFE_MODE
@@ -506,28 +545,32 @@ def display_phase2_settings_menu(display_banner_func):
         table.add_row("[bold]Nmap[/bold]", "")
         table.add_row(
             "[bold cyan][2][/bold cyan]",
-            f"[{nmap_scripts}] Skanowanie skryptów (-sC)",
+            f"[{nmap_scripts}] Skanowanie skryptów domyślnych (-sC)",
         )
         table.add_row("[bold cyan][3][/bold cyan]", f"[{nmap_agg}] Skan agresywny (-A)")
         table.add_row(
             "[bold cyan][4][/bold cyan]",
+            f"Własne skrypty (--script): {nmap_scripts_str}",
+        )
+        table.add_row(
+            "[bold cyan][5][/bold cyan]",
             f"Zakres portów (gdy sam): {nmap_solo_disp}",
         )
         table.add_section()
         table.add_row("[bold]Naabu[/bold]", "")
         table.add_row(
-            "[bold cyan][5][/bold cyan]",
+            "[bold cyan][6][/bold cyan]",
             f"Szybkość skanowania (rate): {naabu_rate_disp}",
         )
         table.add_section()
         table.add_row("[bold]Masscan[/bold]", "")
         table.add_row(
-            "[bold cyan][6][/bold cyan]",
+            "[bold cyan][7][/bold cyan]",
             f"Szybkość skanowania (--rate): {masscan_rate_disp}",
         )
         table.add_section()
         table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu Fazy 2")
-        table.add_row("[bold cyan][\fq][/bold cyan]", "Wyjdź")
+        
         utils.console.print(Align.center(table))
 
         choice = utils.get_single_char_input_with_prompt(
@@ -541,19 +584,33 @@ def display_phase2_settings_menu(display_banner_func):
             config.NMAP_USE_SCRIPTS = not config.NMAP_USE_SCRIPTS
             if config.NMAP_USE_SCRIPTS:
                 config.NMAP_AGGRESSIVE_SCAN = False
+                config.NMAP_CUSTOM_SCRIPTS = ""
+                config.USER_CUSTOMIZED_NMAP_SCRIPTS = False
         elif choice == "3":
             config.NMAP_AGGRESSIVE_SCAN = not config.NMAP_AGGRESSIVE_SCAN
             if config.NMAP_AGGRESSIVE_SCAN:
                 config.NMAP_USE_SCRIPTS = False
+                config.NMAP_CUSTOM_SCRIPTS = ""
+                config.USER_CUSTOMIZED_NMAP_SCRIPTS = False
         elif choice == "4":
+            scripts = Prompt.ask(
+                "[bold cyan]Podaj skrypty Nmap (oddzielone przecinkami, np. http-enum,vuln)[/bold cyan]",
+                default=config.NMAP_CUSTOM_SCRIPTS
+            )
+            config.NMAP_CUSTOM_SCRIPTS = scripts.strip()
+            config.USER_CUSTOMIZED_NMAP_SCRIPTS = True
+            if config.NMAP_CUSTOM_SCRIPTS:
+                config.NMAP_USE_SCRIPTS = False
+                config.NMAP_AGGRESSIVE_SCAN = False
+        elif choice == "5":
             new_mode = Prompt.ask(
-                "[bold cyan]Wybierz tryb Nmap[/bold cyan]",
+                "[bold cyan]Wybierz tryb Nmap (gdy działa sam)[/bold cyan]",
                 choices=["default", "full", "fast"],
                 default=config.NMAP_SOLO_SCAN_MODE,
             )
             config.NMAP_SOLO_SCAN_MODE = new_mode
             config.USER_CUSTOMIZED_NMAP_SOLO_SCAN_MODE = True
-        elif choice == "5":
+        elif choice == "6":
             new_rate = Prompt.ask(
                 "[bold cyan]Podaj szybkość Naabu (pakiety/s)[/bold cyan]",
                 default=str(config.NAABU_RATE),
@@ -561,11 +618,7 @@ def display_phase2_settings_menu(display_banner_func):
             if new_rate.isdigit() and int(new_rate) > 0:
                 config.NAABU_RATE = int(new_rate)
                 config.USER_CUSTOMIZED_NAABU_RATE = True
-            else:
-                utils.console.print(
-                    Align.center("[bold red]Nieprawidłowa wartość.[/bold red]")
-                )
-        elif choice == "6":
+        elif choice == "7":
             new_rate = Prompt.ask(
                 "[bold cyan]Podaj szybkość Masscan (pakiety/s)[/bold cyan]\n"
                 "[yellow]UWAGA: Wysokie wartości mogą zawiesić router![/yellow]",
@@ -574,11 +627,6 @@ def display_phase2_settings_menu(display_banner_func):
             if new_rate.isdigit() and int(new_rate) > 0:
                 config.MASSCAN_RATE = int(new_rate)
                 config.USER_CUSTOMIZED_MASSCAN_RATE = True
-            else:
-                utils.console.print(
-                    Align.center("[bold red]Nieprawidłowa wartość.[/bold red]")
-                )
         elif choice.lower() == "b":
             break
-        elif choice.lower() == "q":
-            sys.exit(0)
+

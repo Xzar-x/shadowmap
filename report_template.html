@@ -1187,21 +1187,44 @@
       }
     }
 
+    // ZMIANA: Zrefaktoryzowane funkcje zakładek
     function openMainTab(buttonElement, tabId) {
-      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-      document.querySelectorAll('.main-tab-button').forEach(button => button.classList.remove('active'));
-      document.getElementById(tabId).classList.add('active');
-      buttonElement.classList.add('active');
+        const allTabContents = document.getElementsByClassName('tab-content');
+        for (const content of allTabContents) {
+            content.classList.remove('active');
+        }
+
+        const allTabButtons = document.getElementsByClassName('main-tab-button');
+        for (const button of allTabButtons) {
+            button.classList.remove('active');
+        }
+
+        const targetContent = document.getElementById(tabId);
+        if (targetContent) {
+            targetContent.classList.add('active');
+        }
+        buttonElement.classList.add('active');
     }
 
     function openSubTab(buttonElement, mainTabId, subTabId) {
-      const mainTabContent = document.getElementById(mainTabId);
-      if (!mainTabContent) return;
-      mainTabContent.querySelectorAll('.sub-tab-content').forEach(content => content.classList.remove('active'));
-      mainTabContent.querySelectorAll('.sub-tab-button').forEach(button => button.classList.remove('active'));
-      const subTabContent = document.getElementById(`${mainTabId}-${subTabId}`);
-      if (subTabContent) subTabContent.classList.add('active');
-      buttonElement.classList.add('active');
+        const mainTabContent = document.getElementById(mainTabId);
+        if (!mainTabContent) return;
+        
+        const subTabContents = mainTabContent.getElementsByClassName('sub-tab-content');
+        for (const content of subTabContents) {
+            content.classList.remove('active');
+        }
+        
+        const subTabButtons = mainTabContent.getElementsByClassName('sub-tab-button');
+        for (const button of subTabButtons) {
+            button.classList.remove('active');
+        }
+        
+        const subTabContent = document.getElementById(`${mainTabId}-${subTabId}`);
+        if (subTabContent) {
+            subTabContent.classList.add('active');
+        }
+        buttonElement.classList.add('active');
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1212,7 +1235,6 @@
       renderRawText(naabuRawOutput, 'naabu-raw-output');
       renderRawText(masscanRawOutput, 'masscan-raw-output');
 
-      // Render phase 4 results
       renderResults(p4AllUrlsData, 'phase4-all-results', false);
       renderResults(p4ParamsData, 'phase4-params-results', false);
       renderResults(p4JsData, 'phase4-js-results', false);
@@ -1223,3 +1245,4 @@
 </body>
 
 </html>
+

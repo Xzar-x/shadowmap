@@ -97,6 +97,9 @@ def ask_scan_scope(
     )
     utils.console.print(Align.center(panel))
 
+    if not all_results:
+        return []
+
     if not critical_results:
         utils.console.print(
             Align.center("[yellow]Brak celów krytycznych. Skanuję wszystkie.[/yellow]")
@@ -169,6 +172,8 @@ def parse_target_input(target_input: str):
 
 
 def detect_waf_and_propose_safe_mode():
+    if "wafw00f" in config.MISSING_TOOLS:
+        return
     panel_title = "[cyan]Detekcja WAF[/cyan]"
     panel_text = Text("Sprawdzam ochronę WAF...", justify="center")
     utils.console.print(Align.center(Panel(panel_text, title=panel_title)))
@@ -195,7 +200,6 @@ def detect_waf_and_propose_safe_mode():
                 )
             )
             question = "Włączyć Tryb Bezpieczny?"
-            # ZMIANA: Pomiń pytanie w trybie auto (domyślnie "nie")
             if not config.AUTO_MODE and utils.ask_user_decision(question, ["y", "n"], "y") == "y":
                 config.SAFE_MODE = True
                 utils.handle_safe_mode_tor_check()
@@ -238,14 +242,13 @@ def generate_json_report(scan_results: Dict[str, Any]) -> Optional[str]:
     report_path = os.path.join(config.REPORT_DIR, "report.json")
 
     try:
-        # Przygotowanie danych specyficznie dla JSON
         json_data = {
             "scan_metadata": {
                 "target": config.ORIGINAL_TARGET,
                 "hostname": config.HOSTNAME_TARGET,
                 "domain": config.CLEAN_DOMAIN_TARGET,
                 "scan_time": datetime.datetime.now().isoformat(),
-                "shadowmap_version": "1.0.0",
+                "shadowmap_version": "1.1.0",
             },
             "phase0_osint": scan_results.get("phase0_osint", {}),
             "phase1_subdomain": {
@@ -295,7 +298,6 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         utils.console.print(f"[red]{msg}[/red]")
         return None
 
-    # --- Pobieranie danych z zagregowanego słownika ---
     p0_data = scan_results.get("phase0_osint", {})
     p1_files = scan_results.get("phase1_raw_files", {})
     active_urls_data = scan_results.get("phase1_active_urls", [])
@@ -322,7 +324,6 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         col2 = "".join(f"<li>{t}</li>" for t in tech_list[mid:])
         tech_html = f'<div class="tech-columns"><ul>{col1}</ul><ul>{col2}</ul></div>'
     
-    # NOWA logika generowania HTML dla Searchsploit
     searchsploit_html = "<p>Brak danych lub nie znaleziono exploitów.</p>"
     sploit_data = p0_data.get("searchsploit_results")
     if sploit_data and "Error" not in sploit_data and any(sploit_data.values()):
@@ -354,7 +355,6 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
     def convert_urls_to_objects(
         urls: List[str],
     ) -> List[Dict[str, Any]]:
-        """Konwertuje listę URLi na obiekty dla JS."""
         return [
             {"url": url, "status_code": None, "last_modified": None} for url in urls
         ]
@@ -367,7 +367,6 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         p4_results.get("interesting_paths", [])
     )
 
-    # --- Słownik zamienników ---
     nmap_files = p2_results.get("nmap_files", {})
     replacements = {
         "{{DOMAIN}}": config.HOSTNAME_TARGET,
@@ -453,7 +452,6 @@ def run_full_auto_scan(scan_results: Dict[str, Any], p0_data: Dict[str, Any], be
     """
     utils.console.print(Align.center(Panel("[bold cyan]Uruchamiam pełny skan automatyczny[/bold cyan]")))
     
-    # --- FAZA 1 ---
     p1_files, active_urls, all_subdomains = phase1_subdomain.start_phase1_scan()
     scan_results["phase1_raw_files"] = p1_files
     scan_results["phase1_active_urls"] = active_urls
@@ -463,13 +461,11 @@ def run_full_auto_scan(scan_results: Dict[str, Any], p0_data: Dict[str, Any], be
     if not active_urls:
         utils.console.print(Align.center("[yellow]Brak aktywnych subdomen. Kontynuuję z celem głównym.[/yellow]"))
 
-    # --- FAZA 2 ---
     p2_res = phase2_port_scanning.start_port_scan(targets_for_phase2_3, None, None)
     scan_results["phase2_results"] = p2_res
     if not p2_res.get("open_ports_by_host"):
         utils.console.print(Align.center("[yellow]Nie znaleziono otwartych portów.[/yellow]"))
     
-    # --- FAZA 3 ---
     tech = p0_data.get("technologies", [])
     p3_res, p3_verified = phase3_dirsearch.start_dir_search(targets_for_phase2_3, tech, None, None)
     scan_results["phase3_results"] = p3_res
@@ -479,7 +475,6 @@ def run_full_auto_scan(scan_results: Dict[str, Any], p0_data: Dict[str, Any], be
     if not p3_verified:
         utils.console.print(Align.center("[yellow]Brak zweryfikowanych URLi z Fazy 3. Używam celów z Fazy 1.[/yellow]"))
 
-    # --- FAZA 4 ---
     p4_res = phase4_webcrawling.start_web_crawl(targets_for_phase4, None, None)
     scan_results["phase4_results"] = p4_res
     
@@ -531,7 +526,6 @@ def main(
         help="Tryb cichy, minimalizuje output (przydatne przy wielu celach).",
         rich_help_panel="Output",
     ),
-    # ZMIANA: Dodanie nowego argumentu --yes
     auto_yes: bool = typer.Option(
         False,
         "-y",
@@ -540,26 +534,27 @@ def main(
         rich_help_panel="Execution",
     ),
 ):
-    missing_tools = utils.check_required_tools()
-    if missing_tools:
-        missing_str = "\n".join(f" - {tool}" for tool in missing_tools)
+    # ZMIANA: Sprawdzanie narzędzi nie przerywa już programu
+    config.MISSING_TOOLS = utils.check_required_tools()
+    if config.MISSING_TOOLS:
+        missing_str = "\n".join(f" - {tool}" for tool in config.MISSING_TOOLS)
         panel_text = (
-            f"[bold red]Błąd: Brak wymaganych narzędzi![/bold red]\n\n"
+            f"[bold yellow]Ostrzeżenie: Brakujące narzędzia![/bold yellow]\n\n"
             f"Nie znaleziono następujących poleceń w systemie:\n"
-            f"[yellow]{missing_str}[/yellow]\n\n"
-            f"Upewnij się, że są zainstalowane i dostępne w ścieżce (PATH).\n"
-            f"Spróbuj uruchomić skrypt [bold cyan]install.py[/bold cyan]."
+            f"[cyan]{missing_str}[/cyan]\n\n"
+            f"Opcje w menu wymagające tych narzędzi zostaną wyłączone.\n"
+            f"Aby zainstalować, uruchom [bold]install.py[/bold]."
         )
         utils.console.print(
             Align.center(
                 Panel(
                     panel_text,
-                    border_style="red",
-                    title="[bold red]Błąd Konfiguracji[/bold red]",
+                    border_style="yellow",
+                    title="[bold yellow]Ostrzeżenie o Zależnościach[/bold yellow]",
                 )
             )
         )
-        raise typer.Exit(code=1)
+        time.sleep(3) # Daj użytkownikowi czas na przeczytanie
 
     targets_to_scan: List[str] = []
     if target_list and target_list.is_file():
@@ -574,10 +569,9 @@ def main(
         raise typer.Exit()
 
     config.QUIET_MODE = quiet_mode
-    # ZMIANA: Ustawienie trybu auto w konfiguracji
     config.AUTO_MODE = auto_yes
     if config.AUTO_MODE:
-        config.QUIET_MODE = True # Tryb auto implikuje tryb cichy
+        config.QUIET_MODE = True 
         
     config.SAFE_MODE = safe_mode
     config.PROXY = proxy
@@ -613,21 +607,14 @@ def main(
             if not config.SAFE_MODE:
                 detect_waf_and_propose_safe_mode()
 
-            # ZMIANA: Logika uruchomienia - tryb auto vs interaktywny
             if config.AUTO_MODE:
-                # Domyślne włączenie wszystkich narzędzi
-                config.selected_phase1_tools = [1, 1, 1, 1]
-                config.selected_phase2_tools = [1, 1, 1]
-                config.selected_phase3_tools = [1, 1, 1, 1]
-                config.selected_phase4_tools = [1, 1, 1, 1, 1]
                 run_full_auto_scan(scan_results, p0_data, best_target_url)
                 generate_json_report(scan_results)
                 report_path = generate_html_report(scan_results)
                 if report_path:
                     open_html_report(report_path)
-                continue # Przejdź do następnego celu, jeśli jest na liście
+                continue 
 
-            # Poniżej znajduje się oryginalna pętla interaktywna
             choice = ""
             while True:
                 if not choice:
@@ -805,3 +792,4 @@ def main(
 
 if __name__ == "__main__":
     app()
+
