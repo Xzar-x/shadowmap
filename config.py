@@ -150,10 +150,18 @@ WAF_CHECK_INTERVAL_MAX_SAFE: int = 60
 
 
 # --- Wybrane narzędzia ---
+# Domyślnie wyłączone dla trybu interaktywnego
 selected_phase1_tools: List[int] = [0, 0, 0, 0]
 selected_phase2_tools: List[int] = [0, 0, 0]
 selected_phase3_tools: List[int] = [0, 0, 0, 0]
 selected_phase4_tools: List[int] = [0, 0, 0, 0, 0]
+
+# Domyślnie włączone dla trybu cichego/automatycznego (-y)
+silent_selected_phase1_tools: List[int] = [1, 1, 1, 1]
+silent_selected_phase2_tools: List[int] = [1, 1, 1]
+silent_selected_phase3_tools: List[int] = [1, 1, 1, 1]
+silent_selected_phase4_tools: List[int] = [1, 1, 1, 1, 1]
+
 
 # --- Flagi ręcznych zmian przez użytkownika ---
 USER_CUSTOMIZED_WORDLIST_PHASE1: bool = False
@@ -175,4 +183,3 @@ USER_CUSTOMIZED_USE_HEADLESS: bool = False
 USER_CUSTOMIZED_PUREDNS_RATE_LIMIT: bool = False
 USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT: bool = False
 USER_CUSTOMIZED_IGNORED_EXTENSIONS: bool = False
-

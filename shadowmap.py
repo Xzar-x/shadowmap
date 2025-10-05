@@ -571,7 +571,11 @@ def main(
     config.QUIET_MODE = quiet_mode
     config.AUTO_MODE = auto_yes
     if config.AUTO_MODE:
-        config.QUIET_MODE = True 
+        config.QUIET_MODE = True
+        config.selected_phase1_tools = list(config.silent_selected_phase1_tools)
+        config.selected_phase2_tools = list(config.silent_selected_phase2_tools)
+        config.selected_phase3_tools = list(config.silent_selected_phase3_tools)
+        config.selected_phase4_tools = list(config.silent_selected_phase4_tools)
         
     config.SAFE_MODE = safe_mode
     config.PROXY = proxy
@@ -792,5 +796,3 @@ def main(
 
 if __name__ == "__main__":
     app()
-
-
