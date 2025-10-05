@@ -150,10 +150,10 @@ WAF_CHECK_INTERVAL_MAX_SAFE: int = 60
 
 
 # --- Wybrane narzędzia ---
-selected_phase1_tools: List[int] = [1, 1, 1, 1]
-selected_phase2_tools: List[int] = [1, 1, 0]
-selected_phase3_tools: List[int] = [1, 1, 1, 0]
-selected_phase4_tools: List[int] = [1, 0, 0, 0, 1]
+selected_phase1_tools: List[int] = [0, 0, 0, 0]
+selected_phase2_tools: List[int] = [0, 0, 0]
+selected_phase3_tools: List[int] = [0, 0, 0, 0]
+selected_phase4_tools: List[int] = [0, 0, 0, 0, 0]
 
 # --- Flagi ręcznych zmian przez użytkownika ---
 USER_CUSTOMIZED_WORDLIST_PHASE1: bool = False
