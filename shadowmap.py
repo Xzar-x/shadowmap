@@ -247,7 +247,7 @@ def generate_json_report(scan_results: Dict[str, Any]) -> Optional[str]:
                 "hostname": config.HOSTNAME_TARGET,
                 "domain": config.CLEAN_DOMAIN_TARGET,
                 "scan_time": datetime.datetime.now().isoformat(),
-                "shadowmap_version": "1.1.0",
+                "shadowmap_version": "1.2.0",
             },
             "phase0_osint": scan_results.get("phase0_osint", {}),
             "phase1_subdomain": {
@@ -284,10 +284,26 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
     """Generuje raport HTML na podstawie zagregowanych wyników."""
     utils.console.print(Align.center("[blue]Generowanie raportu HTML...[/blue]"))
 
+    # ZMIANA: Dodano funkcje pomocnicze do bezpiecznego osadzania danych
+    def escape_for_script_tag(json_string: str) -> str:
+        """Escapes a JSON string to be safely embedded inside a <script type='application/json'> tag."""
+        return json_string.replace("</script>", "<\\/script>")
+
+    def escape_for_js_template_literal(text: str) -> str:
+        """Escapes a string to be safely embedded inside a JavaScript template literal (backticks)."""
+        if not text:
+            return ""
+        return (
+            text.replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("${", "\\${")
+            .replace("</script>", "<\\/script>")
+        )
+
     def read_file(path: Optional[str]) -> str:
         if path and os.path.exists(path):
             try:
-                with open(path, "r", errors="ignore") as f:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
                     return f.read()
             except Exception:
                 return "Błąd odczytu pliku"
@@ -354,20 +370,14 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         if html_parts:
             searchsploit_html = "".join(html_parts)
 
-    def convert_urls_to_objects(
-        urls: List[str],
-    ) -> List[Dict[str, Any]]:
-        return [
-            {"url": url, "status_code": None, "last_modified": None} for url in (urls or [])
-        ]
+    def convert_urls_to_objects(urls: List[str]) -> List[Dict[str, Any]]:
+        return [{"url": url, "status_code": None, "last_modified": None} for url in (urls or [])]
 
     p4_all_urls_obj = convert_urls_to_objects(p4_results.get("all_urls", []))
     p4_params_obj = convert_urls_to_objects(p4_results.get("parameters", []))
     p4_js_obj = convert_urls_to_objects(p4_results.get("js_files", []))
     p4_api_obj = convert_urls_to_objects(p4_results.get("api_endpoints", []))
-    p4_interesting_obj = convert_urls_to_objects(
-        p4_results.get("interesting_paths", [])
-    )
+    p4_interesting_obj = convert_urls_to_objects(p4_results.get("interesting_paths", []))
 
     nmap_files = p2_results.get("nmap_files", {})
     
@@ -389,11 +399,6 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         "{{ALL_URLS_COMBINED_OUTPUT}}": "\n".join(all_urls_combined),
         "{{COUNT_ALL_URLS_COMBINED}}": str(len(all_urls_combined)),
         "{{ALL_SUBDOMAINS_OUTPUT}}": "\n".join(all_subdomains_list),
-        "{{HTTPX_OUTPUT_JSON_P1}}": json.dumps(active_urls_data),
-        "{{HTTPX_OUTPUT_JSON_P3}}": json.dumps(p3_verified_data),
-        "{{NMAP_RESULTS_RAW_JSON}}": json.dumps({t: read_file(f) for t, f in (nmap_files or {}).items()}),
-        "{{NAABU_RAW_OUTPUT}}": read_file(p2_results.get("naabu_file")).replace("`", "\\`"),
-        "{{MASSCAN_RAW_OUTPUT}}": read_file(p2_results.get("masscan_file")).replace("`", "\\`"),
         "{{SUBFINDER_OUTPUT}}": read_file(p1_files.get("Subfinder")),
         "{{ASSETFINDER_OUTPUT}}": read_file(p1_files.get("Assetfinder")),
         "{{FINDOMAIN_OUTPUT}}": read_file(p1_files.get("Findomain")),
@@ -402,16 +407,27 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         "{{FEROXBUSTER_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Feroxbuster", [])),
         "{{DIRSEARCH_P3_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Dirsearch", [])),
         "{{GOBUSTER_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Gobuster", [])),
+        
+        # ZMIANA: Bezpieczne osadzanie danych JSON
+        "{{HTTPX_OUTPUT_JSON_P1}}": escape_for_script_tag(json.dumps(active_urls_data)),
+        "{{HTTPX_OUTPUT_JSON_P3}}": escape_for_script_tag(json.dumps(p3_verified_data)),
+        "{{NMAP_RESULTS_RAW_JSON}}": escape_for_script_tag(json.dumps({t: read_file(f) for t, f in (nmap_files or {}).items()})),
+        "{{PHASE4_ALL_URLS_JSON}}": escape_for_script_tag(json.dumps(p4_all_urls_obj)),
+        "{{PHASE4_PARAMETERS_JSON}}": escape_for_script_tag(json.dumps(p4_params_obj)),
+        "{{PHASE4_JS_FILES_JSON}}": escape_for_script_tag(json.dumps(p4_js_obj)),
+        "{{PHASE4_API_ENDPOINTS_JSON}}": escape_for_script_tag(json.dumps(p4_api_obj)),
+        "{{PHASE4_INTERESTING_PATHS_JSON}}": escape_for_script_tag(json.dumps(p4_interesting_obj)),
+
+        # ZMIANA: Bezpieczne osadzanie surowych danych
+        "{{NAABU_RAW_OUTPUT}}": escape_for_js_template_literal(read_file(p2_results.get("naabu_file"))),
+        "{{MASSCAN_RAW_OUTPUT}}": escape_for_js_template_literal(read_file(p2_results.get("masscan_file"))),
+        
+        # Pola liczbowe dla fazy 4
         "{{COUNT_ALL_URLS_P4}}": str(len(p4_results.get("all_urls", []))),
         "{{COUNT_PARAMETERS}}": str(len(p4_results.get("parameters", []))),
         "{{COUNT_JS_FILES}}": str(len(p4_results.get("js_files", []))),
         "{{COUNT_API_ENDPOINTS}}": str(len(p4_results.get("api_endpoints", []))),
         "{{COUNT_INTERESTING_PATHS}}": str(len(p4_results.get("interesting_paths", []))),
-        "{{PHASE4_ALL_URLS_JSON}}": json.dumps(p4_all_urls_obj),
-        "{{PHASE4_PARAMETERS_JSON}}": json.dumps(p4_params_obj),
-        "{{PHASE4_JS_FILES_JSON}}": json.dumps(p4_js_obj),
-        "{{PHASE4_API_ENDPOINTS_JSON}}": json.dumps(p4_api_obj),
-        "{{PHASE4_INTERESTING_PATHS_JSON}}": json.dumps(p4_interesting_obj),
     }
 
     for placeholder, value in replacements.items():
@@ -776,4 +792,5 @@ def main(
 
 if __name__ == "__main__":
     app()
+
 

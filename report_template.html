@@ -926,18 +926,43 @@
 
   <div id="copy-notification" class="copy-notification"></div>
 
+  <!-- ZMIANA: Bezpieczne osadzanie danych JSON w dedykowanych blokach skryptu -->
+  <script id="data-httpx-p1" type="application/json">{{HTTPX_OUTPUT_JSON_P1}}</script>
+  <script id="data-httpx-p3" type="application/json">{{HTTPX_OUTPUT_JSON_P3}}</script>
+  <script id="data-nmap-raw" type="application/json">{{NMAP_RESULTS_RAW_JSON}}</script>
+  <script id="data-p4-all" type="application/json">{{PHASE4_ALL_URLS_JSON}}</script>
+  <script id="data-p4-params" type="application/json">{{PHASE4_PARAMETERS_JSON}}</script>
+  <script id="data-p4-js" type="application/json">{{PHASE4_JS_FILES_JSON}}</script>
+  <script id="data-p4-api" type="application/json">{{PHASE4_API_ENDPOINTS_JSON}}</script>
+  <script id="data-p4-interesting" type="application/json">{{PHASE4_INTERESTING_PATHS_JSON}}</script>
+
   <script>
+    // ZMIANA: Funkcja do bezpiecznego parsowania danych JSON z osadzonych skryptów
+    function safeParseJsonFromScript(id, defaultType = 'array') {
+      try {
+        const el = document.getElementById(id);
+        if (!el || !el.textContent) {
+          return defaultType === 'array' ? [] : {};
+        }
+        return JSON.parse(el.textContent);
+      } catch (e) {
+        console.error('Błąd parsowania danych JSON dla ID:', id, e);
+        return defaultType === 'array' ? [] : {};
+      }
+    }
+    
     // --- Globalne dane ---
-    const httpxDataP1 = {{ HTTPX_OUTPUT_JSON_P1 }} || [];
-    const httpxDataP3 = {{ HTTPX_OUTPUT_JSON_P3 }} || [];
-    const nmapRawResults = {{ NMAP_RESULTS_RAW_JSON }} || {};
+    const httpxDataP1 = safeParseJsonFromScript('data-httpx-p1', 'array');
+    const httpxDataP3 = safeParseJsonFromScript('data-httpx-p3', 'array');
+    const nmapRawResults = safeParseJsonFromScript('data-nmap-raw', 'object');
+    const p4AllUrlsData = safeParseJsonFromScript('data-p4-all', 'array');
+    const p4ParamsData = safeParseJsonFromScript('data-p4-params', 'array');
+    const p4JsData = safeParseJsonFromScript('data-p4-js', 'array');
+    const p4ApiData = safeParseJsonFromScript('data-p4-api', 'array');
+    const p4InterestingData = safeParseJsonFromScript('data-p4-interesting', 'array');
+    
     const naabuRawOutput = `{{NAABU_RAW_OUTPUT}}`;
     const masscanRawOutput = `{{MASSCAN_RAW_OUTPUT}}`;
-    const p4AllUrlsData = {{ PHASE4_ALL_URLS_JSON }} || [];
-    const p4ParamsData = {{ PHASE4_PARAMETERS_JSON }} || [];
-    const p4JsData = {{ PHASE4_JS_FILES_JSON }} || [];
-    const p4ApiData = {{ PHASE4_API_ENDPOINTS_JSON }} || [];
-    const p4InterestingData = {{ PHASE4_INTERESTING_PATHS_JSON }} || [];
 
     function copyToClipboard(text) {
       const notification = document.getElementById('copy-notification');
@@ -1035,15 +1060,9 @@
       if (!container) return;
       container.innerHTML = '';
 
-      let parsedData;
-      try {
-        parsedData = typeof dataArray === 'string' ? JSON.parse(dataArray) : dataArray;
-      } catch (e) {
-        container.innerHTML = '<p style="text-align: center;">Błąd parsowania danych.</p>';
-        return;
-      }
-
-      if (!Array.isArray(parsedData) || parsedData.length === 0) {
+      let parsedData = Array.isArray(dataArray) ? dataArray : [];
+      
+      if (parsedData.length === 0) {
         container.innerHTML = '<p style="text-align: center;">Brak wyników do wyświetlenia.</p>';
         return;
       }
@@ -1069,14 +1088,8 @@
       if (!container) return;
       container.innerHTML = '';
 
-      let parsedNmap;
-      try {
-        parsedNmap = typeof nmapData === 'string' ? JSON.parse(nmapData) : nmapData;
-      } catch (e) {
-        container.innerHTML = '<p style="text-align: center;">Błąd parsowania danych Nmap.</p>';
-        return;
-      }
-
+      const parsedNmap = (typeof nmapData === 'object' && nmapData !== null) ? nmapData : {};
+      
       if (Object.keys(parsedNmap).length === 0) {
         container.innerHTML = '<p style="text-align: center;">Brak wyników skanowania portów.</p>';
         return;
@@ -1103,7 +1116,7 @@
             };
           } else if (Object.keys(portInfo).length > 0) {
             const lastPort = Object.keys(portInfo).pop();
-            if (line.trim().startsWith('|') || line.trim().startsWith('_')) {
+            if (portInfo[lastPort] && (line.trim().startsWith('|') || line.trim().startsWith('_'))) {
               portInfo[lastPort].nse.push(line);
             }
           }
@@ -1167,13 +1180,9 @@
       const container = document.getElementById('nmap-raw-output');
       if (!container) return;
       container.innerHTML = '';
-      let parsedNmap;
-      try {
-        parsedNmap = typeof nmapData === 'string' ? JSON.parse(nmapData) : nmapData;
-      } catch (e) {
-        container.innerHTML = '<pre class="output">Błąd parsowania danych Nmap.</pre>';
-        return;
-      }
+      
+      const parsedNmap = (typeof nmapData === 'object' && nmapData !== null) ? nmapData : {};
+      
       if (Object.keys(parsedNmap).length === 0) {
         container.innerHTML = '<pre class="output">Brak surowych wyników Nmap.</pre>';
         return;
@@ -1244,4 +1253,5 @@
   </script>
 </body>
 </html>
+
 
