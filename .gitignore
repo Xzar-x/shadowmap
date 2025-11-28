@@ -14,5 +14,4 @@ dir_wordlist.txt
 .venv/
 venv/
 env/
-generate_context.py
 project_context.txt
