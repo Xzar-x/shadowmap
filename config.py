@@ -15,17 +15,17 @@ SMALL_WORDLIST_PHASE1 = (
     "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
 )
 
-DEFAULT_WORDLIST_PHASE3 = (
-    "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt"
-)
-SMALL_WORDLIST_PHASE3 = (
-    "/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-small.txt"
-)
+DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt"
+SMALL_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-small.txt"
 
 WORDPRESS_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt"
-JOOMLA_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/joomla.fuzz.txt"
-DRUPAL_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/drupal.fuzz.txt"
-TOMCAT_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/tomcat.txt"
+JOOMLA_WORDLIST = (
+    "/usr/share/seclists/Discovery/Web-Content/CMS/trickest-cms-wordlist/joomla.txt"
+)
+DRUPAL_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/Drupal.txt"
+TOMCAT_WORDLIST = (
+    "/usr/share/seclists/Discovery/Web-Content/CMS/trickest-cms-wordlist/tomcat.txt"
+)
 
 DEFAULT_RESOLVERS_FILE = os.path.join(SHARE_DIR, "resolvers.txt")
 

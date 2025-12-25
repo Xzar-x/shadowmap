@@ -7,6 +7,7 @@ import sys
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Set
+from urllib.parse import urlparse
 
 from rich.align import Align
 from rich.panel import Panel
@@ -34,6 +35,8 @@ def _run_and_parse_crawl_tool(
     )
 
     try:
+        # ParamSpider i niektóre narzędzia mogą wymagać uruchomienia w shellu,
+        # ale subprocess.run z listą argumentów jest bezpieczniejszy.
         process = subprocess.run(
             command,
             capture_output=True,
@@ -57,27 +60,54 @@ def _run_and_parse_crawl_tool(
                 f.write("\n\n--- STDERR ---\n\n")
                 f.write(process.stderr)
 
+        # Parsowanie wyników
+        # Większość narzędzi zwraca jeden URL na linię
         url_pattern = re.compile(r"https?://[^\s\"'<>]+")
-        found_urls = url_pattern.findall(process.stdout)
 
+        # Wstępne filtrowanie linii, aby usunąć logi narzędzi (np. [INF], [ERR])
+        lines = process.stdout.splitlines()
+
+        # Specjalna obsługa LinkFinder
         if tool_name == "LinkFinder":
             ep_pattern = r"^(?!\[\+\]|\[i\]|\[!\])(?:'|\")?(/[a-zA-Z0-9_./-]+)"
             endpoint_pattern = re.compile(ep_pattern)
-            for line in process.stdout.splitlines():
-                url_match = url_pattern.search(line.strip())
+            for line in lines:
+                clean_line = line.strip()
+                # Szukaj pełnych URLi
+                url_match = url_pattern.search(clean_line)
                 if url_match:
-                    found_urls.append(url_match.group(0))
+                    found_urls = [url_match.group(0)]
                 else:
-                    endpoint_match = endpoint_pattern.search(line.strip())
+                    found_urls = []
+
+                # Szukaj endpointów względnych (LinkFinder często je zwraca)
+                if not found_urls:
+                    endpoint_match = endpoint_pattern.search(clean_line)
                     if endpoint_match:
-                        base_url = "/".join(target_url.split("/")[:3])
+                        # Buduj pełny URL na podstawie celu
+                        base_url = "/".join(
+                            target_url.split("/")[:3]
+                        )  # protokół + domena
                         full_url = f"{base_url}{endpoint_match.group(1)}"
                         found_urls.append(full_url)
 
-        for url in found_urls:
-            stripped_url = url.strip().strip("'\"").rstrip("/")
-            if stripped_url:
-                results.add(stripped_url)
+                for url in found_urls:
+                    results.add(url.strip().strip("'\"").rstrip("/"))
+
+        # Obsługa ParamSpider (może zwracać linie typu [Active] url)
+        elif tool_name == "ParamSpider":
+            for line in lines:
+                match = url_pattern.search(line)
+                if match:
+                    results.add(match.group(0))
+
+        # Standardowa obsługa (Katana, Hakrawler, Gauplus)
+        else:
+            found_urls = url_pattern.findall(process.stdout)
+            for url in found_urls:
+                stripped_url = url.strip().strip("'\"").rstrip("/")
+                if stripped_url:
+                    results.add(stripped_url)
 
         if process.returncode == 0:
             msg = (
@@ -86,8 +116,11 @@ def _run_and_parse_crawl_tool(
             )
             utils.console.print(f"[bold green]{msg}[/bold green]")
         else:
-            msg = f"{tool_name} dla {target_url} zakończył z błędem."
-            utils.log_and_echo(msg, "WARN")
+            # Niektóre narzędzia zwracają non-zero jeśli nic nie znajdą lub mają warningi
+            msg = (
+                f"{tool_name} dla {target_url} zakończył z kodem {process.returncode}."
+            )
+            utils.log_and_echo(msg, "DEBUG")
 
     except subprocess.TimeoutExpired:
         msg = f"'{tool_name}' dla {target_url} przekroczył limit czasu."
@@ -110,7 +143,7 @@ def _categorize_urls(urls: List[str]) -> Dict[str, List[str]]:
         "interesting_paths": [],
         "all_urls": sorted(list(set(urls))),
     }
-    api_keywords = ["api", "rest", "graphql", "rpc", "json", "xml"]
+    api_keywords = ["api", "rest", "graphql", "rpc", "json", "xml", "v1", "v2"]
     interesting_ext = [
         ".json",
         ".xml",
@@ -123,6 +156,8 @@ def _categorize_urls(urls: List[str]) -> Dict[str, List[str]]:
         ".zip",
         ".tar.gz",
         ".sql",
+        ".db",
+        ".env",
     ]
     interesting_kws = [
         "swagger",
@@ -132,17 +167,20 @@ def _categorize_urls(urls: List[str]) -> Dict[str, List[str]]:
         "backup",
         "dump",
         "admin",
+        "dashboard",
+        "panel",
     ]
 
     for url in categorized["all_urls"]:
+        url_lower = url.lower()
         if "?" in url and "=" in url:
             categorized["parameters"].append(url)
-        if url.endswith(".js"):
+        if url_lower.endswith(".js") or ".js?" in url_lower:
             categorized["js_files"].append(url)
-        if any(keyword in url.lower() for keyword in api_keywords):
+        if any(keyword in url_lower for keyword in api_keywords):
             categorized["api_endpoints"].append(url)
-        if any(url.endswith(ext) for ext in interesting_ext) or any(
-            kw in url.lower() for kw in interesting_kws
+        if any(url_lower.endswith(ext) for ext in interesting_ext) or any(
+            kw in url_lower for kw in interesting_kws
         ):
             categorized["interesting_paths"].append(url)
 
@@ -165,6 +203,9 @@ def start_web_crawl(
     utils.log_and_echo(msg, "INFO")
     all_found_urls: Set[str] = set()
 
+    # Konfiguracja podstawowa narzędzi
+    # Kolejność w config.selected_phase4_tools:
+    # 0: Katana, 1: Hakrawler, 2: ParamSpider, 3: LinkFinder, 4: Gauplus
     tool_configs: List[Dict[str, Any]] = [
         {
             "name": "Katana",
@@ -172,9 +213,12 @@ def start_web_crawl(
             "cmd_template": [
                 "katana",
                 "-silent",
+                "-nc",  # No color (wg help.txt)
                 "-d",
                 str(config.CRAWL_DEPTH_P4),
-                "-jc",
+                "-jc",  # JS crawl (wg help.txt)
+                "-kf",
+                "all",  # Known files (wg help.txt, warto dodać)
             ],
         },
         {
@@ -190,12 +234,12 @@ def start_web_crawl(
         {
             "name": "ParamSpider",
             "enabled": config.selected_phase4_tools[2],
-            "cmd_template": ["paramspider", "-s"],
+            "cmd_template": ["paramspider", "-s"],  # -s stream (wg help.txt)
         },
         {
             "name": "LinkFinder",
             "enabled": config.selected_phase4_tools[3],
-            "cmd_template": ["linkfinder", "-d"],
+            "cmd_template": ["linkfinder", "-d"],  # -d domain mode
         },
         {
             "name": "Gauplus",
@@ -204,43 +248,69 @@ def start_web_crawl(
         },
     ]
 
+    # Dostosowanie do Safe Mode
     if config.SAFE_MODE:
         for cfg in tool_configs:
-            if cfg["name"] == "Katana" and config.USE_HEADLESS_BROWSER:
-                cfg["cmd_template"].append("-headless")
+            if cfg["name"] == "Katana":
+                # Katana w safe mode: headless, wolniej, limit rate
+                if config.USE_HEADLESS_BROWSER:
+                    cfg["cmd_template"].append("-headless")
                 if config.AUTO_FORM_FILL:
-                    cfg["cmd_template"].append("-aff")
+                    cfg["cmd_template"].append(
+                        "-aff"
+                    )  # Automatic form fill (wg help.txt)
+                cfg["cmd_template"].extend(["-rl", "10"])  # Rate limit
+            if cfg["name"] == "Gauplus":
+                # Zmniejszamy wątki dla Gauplus w Safe Mode
+                if "-t" in cfg["cmd_template"]:
+                    idx = cfg["cmd_template"].index("-t")
+                    cfg["cmd_template"][idx + 1] = "5"
 
+    # Obsługa Proxy (zgodnie z help.txt)
     if config.PROXY:
         for cfg in tool_configs:
             if cfg["name"] in ["Katana", "Hakrawler"]:
                 cfg["cmd_template"].extend(["-proxy", config.PROXY])
             if cfg["name"] == "ParamSpider":
+                # ParamSpider używa --proxy (zgodnie z help.txt)
                 cfg["cmd_template"].extend(["--proxy", config.PROXY])
 
     with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
         futures: List[Future] = []
         for url in urls:
+            # Wyciągamy domenę dla narzędzi, które jej wymagają
+            parsed_url = urlparse(url)
+            domain = parsed_url.netloc
+            if not domain:
+                domain = url  # Fallback
+
             for cfg in tool_configs:
                 if cfg["enabled"]:
                     cmd = list(cfg["cmd_template"])
                     current_ua = utils.user_agent_rotator.get()
+
+                    # Specyficzne flagi wejściowe dla każdego narzędzia
                     if cfg["name"] == "Katana":
                         cmd.extend(["-H", f"User-Agent: {current_ua}"])
+                        # Katana używa -u dla inputu (zgodnie z help.txt)
+                        cmd.extend(["-u", url])
+
                     elif cfg["name"] == "Hakrawler":
                         cmd.extend(["-header", f"User-Agent: {current_ua}"])
+                        # Hakrawler zazwyczaj używa -url dla inputu (nie -u)
+                        cmd.extend(["-url", url])
 
-                    if cfg["name"] in ["ParamSpider", "LinkFinder"]:
-                        key = "-i" if cfg["name"] == "LinkFinder" else "-d"
-                        cmd.extend([key, url])
+                    elif cfg["name"] == "ParamSpider":
+                        # ParamSpider wymaga domeny (-d), a nie URL
+                        cmd.extend(["-d", domain])
+
+                    elif cfg["name"] == "LinkFinder":
+                        # LinkFinder używa -i dla inputu (URL lub plik)
+                        cmd.extend(["-i", url])
+
                     elif cfg["name"] == "Gauplus":
-                        domain_match = re.search(r"https?://([^/]+)", url)
-                        if domain_match:
-                            cmd.append(domain_match.group(1))
-                        else:
-                            continue
-                    else:
-                        cmd.extend(["-u", url])
+                        # Gauplus przyjmuje domenę jako argument pozycyjny
+                        cmd.append(domain)
 
                     futures.append(
                         executor.submit(
@@ -293,12 +363,39 @@ def display_phase4_tool_selection_menu(display_banner_func):
             "Gauplus (Pasywne z archiwów)",
         ]
         for i, tool_name in enumerate(tool_names):
+            # Sprawdzenie dostępności narzędzia w systemie
+            # Pobieramy nazwę binarki z mapy w configu (bez opisu w nawiasie)
+            base_name = tool_names[i].split(" (")[0]
+            tool_exe = config.TOOL_EXECUTABLE_MAP.get(
+                tool_name
+            )  # Tu może być potrzebna korekta klucza
+            # Fallback jeśli klucz w mapie nie pasuje idealnie do wyświetlanej nazwy
+            if not tool_exe:
+                # Próba dopasowania po fragmencie
+                for key, val in config.TOOL_EXECUTABLE_MAP.items():
+                    if base_name in key:
+                        tool_exe = val
+                        break
+
+            is_missing = tool_exe and tool_exe in config.MISSING_TOOLS
+
             status = (
                 "[bold green]✓[/bold green]"
                 if config.selected_phase4_tools[i]
                 else "[bold red]✗[/bold red]"
             )
-            table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
+
+            display_name = f"{status} {tool_name}"
+            row_style = ""
+
+            if is_missing:
+                display_name = f"[dim]✗ {tool_name} (niedostępne)[/dim]"
+                row_style = "dim"
+
+            table.add_row(
+                f"[bold cyan][{i+1}][/bold cyan]", display_name, style=row_style
+            )
+
         table.add_section()
         table.add_row(
             "[bold cyan][\fs][/bold cyan]",
@@ -317,7 +414,23 @@ def display_phase4_tool_selection_menu(display_banner_func):
         choice = utils.get_single_char_input_with_prompt(prompt_text)
 
         if choice.isdigit() and 1 <= int(choice) <= 5:
-            config.selected_phase4_tools[int(choice) - 1] ^= 1
+            idx = int(choice) - 1
+            # Sprawdzenie czy narzędzie jest dostępne przed włączeniem
+            base_name = tool_names[idx].split(" (")[0]
+            tool_exe = None
+            for key, val in config.TOOL_EXECUTABLE_MAP.items():
+                if base_name in key:
+                    tool_exe = val
+                    break
+
+            if tool_exe and tool_exe in config.MISSING_TOOLS:
+                utils.console.print(
+                    Align.center("[red]To narzędzie nie jest zainstalowane.[/red]")
+                )
+                time.sleep(1)
+            else:
+                config.selected_phase4_tools[idx] ^= 1
+
         elif choice.lower() == "s":
             display_phase4_settings_menu(display_banner_func)
         elif choice.lower() == "q":
@@ -330,6 +443,7 @@ def display_phase4_tool_selection_menu(display_banner_func):
             else:
                 msg = "[bold yellow]Wybierz co najmniej jedno narzędzie.[/bold yellow]"
                 utils.console.print(Align.center(msg))
+                time.sleep(1)
         else:
             utils.console.print(
                 Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]")
@@ -392,11 +506,11 @@ def display_phase4_settings_menu(display_banner_func):
         )
         table.add_row(
             "[bold cyan][3][/bold cyan]",
-            f"[{aff_status}] Wypełnianie formularzy (Katana)",
+            f"[{aff_status}] Wypełnianie formularzy (Katana -aff)",
         )
         table.add_row(
             "[bold cyan][4][/bold cyan]",
-            f"[{headless_status}] Przeglądarka headless (Katana w Safe Mode)",
+            f"[{headless_status}] Przeglądarka headless (Katana -headless)",
         )
         table.add_row("[bold cyan][5][/bold cyan]", f"Proxy: {proxy_display}")
         table.add_row("[bold cyan][6][/bold cyan]", f"Liczba wątków: {threads_display}")

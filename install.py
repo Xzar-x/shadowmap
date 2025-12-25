@@ -4,10 +4,12 @@ import os
 import shutil
 import subprocess
 import sys
+import re
 from typing import List, Dict, Tuple
 
 try:
     import questionary
+    import requests
     from pyfiglet import Figlet
     from rich import box
     from rich.align import Align
@@ -18,19 +20,75 @@ try:
     from rich.text import Text
 except ImportError:
     print("BŁĄD: Podstawowe pakiety nie są zainstalowane.")
-    print("Uruchom: pip3 install rich questionary pyfiglet typer")
+    print("Uruchom: pip3 install rich questionary pyfiglet typer requests")
     sys.exit(1)
 
-os.system("sudo rm -rf $(which httpx)")
+# Próba importu config.py z bieżącego katalogu
+try:
+    import config
+except ImportError:
+    config = None
+
+# os.system("sudo rm -rf $(which httpx)")
 
 console = Console(highlight=False)
 
 BIN_DIR = "/usr/local/bin"
 SHARE_DIR = "/usr/local/share/shadowmap"
+WORDLISTS_DIR = os.path.join(SHARE_DIR, "wordlists")
+
 ASSUME_YES = "-y" in sys.argv or "--yes" in sys.argv
 DRY_RUN = "-d" in sys.argv or "--dry-run" in sys.argv
 NONINTERACTIVE = "-n" in sys.argv or "--non-interactive" in sys.argv
 IS_ROOT = os.geteuid() == 0
+
+# --- Definicje Wordlist ---
+# ZAKTUALIZOWANE MAPOWANIE NA PODSTAWIE TWOICH PLIKÓW
+WORDLIST_MAPPING = {
+    "DEFAULT_WORDLIST_PHASE1": (
+        "subdomains-top1million-20000.txt",
+        "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-20000.txt",
+    ),
+    "SMALL_WORDLIST_PHASE1": (
+        "subdomains-top1million-5000.txt",
+        "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt",
+    ),
+    "DEFAULT_WORDLIST_PHASE3": (
+        "DirBuster-2007_directory-list-2.3-medium.txt",
+        "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt",
+    ),
+    "SMALL_WORDLIST_PHASE3": (
+        "DirBuster-2007_directory-list-2.3-small.txt",
+        "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-small.txt",
+    ),
+    "WORDPRESS_WORDLIST": (
+        "wordpress.fuzz.txt",
+        "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/CMS/wordpress.fuzz.txt",
+    ),
+    "JOOMLA_WORDLIST": (
+        "Joomla.txt",  # Zmiana z joomla.fuzz.txt
+        "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/CMS/Joomla.txt",
+    ),
+    "DRUPAL_WORDLIST": (
+        "Drupal.txt",  # Zmiana z drupal.fuzz.txt
+        "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/CMS/Drupal.txt",
+    ),
+    "TOMCAT_WORDLIST": (
+        "common.txt",  # Fallback na common.txt, bo tomcat.txt zniknął
+        "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt",
+    ),
+}
+
+# Miejsca gdzie szukamy list
+SEARCH_PATHS = [
+    "/usr/share/seclists",
+    "/usr/share/wordlists",
+    "/opt/seclists",
+    "/usr/local/share/wordlists",
+    os.path.expanduser("~/SecLists"),
+    os.path.expanduser("~/wordlists"),
+    os.getcwd(),
+]
 
 # Zależności systemowe (bez Pythona/Go)
 SYSTEM_DEPS: List[str] = ["go", "nmap", "masscan", "whois", "git"]
@@ -61,15 +119,12 @@ GO_TOOLS: Dict[str, str] = {
     "dirsearch": "github.com/maurosoria/dirsearch@latest",
 }
 
-# Narzędzia Python instalowane przez pipx
 PIPX_TOOLS: Dict[str, str] = {"paramspider": "paramspider"}
 
-# Narzędzia Python wymagające specjalnej instalacji (pip3)
 MANUAL_PYTHON_TOOLS: Dict[str, str] = {
     "linkfinder": "git+https://github.com/GerbenJavado/LinkFinder.git"
 }
 
-# Pakiety Python (pip)
 PYTHON_PKGS: List[str] = [
     "rich",
     "questionary",
@@ -89,27 +144,21 @@ def display_banner():
 
 
 def _get_path_with_go_and_pipx(env: Dict[str, str]) -> str:
-    """Konstruuje zmienną PATH z uwzględnieniem ścieżek dla Go i Pipx."""
     path_list = [env.get("PATH", "")]
     home = env.get("HOME", "")
-
     if home:
         path_list.insert(0, f"{home}/.local/bin")
-
     go_path = env.get("GOPATH", f"{home}/go")
     if go_path:
         path_list.insert(0, os.path.join(go_path, "bin"))
-
     return ":".join(filter(None, path_list))
 
 
 def run_command(
     command: List[str], description: str, sudo: bool = False, live_output: bool = False
 ) -> bool:
-    """Uruchamia podane polecenie i obsługuje błędy."""
     env = os.environ.copy()
     env["PATH"] = _get_path_with_go_and_pipx(env)
-
     sudo_prefix = ["sudo"] if sudo and not IS_ROOT else []
     full_command = sudo_prefix + command
     cmd_str = " ".join(
@@ -142,34 +191,23 @@ def run_command(
         process.wait()
 
         if process.returncode != 0:
-            msg = f"Błąd podczas '{description}': Kod {process.returncode}"
-            console.print(Align.center(f"[bold red]{msg}[/bold red]"))
+            console.print(
+                Align.center(f"[bold red]Błąd podczas '{description}'[/bold red]")
+            )
             return False
         return True
 
-    except FileNotFoundError:
-        tool_name = full_command[0]
-        msg = f"BŁĄD: Polecenie '{tool_name}' nie znalezione. Upewnij się, że jest w PATH."
-        console.print(Align.center(f"[bold red]{msg}[/bold red]"))
-        return False
     except Exception as e:
-        msg = f"Nieoczekiwany błąd podczas '{description}': {type(e).__name__}: {e}"
-        console.print(Align.center(f"[bold red]{msg}[/bold red]"))
+        console.print(Align.center(f"[bold red]Błąd: {e}[/bold red]"))
         return False
 
 
 def check_dependencies() -> Tuple[List[str], List[str], List[str], List[str]]:
-    """Sprawdza obecność narzędzi i zwraca listę brakujących w każdej kategorii."""
     missing_system, missing_go, missing_python_apt, missing_pipx_manual = [], [], [], []
     env = os.environ.copy()
     env["PATH"] = _get_path_with_go_and_pipx(env)
 
-    system_table = Table(
-        title="System & APT",
-        box=box.ROUNDED,
-        show_header=False,
-        title_style="bold magenta",
-    )
+    system_table = Table(title="System & APT", box=box.ROUNDED, show_header=False)
     all_system_tools = SYSTEM_DEPS + list(PYTHON_APT_TOOLS.keys())
     for dep in sorted(all_system_tools):
         if shutil.which(dep, path=env["PATH"]):
@@ -181,12 +219,7 @@ def check_dependencies() -> Tuple[List[str], List[str], List[str], List[str]]:
                 missing_python_apt.append(dep)
             system_table.add_row(f"[bold red]✗[/bold red] {dep}")
 
-    go_table = Table(
-        title="Narzędzia Go",
-        box=box.ROUNDED,
-        show_header=False,
-        title_style="bold magenta",
-    )
+    go_table = Table(title="Narzędzia Go", box=box.ROUNDED, show_header=False)
     for tool in sorted(GO_TOOLS.keys()):
         if shutil.which(tool, path=env["PATH"]):
             go_table.add_row(f"[bold green]✓[/bold green] {tool}")
@@ -194,12 +227,7 @@ def check_dependencies() -> Tuple[List[str], List[str], List[str], List[str]]:
             missing_go.append(tool)
             go_table.add_row(f"[bold red]✗[/bold red] {tool}")
 
-    pipx_table = Table(
-        title="Narzędzia Python",
-        box=box.ROUNDED,
-        show_header=False,
-        title_style="bold magenta",
-    )
+    pipx_table = Table(title="Narzędzia Python", box=box.ROUNDED, show_header=False)
     all_python_cli_tools = {**PIPX_TOOLS, **MANUAL_PYTHON_TOOLS}
     for tool in sorted(all_python_cli_tools.keys()):
         if shutil.which(tool, path=env["PATH"]):
@@ -215,12 +243,192 @@ def check_dependencies() -> Tuple[List[str], List[str], List[str], List[str]]:
             border_style="blue",
         )
     )
-
     return missing_system, missing_go, missing_python_apt, missing_pipx_manual
 
 
+def download_file(url: str, dest_path: str):
+    """Pobiera plik z URL i zapisuje go w dest_path."""
+    try:
+        console.print(f"[dim]Pobieranie: {os.path.basename(dest_path)}...[/dim]")
+        response = requests.get(url, stream=True, timeout=30)
+        response.raise_for_status()
+        with open(dest_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        return True
+    except Exception as e:
+        console.print(f"[red]Błąd pobierania {url}: {e}[/red]")
+        return False
+
+
+def patch_config_file(config_path: str, variable_updates: Dict[str, str]):
+    """Aktualizuje wartości zmiennych w pliku config.py."""
+    if not os.path.exists(config_path):
+        console.print(
+            f"[red]Nie znaleziono pliku konfiguracyjnego: {config_path}[/red]"
+        )
+        return
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        for var_name, new_value in variable_updates.items():
+            pattern = rf"^{var_name}\s*=\s*[\'\"].*?[\'\"]"
+            replacement = f'{var_name} = "{new_value}"'
+
+            if re.search(pattern, content, re.MULTILINE):
+                content = re.sub(pattern, replacement, content, flags=re.MULTILINE)
+
+        with open(config_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        console.print("[green]Zaktualizowano ścieżki w pliku config.py[/green]")
+    except Exception as e:
+        console.print(f"[red]Błąd aktualizacji config.py: {e}[/red]")
+
+
+def find_file_in_search_paths(filename: str) -> str | None:
+    """Przeszukuje typowe lokalizacje w poszukiwaniu pliku."""
+    for path in SEARCH_PATHS:
+        if not os.path.exists(path):
+            continue
+
+        # Szybkie sprawdzenie czy plik jest bezpośrednio w ścieżce
+        direct_path = os.path.join(path, filename)
+        if os.path.isfile(direct_path):
+            return direct_path
+
+        # Przeszukiwanie rekurencyjne (walk)
+        for root, _, files in os.walk(path):
+            if filename in files:
+                return os.path.join(root, filename)
+
+    return None
+
+
+def check_and_fix_wordlists():
+    """Sprawdza listy słów, szuka ich w systemie lub oferuje pobranie."""
+    if not config:
+        return
+
+    console.print("\n[blue]Weryfikacja dostępności list słów (wordlists)...[/blue]")
+
+    missing_vars = []
+    updates = {}
+
+    table = Table(
+        title="Status Wordlist",
+        box=box.ROUNDED,
+        show_header=True,
+        header_style="bold magenta",
+        expand=True,
+    )
+    table.add_column("Zmienna Config", style="cyan")
+    table.add_column("Status", justify="center")
+    table.add_column("Ścieżka", style="dim")
+
+    for var_name, (filename, url) in WORDLIST_MAPPING.items():
+        current_path = getattr(config, var_name, "")
+        if isinstance(current_path, tuple):
+            current_path = current_path[0]
+
+        if os.path.exists(current_path) and os.path.isfile(current_path):
+            table.add_row(var_name, "[bold green]✓[/bold green]", current_path)
+        else:
+            # Próba znalezienia w systemie po samej nazwie pliku
+            console.print(f"[dim]Szukam {filename} w systemie...[/dim]", end="\r")
+            found_path = find_file_in_search_paths(filename)
+
+            if found_path:
+                table.add_row(
+                    var_name, "[bold yellow]Znaleziono[/bold yellow]", found_path
+                )
+                updates[var_name] = found_path
+            else:
+                table.add_row(var_name, "[bold red]✗[/bold red]", "Nie znaleziono")
+                missing_vars.append(var_name)
+
+    console.print(Align.center(table))
+
+    # Aktualizacja config.py jeśli znaleziono nowe ścieżki
+    if updates:
+        installed_config = os.path.join(SHARE_DIR, "config.py")
+        console.print(
+            f"\n[green]Znaleziono {len(updates)} list w systemie. Aktualizuję config.py...[/green]"
+        )
+        patch_config_file(installed_config, updates)
+
+        if os.path.exists("config.py"):
+            patch_config_file("config.py", updates)
+
+    # Obsługa brakujących plików (pobieranie)
+    if missing_vars:
+        console.print(
+            Align.center(
+                Panel(
+                    "[yellow]Nadal brakuje niektórych list słów.[/yellow]\n"
+                    "Mogę pobrać brakujące pliki automatycznie.",
+                    title="Naprawa Braków",
+                    border_style="yellow",
+                )
+            )
+        )
+
+        should_download = (
+            ASSUME_YES
+            or NONINTERACTIVE
+            or questionary.confirm("Czy chcesz pobrać BRAKUJĄCE listy teraz?").ask()
+        )
+
+        if should_download:
+            if IS_ROOT:
+                if not os.path.exists(WORDLISTS_DIR):
+                    run_command(
+                        ["mkdir", "-p", WORDLISTS_DIR],
+                        "Tworzenie katalogu wordlists",
+                        sudo=False,
+                    )
+                    run_command(
+                        ["chmod", "755", WORDLISTS_DIR],
+                        "Uprawnienia katalogu",
+                        sudo=False,
+                    )
+            else:
+                run_command(
+                    ["mkdir", "-p", WORDLISTS_DIR],
+                    "Tworzenie katalogu wordlists",
+                    sudo=True,
+                )
+                run_command(
+                    ["chmod", "777", WORDLISTS_DIR],
+                    "Uprawnienia katalogu (tymczasowe)",
+                    sudo=True,
+                )
+
+            download_updates = {}
+            for var_name in missing_vars:
+                filename, url = WORDLIST_MAPPING[var_name]
+                dest_path = os.path.join(WORDLISTS_DIR, filename)
+
+                if download_file(url, dest_path):
+                    download_updates[var_name] = dest_path
+
+            installed_config = os.path.join(SHARE_DIR, "config.py")
+            if download_updates:
+                console.print(f"[blue]Podpinam pobrane pliki do konfiguracji...[/blue]")
+                patch_config_file(installed_config, download_updates)
+                if os.path.exists("config.py"):
+                    patch_config_file("config.py", download_updates)
+    else:
+        console.print(
+            Align.center(
+                "[bold green]Wszystkie wordlisty są skonfigurowane.[/bold green]"
+            )
+        )
+
+
 def main():
-    """Główna funkcja instalacyjna."""
     display_banner()
     panel_text = "[bold]Instalator ShadowMap sprawdzi i zainstaluje zależności.[/bold]"
     console.print(Align.center(Panel.fit(panel_text, border_style="green")))
@@ -241,13 +449,8 @@ def main():
     )
 
     all_missing = missing_system + missing_go + missing_python_apt + missing_pipx_manual
-    if not any(all_missing):
-        console.print(
-            Align.center(
-                "\n[bold green]Wszystkie narzędzia CLI są zainstalowane![/bold green]"
-            )
-        )
-    else:
+
+    if any(all_missing):
         console.print(
             Align.center(
                 "\n[bold yellow]Wykryto brakujące narzędzia CLI.[/bold yellow]"
@@ -259,112 +462,70 @@ def main():
             or questionary.confirm("Zainstalować brakujące pakiety?").ask()
         )
         if install_confirmed:
-            apt_packages_to_install = [
-                p for p in missing_system if p in SYSTEM_DEPS
-            ] + [
+            apt_packages = [p for p in missing_system if p in SYSTEM_DEPS] + [
                 PYTHON_APT_TOOLS[t] for t in missing_python_apt if t in PYTHON_APT_TOOLS
             ]
 
-            if apt_packages_to_install:
-                deps = ", ".join(apt_packages_to_install)
-                console.print(
-                    f"\n[blue]Instaluję zależności systemowe (apt): {deps}...[/blue]"
-                )
-                if not IS_ROOT:
-                    console.print(
-                        Align.center(
-                            "[bold yellow]Wprowadź hasło do sudo...[/bold yellow]"
-                        )
-                    )
+            if apt_packages:
+                console.print(f"\n[blue]Instaluję pakiety systemowe...[/blue]")
+                run_command(["apt-get", "update"], "Update APT", sudo=True)
                 run_command(
-                    ["apt-get", "update"], "Aktualizacja listy pakietów", sudo=True
-                )
-                run_command(
-                    ["apt-get", "install", "-y"] + apt_packages_to_install,
-                    "Instalacja pakietów",
+                    ["apt-get", "install", "-y"] + apt_packages,
+                    "Instalacja APT",
                     sudo=True,
                     live_output=True,
                 )
 
             if missing_go:
-                console.print(
-                    f"\n[blue]Instaluję narzędzia Go: {', '.join(missing_go)}...[/blue]"
-                )
+                console.print(f"\n[blue]Instaluję narzędzia Go...[/blue]")
                 for tool in missing_go:
                     run_command(
                         ["go", "install", "-v", GO_TOOLS[tool]],
-                        f"Instalacja {tool}",
+                        f"Go install {tool}",
                         live_output=True,
                     )
 
             if missing_pipx_manual:
-                console.print(
-                    f"\n[blue]Instaluję narzędzia Python CLI: {', '.join(missing_pipx_manual)}...[/blue]"
-                )
+                console.print(f"\n[blue]Instaluję narzędzia Python...[/blue]")
                 for tool in missing_pipx_manual:
                     if tool in PIPX_TOOLS:
                         run_command(
                             ["pipx", "install", "--force", PIPX_TOOLS[tool]],
-                            f"Instalacja {tool}",
+                            f"Pipx install {tool}",
                             live_output=True,
                         )
                     elif tool in MANUAL_PYTHON_TOOLS:
-                        console.print(
-                            Align.center(
-                                f"[cyan]Instalacja specjalna dla {tool} za pomocą pip3...[/cyan]"
-                            )
-                        )
-                        if run_command(
+                        run_command(
                             ["pip3", "install", "--user", MANUAL_PYTHON_TOOLS[tool]],
-                            f"Instalacja {tool}",
+                            f"Pip install {tool}",
                             live_output=True,
-                        ):
-                            # KROK NAPRAWCZY: Utwórz symlink
-                            console.print(
-                                Align.center(
-                                    "[cyan]Konfiguruję dowiązanie symboliczne dla LinkFinder...[/cyan]"
-                                )
-                            )
+                        )
+                        if tool == "linkfinder":
                             home = os.path.expanduser("~")
-                            source_path = os.path.join(
-                                home, ".local", "bin", "linkfinder.py"
-                            )
-                            target_path = os.path.join(
-                                home, ".local", "bin", "linkfinder"
-                            )
-
-                            if os.path.exists(source_path):
-                                if os.path.lexists(target_path):
-                                    os.remove(target_path)
+                            src = os.path.join(home, ".local", "bin", "linkfinder.py")
+                            dst = os.path.join(home, ".local", "bin", "linkfinder")
+                            if os.path.exists(src):
+                                if os.path.lexists(dst):
+                                    os.remove(dst)
                                 run_command(
-                                    ["ln", "-s", source_path, target_path],
-                                    "Tworzenie symlinka dla linkfinder",
-                                )
-                            else:
-                                console.print(
-                                    f"[bold red]BŁĄD: Nie znaleziono {source_path} po instalacji.[/bold red]"
+                                    ["ln", "-s", src, dst], "Symlink LinkFinder"
                                 )
 
-    console.print(
-        "\n[blue]Instaluję/aktualizuję podstawowe pakiety Python (pip)...[/blue]"
-    )
+    console.print("\n[blue]Aktualizuję pakiety Python pip...[/blue]")
     run_command(
         ["pip3", "install", "--upgrade"] + PYTHON_PKGS,
-        "Instalacja pakietów pip",
+        "Pip requirements",
         live_output=True,
     )
 
-    console.print(f"\n[blue]Kopiuję pliki do {BIN_DIR} i {SHARE_DIR}...[/blue]")
+    console.print(f"\n[blue]Instaluję pliki aplikacji do {SHARE_DIR}...[/blue]")
     base_dir = os.path.dirname(os.path.abspath(__file__))
-
     run_command(["mkdir", "-p", SHARE_DIR], f"Tworzenie {SHARE_DIR}", sudo=True)
 
     script_path = os.path.join(base_dir, "shadowmap.py")
     bin_path = os.path.join(BIN_DIR, "shadowmap")
-    run_command(["cp", script_path, bin_path], "Kopiowanie głównego skryptu", sudo=True)
-    run_command(
-        ["chmod", "+x", bin_path], "Nadawanie uprawnień wykonywalnych", sudo=True
-    )
+    run_command(["cp", script_path, bin_path], "Instalacja shadowmap bin", sudo=True)
+    run_command(["chmod", "+x", bin_path], "Uprawnienia wykonywalne", sudo=True)
 
     files_to_copy = [
         "config.py",
@@ -383,21 +544,18 @@ def main():
         if os.path.exists(src):
             run_command(["cp", src, SHARE_DIR], f"Kopiowanie {f_name}", sudo=True)
 
+    check_and_fix_wordlists()
+
     final_text = (
-        "[bold green]Instalacja ShadowMap zakończona pomyślnie![/bold green]\n\n"
-        "Uruchom narzędzie wpisując: [bold cyan]shadowmap <cel>[/bold cyan]\n\n"
-        "[yellow]Uwaga:[/yellow] Może być konieczne ponowne uruchomienie terminala, aby zmiany w PATH były widoczne."
+        "[bold green]Instalacja ShadowMap zakończona![/bold green]\n\n"
+        "Uruchom: [bold cyan]shadowmap <cel>[/bold cyan]"
     )
-    console.print(
-        Align.center(
-            Panel(final_text, title="[bold]Gotowe![/bold]", border_style="green")
-        )
-    )
+    console.print(Align.center(Panel(final_text, title="Sukces", border_style="green")))
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        console.print("\n[bold red]Instalacja przerwana przez użytkownika.[/bold red]")
+        console.print("\n[bold red]Przerwano.[/bold red]")
         sys.exit(1)
