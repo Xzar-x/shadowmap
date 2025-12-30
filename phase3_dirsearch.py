@@ -102,6 +102,8 @@ def _detect_wildcard_response(target_url: str) -> Dict[str, Any]:
         session = requests.Session()
         headers_list = utils.get_random_browser_headers()
         headers = {h.split(": ")[0]: h.split(": ")[1] for h in headers_list}
+
+        # ZMIANA: Użycie globalnego UA (rotator lub custom)
         headers["User-Agent"] = utils.user_agent_rotator.get()
 
         response = session.get(
@@ -148,11 +150,7 @@ def _parse_tool_output_line(
     line: str, tool_name: str, base_url: Optional[str] = None
 ) -> Optional[str]:
     cleaned_line = ansi_escape_pattern.sub("", line).strip()
-    if (
-        not cleaned_line
-        or ":: Progress:" in cleaned_line
-        or "Target: " in cleaned_line
-    ):
+    if not cleaned_line or ":: Progress:" in cleaned_line or "Target: " in cleaned_line:
         return None
 
     full_url = None
@@ -219,9 +217,7 @@ def _run_and_parse_dir_tool(
         )
 
         phase3_dir = os.path.join(config.REPORT_DIR, "faza3_dirsearch")
-        sanitized_target = re.sub(r"https?://", "", target_url).replace(
-            "/", "_"
-        )
+        sanitized_target = re.sub(r"https?://", "", target_url).replace("/", "_")
         sanitized_target = sanitized_target.replace(":", "_")
         raw_output_file = os.path.join(
             phase3_dir, f"{tool_name.lower()}_{sanitized_target}.txt"
@@ -235,9 +231,7 @@ def _run_and_parse_dir_tool(
                 f.write(process.stderr)
 
         for line in process.stdout.splitlines():
-            parsed_url = _parse_tool_output_line(
-                line, tool_name, base_url=target_url
-            )
+            parsed_url = _parse_tool_output_line(line, tool_name, base_url=target_url)
             if parsed_url:
                 results.add(parsed_url)
 
@@ -245,10 +239,7 @@ def _run_and_parse_dir_tool(
             msg = f"✅ {tool_name} zakończył. Znaleziono {len(results)} URLi."
             utils.console.print(f"[bold green]{msg}[/bold green]")
         else:
-            msg = (
-                f"{tool_name} zakończył z błędem "
-                f"(kod: {process.returncode})."
-            )
+            msg = f"{tool_name} zakończył z błędem " f"(kod: {process.returncode})."
             utils.log_and_echo(msg, "WARN")
 
     except subprocess.TimeoutExpired:
@@ -381,6 +372,9 @@ def start_dir_search(
                     cmd = list(cfg["base_cmd"])
                     threads = "1" if config.SAFE_MODE else str(config.THREADS)
 
+                    # ZMIANA: Pobranie globalnego UA (może być custom)
+                    current_ua = utils.user_agent_rotator.get()
+
                     if cfg["name"] == "Ffuf":
                         cmd.extend(["-w", f"{wordlist}:FUZZ", "-t", threads])
                         if config.RECURSION_DEPTH_P3 > 0:
@@ -393,8 +387,9 @@ def start_dir_search(
                             )
                         if config.SAFE_MODE:
                             cmd.extend(["-p", "0.5-2.5"])
-                        ua = utils.user_agent_rotator.get()
-                        cmd.extend(["-H", f"User-Agent: {ua}"])
+
+                        cmd.extend(["-H", f"User-Agent: {current_ua}"])
+
                         if wc_size := wildcard.get("size"):
                             cmd.extend(["-fs", str(wc_size)])
                         if wc_status := wildcard.get("status"):
@@ -402,25 +397,21 @@ def start_dir_search(
                         cmd.extend(["-u", f"{v_url}/FUZZ"])
 
                     elif cfg["name"] == "Feroxbuster":
-                        cmd.extend(
-                            ["-w", wordlist, "-t", threads, "-u", v_url]
-                        )
+                        cmd.extend(["-w", wordlist, "-t", threads, "-u", v_url])
                         if config.RECURSION_DEPTH_P3 > 0:
-                            cmd.extend(
-                                ["--depth", str(config.RECURSION_DEPTH_P3)]
-                            )
+                            cmd.extend(["--depth", str(config.RECURSION_DEPTH_P3)])
                         else:
                             cmd.append("--no-recursion")
-                        cmd.extend(["-a", utils.user_agent_rotator.get()])
+
+                        cmd.extend(["-a", current_ua])
+
                         if not config.FEROXBUSTER_SMART_FILTER:
                             cmd.append("--dont-filter")
                         elif wc_size := wildcard.get("size"):
                             cmd.extend(["-S", str(wc_size)])
 
                     elif cfg["name"] == "Dirsearch":
-                        cmd.extend(
-                            ["-w", wordlist, "-t", threads, "-u", v_url]
-                        )
+                        cmd.extend(["-w", wordlist, "-t", threads, "-u", v_url])
                         if config.RECURSION_DEPTH_P3 > 0:
                             cmd.extend(
                                 [
@@ -431,24 +422,26 @@ def start_dir_search(
                             )
                         if config.SAFE_MODE:
                             cmd.extend(["--delay", "1-2.5"])
+
+                        # ZMIANA: Dodanie UA dla Dirsearch
+                        cmd.extend(["-H", f"User-Agent: {current_ua}"])
+
                         if not config.DIRSEARCH_SMART_FILTER:
                             cmd.append("--exclude-sizes=0B")
                         elif wc_status := wildcard.get("status"):
                             if wc_status != 200:
-                                cmd.extend(
-                                    ["--exclude-status", str(wc_status)]
-                                )
+                                cmd.extend(["--exclude-status", str(wc_status)])
                             if wc_size := wildcard.get("size"):
-                                cmd.extend(
-                                    ["--exclude-lengths", str(wc_size)]
-                                )
+                                cmd.extend(["--exclude-lengths", str(wc_size)])
 
                     elif cfg["name"] == "Gobuster":
-                        cmd.extend(
-                            ["-w", wordlist, "-t", threads, "-k", "-u", v_url]
-                        )
+                        cmd.extend(["-w", wordlist, "-t", threads, "-k", "-u", v_url])
                         if config.SAFE_MODE:
                             cmd.extend(["--delay", "1500ms"])
+
+                        # ZMIANA: Dodanie UA dla Gobuster
+                        cmd.extend(["-a", current_ua])
+
                         wc_status = wildcard.get("status")
                         if wc_status and wc_status != 404:
                             cmd.extend(["-b", str(wc_status)])
@@ -468,9 +461,7 @@ def start_dir_search(
                 monitor: Optional[utils.WafHealthMonitor]
                 monitor = waf_monitors.get(host_target)
                 if monitor and monitor.is_blocked_event.is_set():
-                    action = _handle_waf_block_detection(
-                        executor, futures_map
-                    )
+                    action = _handle_waf_block_detection(executor, futures_map)
                     if action == "stop":
                         break
                 try:
@@ -485,9 +476,7 @@ def start_dir_search(
             if monitor:
                 monitor.stop()
 
-    all_found_urls = {
-        url for url_list in results_by_tool.values() for url in url_list
-    }
+    all_found_urls = {url for url_list in results_by_tool.values() for url in url_list}
     final_results = {
         "results_by_tool": results_by_tool,
         "all_dirsearch_results": sorted(list(all_found_urls)),
@@ -508,9 +497,7 @@ def start_dir_search(
             temp_file_path = temp_f.name
         config.TEMP_FILES_TO_CLEAN.append(temp_file_path)
 
-        httpx_output_file = os.path.join(
-            config.REPORT_DIR, "httpx_results_phase3.txt"
-        )
+        httpx_output_file = os.path.join(config.REPORT_DIR, "httpx_results_phase3.txt")
         httpx_command = [
             "httpx",
             "-l",
@@ -520,10 +507,12 @@ def start_dir_search(
             "-status-code",
         ]
 
+        # ZMIANA: Zawsze ustawiaj UA, nawet jeśli nie Safe Mode
+        httpx_ua = utils.user_agent_rotator.get()
+        httpx_command.extend(["-H", f"User-Agent: {httpx_ua}"])
+
         if config.SAFE_MODE:
             httpx_command.extend(["-rate-limit", "10"])
-            ua = config.CUSTOM_HEADER or utils.user_agent_rotator.get()
-            httpx_command.extend(["-H", f"User-Agent: {ua}"])
             for header in utils.get_random_browser_headers():
                 httpx_command.extend(["-H", header])
 
@@ -564,9 +553,7 @@ def display_phase3_tool_selection_menu(display_banner_func):
         title = "[bold magenta]Faza 3: Wyszukiwanie Katalogów[/bold magenta]"
         utils.console.print(Align.center(Panel.fit(title)))
         utils.console.print(
-            Align.center(
-                f"Cel: [bold green]{config.ORIGINAL_TARGET}[/bold green]"
-            )
+            Align.center(f"Cel: [bold green]{config.ORIGINAL_TARGET}[/bold green]")
         )
         safe_mode = (
             "[bold green]WŁĄCZONY[/bold green]"
@@ -583,9 +570,7 @@ def display_phase3_tool_selection_menu(display_banner_func):
                 if config.selected_phase3_tools[i]
                 else "[bold red]✗[/bold red]"
             )
-            table.add_row(
-                f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}"
-            )
+            table.add_row(f"[bold cyan][{i+1}][/bold cyan]", f"{status} {tool_name}")
 
         table.add_section()
         table.add_row(
@@ -620,9 +605,7 @@ def display_phase3_tool_selection_menu(display_banner_func):
                     )
                 )
         else:
-            utils.console.print(
-                Align.center("[yellow]Nieprawidłowa opcja.[/yellow]")
-            )
+            utils.console.print(Align.center("[yellow]Nieprawidłowa opcja.[/yellow]"))
         time.sleep(0.1)
 
 
@@ -677,15 +660,9 @@ def display_phase3_settings_menu(display_banner_func):
             else "[bold red]✗[/bold red]"
         )
 
-        table.add_row(
-            "[bold cyan][1][/bold cyan]", f"[{safe_mode}] Tryb bezpieczny"
-        )
-        table.add_row(
-            "[bold cyan][2][/bold cyan]", f"Lista słów: {wordlist_disp}"
-        )
-        table.add_row(
-            "[bold cyan][3][/bold cyan]", f"Głębokość rekursji: {depth_disp}"
-        )
+        table.add_row("[bold cyan][1][/bold cyan]", f"[{safe_mode}] Tryb bezpieczny")
+        table.add_row("[bold cyan][2][/bold cyan]", f"Lista słów: {wordlist_disp}")
+        table.add_row("[bold cyan][3][/bold cyan]", f"Głębokość rekursji: {depth_disp}")
         table.add_row(
             "[bold cyan][4][/bold cyan]",
             f"[{dirsearch_filter}] Inteligentne filtrowanie Dirsearch",
@@ -694,9 +671,7 @@ def display_phase3_settings_menu(display_banner_func):
             "[bold cyan][5][/bold cyan]",
             f"[{ferox_filter}] Inteligentne filtrowanie Feroxbuster",
         )
-        table.add_row(
-            "[bold cyan][6][/bold cyan]", f"[{waf_check}] Monitor blokad WAF"
-        )
+        table.add_row("[bold cyan][6][/bold cyan]", f"[{waf_check}] Monitor blokad WAF")
         table.add_row(
             "[bold cyan][7][/bold cyan]",
             f"Ignorowane rozszerzenia: {ignored_ext_disp}",
@@ -706,9 +681,7 @@ def display_phase3_settings_menu(display_banner_func):
 
         utils.console.print(Align.center(table))
         choice = utils.get_single_char_input_with_prompt(
-            Text.from_markup(
-                "[bold cyan]Wybierz opcję[/bold cyan]", justify="center"
-            )
+            Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center")
         )
 
         if choice == "1":
@@ -749,11 +722,8 @@ def display_phase3_settings_menu(display_banner_func):
                 default=current_ext_str,
             )
             config.IGNORED_EXTENSIONS = [
-                ext.strip().lower()
-                for ext in new_ext_str.split(",")
-                if ext.strip()
+                ext.strip().lower() for ext in new_ext_str.split(",") if ext.strip()
             ]
             config.USER_CUSTOMIZED_IGNORED_EXTENSIONS = True
         elif choice.lower() == "b":
             break
-

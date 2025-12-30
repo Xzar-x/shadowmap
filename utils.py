@@ -125,13 +125,15 @@ def execute_tool_command(
     except Exception as e:
         log_and_echo(f"BŁĄD: Ogólny błąd wykonania '{cmd_str}': {e}", "ERROR")
         if not config.QUIET_MODE:
-            console.print(Align.center(f"[bold red]❌ BŁĄD: {tool_name}: {e}[/bold red]"))
+            console.print(
+                Align.center(f"[bold red]❌ BŁĄD: {tool_name}: {e}[/bold red]")
+            )
         return None
 
 
 # --- Klasa do rotacji User-Agentów ---
 class UserAgentRotator:
-    """Zarządza listą User-Agentów i rotuje je."""
+    """Zarządza listą User-Agentów i rotuje je lub zwraca stały UA."""
 
     def __init__(self, user_agents_file: str, rotation_interval: int = 50):
         self.user_agents = self._load_user_agents(user_agents_file)
@@ -153,7 +155,11 @@ class UserAgentRotator:
             return [line.strip() for line in f if line.strip()]
 
     def get(self) -> str:
-        """Pobiera User-Agenta, rotując go w razie potrzeby."""
+        """Pobiera User-Agenta. Jeśli ustawiono custom UA, zawsze zwraca ten sam."""
+        # PRIORYTET DLA USTAWIENIA UŻYTKOWNIKA
+        if config.USER_CUSTOMIZED_USER_AGENT and config.CUSTOM_HEADER:
+            return config.CUSTOM_HEADER
+
         with self.lock:
             self.call_count += 1
             if self.call_count % self.rotation_interval == 0:
@@ -163,6 +169,74 @@ class UserAgentRotator:
 
 # Globalna instancja rotatora, dostępna dla wszystkich modułów
 user_agent_rotator = UserAgentRotator(config.USER_AGENTS_FILE)
+
+
+# --- Zarządzanie Zakresem (Scope) ---
+
+
+def is_target_in_scope(target: str) -> bool:
+    """
+    Sprawdza, czy cel mieści się w zakresie, weryfikując go z globalną
+    listą wykluczeń (config.OUT_OF_SCOPE_ITEMS).
+
+    Obsługuje:
+    - Dokładne dopasowania (np. "admin.google.com")
+    - Wildcardy subdomen (np. "*.google.com" wyklucza "mail.google.com")
+    - Wildcardy jako prefiks (np. w configu user podał "*.domena", a sprawdzamy "sub.domena")
+    """
+    if not config.OUT_OF_SCOPE_ITEMS:
+        return True
+
+    # Normalizacja celu (usuń http/s i ścieżkę)
+    clean_target = (
+        target.replace("https://", "").replace("http://", "").split("/")[0].lower()
+    )
+
+    for excluded in config.OUT_OF_SCOPE_ITEMS:
+        excluded = excluded.strip().lower()
+        if not excluded:
+            continue
+
+        # Normalizacja wykluczenia
+        clean_excluded = (
+            excluded.replace("https://", "").replace("http://", "").split("/")[0]
+        )
+
+        # 1. Obsługa wildcard (np. *.google.com)
+        if clean_excluded.startswith("*."):
+            root_excluded = clean_excluded[2:]
+            # Jeśli cel to root_excluded lub kończy się na .root_excluded
+            if clean_target == root_excluded or clean_target.endswith(
+                "." + root_excluded
+            ):
+                return False
+
+        # 2. Dokładne dopasowanie lub bycie subdomeną wykluczonej domeny
+        else:
+            if clean_target == clean_excluded:
+                return False
+            if clean_target.endswith("." + clean_excluded):
+                return False
+
+    return True
+
+
+def filter_targets_scope(targets: List[str]) -> List[str]:
+    """Filtruje listę celów, usuwając te znajdujące się poza zakresem (out-of-scope)."""
+    filtered = [t for t in targets if is_target_in_scope(t)]
+    excluded_count = len(targets) - len(filtered)
+    if excluded_count > 0:
+        log_and_echo(f"Odsiano {excluded_count} celów (Out of Scope).", "INFO")
+    return filtered
+
+
+def apply_exclusions(domains: List[str], exclusions: List[str] = None) -> List[str]:
+    """
+    Wrapper dla kompatybilności wstecznej, używa nowej logiki scope.
+    """
+    # Jeśli przekazano lokalne wykluczenia, dodaj je tymczasowo do logiki (opcjonalnie)
+    # W nowym modelu polegamy głównie na config.OUT_OF_SCOPE_ITEMS
+    return filter_targets_scope(domains)
 
 
 # --- Klasa monitora WAF ---
@@ -283,11 +357,12 @@ def is_tor_active() -> bool:
 
 
 def handle_safe_mode_tor_check():
+    # Sprawdzenie, czy użytkownik wymusił Proxy - jeśli tak, to ma priorytet nad Safe Mode
+    if config.USER_CUSTOMIZED_PROXY:
+        return
+
     if not config.SAFE_MODE:
-        if (
-            not config.USER_CUSTOMIZED_PROXY
-            and config.PROXY == "socks5://127.0.0.1:9050"
-        ):
+        if config.PROXY == "socks5://127.0.0.1:9050":
             config.PROXY = None
         return
 
@@ -302,8 +377,7 @@ def handle_safe_mode_tor_check():
             border_style="green",
         )
         console.print(Align.center(panel))
-        if not config.USER_CUSTOMIZED_PROXY:
-            config.PROXY = "socks5://127.0.0.1:9050"
+        config.PROXY = "socks5://127.0.0.1:9050"
     else:
         panel_text = (
             "! Usługa Tor NIE JEST AKTYWNA.\nTryb Bezpieczny będzie "
@@ -320,10 +394,7 @@ def handle_safe_mode_tor_check():
         )
         get_single_char_input()
 
-        if (
-            not config.USER_CUSTOMIZED_PROXY
-            and config.PROXY == "socks5://127.0.0.1:9050"
-        ):
+        if config.PROXY == "socks5://127.0.0.1:9050":
             config.PROXY = None
     time.sleep(0.5)
 
@@ -378,26 +449,6 @@ def filter_critical_urls(urls: List[str]) -> List[str]:
         for url in urls
         if any(keyword in url.lower() for keyword in critical_keywords)
     ]
-
-
-def apply_exclusions(domains: List[str], exclusions: List[str]) -> List[str]:
-    if not exclusions:
-        return domains
-    filtered_domains = []
-    for domain in domains:
-        is_excluded = False
-        for pattern in exclusions:
-            if pattern.startswith("*."):
-                if domain.endswith(pattern[2:]):
-                    is_excluded = True
-                    break
-            else:
-                if domain == pattern:
-                    is_excluded = True
-                    break
-        if not is_excluded:
-            filtered_domains.append(domain)
-    return filtered_domains
 
 
 def get_single_char_input_with_prompt(
@@ -495,7 +546,6 @@ def get_random_browser_headers() -> List[str]:
     return headers
 
 
-# --- NOWA FUNKCJA ---
 def check_required_tools() -> List[str]:
     """
     Sprawdza, czy wszystkie wymagane narzędzia CLI są zainstalowane.

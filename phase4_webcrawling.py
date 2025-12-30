@@ -22,23 +22,34 @@ import utils
 
 
 def _run_and_parse_crawl_tool(
-    tool_name: str, command: List[str], target_url: str, timeout: int
+    tool_name: str,
+    command: List[str],
+    target_url: str,
+    timeout: int,
+    input_text: Optional[str] = None,
 ) -> List[str]:
     """
     Uruchamia narzędzie do web crawlingu i parsuje jego output.
+    Obsługuje również narzędzia wymagające danych na STDIN (input_text).
     """
     results: Set[str] = set()
     cmd_str = " ".join(f'"{p}"' if " " in p else p for p in command)
+
+    # Logowanie z informacją o pipingu, jeśli występuje
+    log_cmd = cmd_str
+    if input_text:
+        log_cmd = f'echo "{input_text.strip()}" | {cmd_str}'
+
     utils.console.print(
         f"[bold cyan]Uruchamiam {tool_name}:[/bold cyan] "
-        f"[dim white]{cmd_str}[/dim white]"
+        f"[dim white]{log_cmd}[/dim white]"
     )
 
     try:
-        # ParamSpider i niektóre narzędzia mogą wymagać uruchomienia w shellu,
-        # ale subprocess.run z listą argumentów jest bezpieczniejszy.
+        # Uruchomienie procesu z opcjonalnym inputem
         process = subprocess.run(
             command,
+            input=input_text,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -46,314 +57,303 @@ def _run_and_parse_crawl_tool(
             errors="ignore",
         )
 
-        phase4_dir = os.path.join(config.REPORT_DIR, "faza4_webcrawling")
-        sanitized_target = re.sub(r"https?://", "", target_url).replace("/", "_")
-        sanitized_target = sanitized_target.replace(":", "_")
-        raw_output_file = os.path.join(
-            phase4_dir, f"{tool_name.lower()}_{sanitized_target}.txt"
-        )
-
-        with open(raw_output_file, "w", encoding="utf-8") as f:
-            f.write(f"--- Raw output for {tool_name} on {target_url} ---\n\n")
-            f.write(process.stdout)
-            if process.stderr:
-                f.write("\n\n--- STDERR ---\n\n")
-                f.write(process.stderr)
+        if process.stderr:
+            # Loguj błędy, ale nie panikuj, crawlery często rzucają warningami
+            utils.log_and_echo(
+                f"STDERR ({tool_name}): {process.stderr[:200]}...", "DEBUG"
+            )
 
         # Parsowanie wyników
-        # Większość narzędzi zwraca jeden URL na linię
-        url_pattern = re.compile(r"https?://[^\s\"'<>]+")
+        output_lines = process.stdout.splitlines()
 
-        # Wstępne filtrowanie linii, aby usunąć logi narzędzi (np. [INF], [ERR])
-        lines = process.stdout.splitlines()
+        # Specyficzne parsowanie dla różnych narzędzi
+        for line in output_lines:
+            line = line.strip()
+            if not line:
+                continue
 
-        # Specjalna obsługa LinkFinder
-        if tool_name == "LinkFinder":
-            ep_pattern = r"^(?!\[\+\]|\[i\]|\[!\])(?:'|\")?(/[a-zA-Z0-9_./-]+)"
-            endpoint_pattern = re.compile(ep_pattern)
-            for line in lines:
-                clean_line = line.strip()
-                # Szukaj pełnych URLi
-                url_match = url_pattern.search(clean_line)
-                if url_match:
-                    found_urls = [url_match.group(0)]
+            # Usuń kody kolorów ANSI
+            ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+            clean_line = ansi_escape.sub("", line)
+
+            found_url = ""
+
+            if tool_name == "ParamSpider":
+                # ParamSpider zwraca: [green]URL[/green] lub po prostu URL
+                if clean_line.startswith("http"):
+                    found_url = clean_line
+
+            elif tool_name == "LinkFinder":
+                # LinkFinder: zazwyczaj " Link: http..." lub po prostu w outputcie
+                if "http" in clean_line:
+                    match = re.search(r"(https?://[\w\.-]+\S+)", clean_line)
+                    if match:
+                        found_url = match.group(1)
+
+            elif tool_name in ["Katana", "Hakrawler", "Gauplus"]:
+                # Te narzędzia zazwyczaj wypluwają czyste URL-e
+                if clean_line.startswith("http"):
+                    found_url = clean_line
+
+            # --- KLUCZOWE: FILTROWANIE ZAKRESU (SCOPE) ---
+            if found_url:
+                # Normalizacja
+                found_url = found_url.strip()
+
+                # Sprawdź, czy URL jest w zakresie
+                if utils.is_target_in_scope(found_url):
+                    results.add(found_url)
                 else:
-                    found_urls = []
-
-                # Szukaj endpointów względnych (LinkFinder często je zwraca)
-                if not found_urls:
-                    endpoint_match = endpoint_pattern.search(clean_line)
-                    if endpoint_match:
-                        # Buduj pełny URL na podstawie celu
-                        base_url = "/".join(
-                            target_url.split("/")[:3]
-                        )  # protokół + domena
-                        full_url = f"{base_url}{endpoint_match.group(1)}"
-                        found_urls.append(full_url)
-
-                for url in found_urls:
-                    results.add(url.strip().strip("'\"").rstrip("/"))
-
-        # Obsługa ParamSpider (może zwracać linie typu [Active] url)
-        elif tool_name == "ParamSpider":
-            for line in lines:
-                match = url_pattern.search(line)
-                if match:
-                    results.add(match.group(0))
-
-        # Standardowa obsługa (Katana, Hakrawler, Gauplus)
-        else:
-            found_urls = url_pattern.findall(process.stdout)
-            for url in found_urls:
-                stripped_url = url.strip().strip("'\"").rstrip("/")
-                if stripped_url:
-                    results.add(stripped_url)
-
-        if process.returncode == 0:
-            msg = (
-                f"✅ {tool_name} zakończył dla {target_url}. "
-                f"Znaleziono {len(results)} URLi."
-            )
-            utils.console.print(f"[bold green]{msg}[/bold green]")
-        else:
-            # Niektóre narzędzia zwracają non-zero jeśli nic nie znajdą lub mają warningi
-            msg = (
-                f"{tool_name} dla {target_url} zakończył z kodem {process.returncode}."
-            )
-            utils.log_and_echo(msg, "DEBUG")
+                    # Opcjonalnie loguj odrzucone (debug)
+                    # utils.log_and_echo(f"Odrzucono out-of-scope: {found_url}", "DEBUG")
+                    pass
 
     except subprocess.TimeoutExpired:
-        msg = f"'{tool_name}' dla {target_url} przekroczył limit czasu."
-        utils.log_and_echo(msg, "WARN")
+        utils.console.print(f"[yellow]Timeout dla {tool_name} na {target_url}[/yellow]")
     except Exception as e:
-        msg = f"Błąd wykonania '{tool_name}' dla {target_url}: {e}"
-        utils.log_and_echo(msg, "ERROR")
+        utils.console.print(f"[red]Błąd uruchamiania {tool_name}: {e}[/red]")
 
     return sorted(list(results))
 
 
-def _categorize_urls(urls: List[str]) -> Dict[str, List[str]]:
-    """
-    Kategoryzuje listę URL-i na podstawie słów kluczowych i wzorców.
-    """
-    categorized: Dict[str, List[str]] = {
-        "parameters": [],
-        "js_files": [],
-        "api_endpoints": [],
-        "interesting_paths": [],
-        "all_urls": sorted(list(set(urls))),
-    }
-    api_keywords = ["api", "rest", "graphql", "rpc", "json", "xml", "v1", "v2"]
-    interesting_ext = [
-        ".json",
-        ".xml",
-        ".yml",
-        ".yaml",
-        ".conf",
-        ".config",
-        ".bak",
-        ".old",
-        ".zip",
-        ".tar.gz",
-        ".sql",
-        ".db",
-        ".env",
-    ]
-    interesting_kws = [
-        "swagger",
-        "openapi",
-        "debug",
-        "test",
-        "backup",
-        "dump",
-        "admin",
-        "dashboard",
-        "panel",
-    ]
-
-    for url in categorized["all_urls"]:
-        url_lower = url.lower()
-        if "?" in url and "=" in url:
-            categorized["parameters"].append(url)
-        if url_lower.endswith(".js") or ".js?" in url_lower:
-            categorized["js_files"].append(url)
-        if any(keyword in url_lower for keyword in api_keywords):
-            categorized["api_endpoints"].append(url)
-        if any(url_lower.endswith(ext) for ext in interesting_ext) or any(
-            kw in url_lower for kw in interesting_kws
-        ):
-            categorized["interesting_paths"].append(url)
-
-    for key in categorized:
-        if key != "all_urls":
-            categorized[key] = sorted(list(set(categorized[key])))
-
-    return categorized
-
-
 def start_web_crawl(
-    urls: List[str],
+    targets: List[str],
     progress_obj: Optional[Progress] = None,
     main_task_id: Optional[TaskID] = None,
-) -> Dict[str, List[str]]:
+) -> Dict[str, Any]:
     """
-    Uruchamia Fazę 4: Web Crawling, agreguje i kategoryzuje wyniki.
+    Główna funkcja Fazy 4.
     """
-    msg = f"Rozpoczynam Fazę 4 - Web Crawling dla {len(urls)} celów."
-    utils.log_and_echo(msg, "INFO")
-    all_found_urls: Set[str] = set()
+    utils.console.print(
+        Align.center("[bold green]Rozpoczynam Fazę 4 - Web Crawling[/bold green]")
+    )
 
-    # Konfiguracja podstawowa narzędzi
+    # Globalny kontener na wyniki
+    all_crawled_urls: Set[str] = set()
+    parameters_found: Set[str] = set()
+    js_files_found: Set[str] = set()
+    api_endpoints_found: Set[str] = set()
+    interesting_paths_found: Set[str] = set()
+
+    # Przygotowanie konfiguracji narzędzi
     # Kolejność w config.selected_phase4_tools:
-    # 0: Katana, 1: Hakrawler, 2: ParamSpider, 3: LinkFinder, 4: Gauplus
-    tool_configs: List[Dict[str, Any]] = [
-        {
-            "name": "Katana",
-            "enabled": config.selected_phase4_tools[0],
-            "cmd_template": [
-                "katana",
-                "-silent",
-                "-nc",  # No color (wg help.txt)
-                "-d",
-                str(config.CRAWL_DEPTH_P4),
-                "-jc",  # JS crawl (wg help.txt)
-                "-kf",
-                "all",  # Known files (wg help.txt, warto dodać)
-            ],
-        },
-        {
-            "name": "Hakrawler",
-            "enabled": config.selected_phase4_tools[1],
-            "cmd_template": [
-                "hakrawler",
-                "-d",
-                str(config.CRAWL_DEPTH_P4),
-                "-insecure",
-            ],
-        },
-        {
-            "name": "ParamSpider",
-            "enabled": config.selected_phase4_tools[2],
-            "cmd_template": ["paramspider", "-s"],  # -s stream (wg help.txt)
-        },
-        {
-            "name": "LinkFinder",
-            "enabled": config.selected_phase4_tools[3],
-            "cmd_template": ["linkfinder", "-d"],  # -d domain mode
-        },
-        {
-            "name": "Gauplus",
-            "enabled": config.selected_phase4_tools[4],
-            "cmd_template": ["gauplus", "-t", "50", "-random-agent"],
-        },
-    ]
+    # 0: Katana
+    # 1: Hakrawler
+    # 2: ParamSpider
+    # 3: LinkFinder
+    # 4: Gauplus
 
-    # Dostosowanie do Safe Mode
-    if config.SAFE_MODE:
-        for cfg in tool_configs:
-            if cfg["name"] == "Katana":
-                # Katana w safe mode: headless, wolniej, limit rate
-                if config.USE_HEADLESS_BROWSER:
-                    cfg["cmd_template"].append("-headless")
-                if config.AUTO_FORM_FILL:
-                    cfg["cmd_template"].append(
-                        "-aff"
-                    )  # Automatic form fill (wg help.txt)
-                cfg["cmd_template"].extend(["-rl", "10"])  # Rate limit
-            if cfg["name"] == "Gauplus":
-                # Zmniejszamy wątki dla Gauplus w Safe Mode
-                if "-t" in cfg["cmd_template"]:
-                    idx = cfg["cmd_template"].index("-t")
-                    cfg["cmd_template"][idx + 1] = "5"
+    # Pobierz globalny User-Agent (uwzględnia flagę custom)
+    current_ua = utils.user_agent_rotator.get()
 
-    # Obsługa Proxy (zgodnie z help.txt)
-    if config.PROXY:
-        for cfg in tool_configs:
-            if cfg["name"] in ["Katana", "Hakrawler"]:
-                cfg["cmd_template"].extend(["-proxy", config.PROXY])
-            if cfg["name"] == "ParamSpider":
-                # ParamSpider używa --proxy (zgodnie z help.txt)
-                cfg["cmd_template"].extend(["--proxy", config.PROXY])
+    tools_to_run = []
 
+    # 1. Katana
+    if config.selected_phase4_tools[0]:
+        base_cmd = ["katana", "-silent", "-jc"]
+        # Dodaj UA
+        base_cmd.extend(["-H", f"User-Agent: {current_ua}"])
+
+        if config.CRAWL_DEPTH_P4 > 1:
+            base_cmd.extend(["-d", str(config.CRAWL_DEPTH_P4)])
+
+        if config.USE_HEADLESS_BROWSER:
+            base_cmd.append("-headless")
+
+        tools_to_run.append(
+            {
+                "name": "Katana",
+                "cmd_template": base_cmd,
+                "use_stdin": False,
+                "arg_format": ["-u", "TARGET"],
+            }
+        )
+
+    # 2. Hakrawler
+    if config.selected_phase4_tools[1]:
+        base_cmd = ["hakrawler", "-subs"]
+        # Dodaj UA
+        base_cmd.extend(["-h", f"User-Agent: {current_ua}"])
+
+        if config.CRAWL_DEPTH_P4 > 1:
+            base_cmd.extend(["-d", str(config.CRAWL_DEPTH_P4)])
+
+        tools_to_run.append(
+            {
+                "name": "Hakrawler",
+                "cmd_template": base_cmd,
+                "use_stdin": True,  # Hakrawler lubi stdin: echo url | hakrawler
+                "arg_format": [],
+            }
+        )
+
+    # 3. ParamSpider
+    if config.selected_phase4_tools[2]:
+        # ParamSpider zazwyczaj bierze domenę, nie pełny URL, ale spróbujemy dostosować
+        # Dla bezpieczeństwa używamy domeny z targetu
+        base_cmd = ["paramspider"]
+        # ParamSpider nie ma standardowej flagi UA w prostym CLI, polega na requests
+        tools_to_run.append(
+            {
+                "name": "ParamSpider",
+                "cmd_template": base_cmd,
+                "use_stdin": False,
+                "arg_format": ["-d", "DOMAIN"],  # Wymaga domeny
+            }
+        )
+
+    # 4. LinkFinder
+    if config.selected_phase4_tools[3]:
+        base_cmd = ["linkfinder", "-o", "cli"]
+        tools_to_run.append(
+            {
+                "name": "LinkFinder",
+                "cmd_template": base_cmd,
+                "use_stdin": False,
+                "arg_format": ["-i", "TARGET"],
+            }
+        )
+
+    # 5. Gauplus
+    if config.selected_phase4_tools[4]:
+        base_cmd = ["gauplus", "-t", str(config.THREADS), "--random-agent"]
+        # Gauplus ma flagę --random-agent, ale skoro chcemy custom UA?
+        # Gauplus nie ma flagi -H dla nagłówków w prosty sposób w starszych wersjach,
+        # ale spróbujemy bez --random-agent jeśli user wymusił.
+        # W standardzie gauplus bierze stdin lub domeny.
+        if config.USER_CUSTOMIZED_USER_AGENT:
+            # Usuwamy --random-agent jeśli był w defaultach, tu go nie dodałem wyżej
+            pass
+
+        tools_to_run.append(
+            {
+                "name": "Gauplus",
+                "cmd_template": base_cmd,
+                "use_stdin": True,
+                "arg_format": [],
+            }
+        )
+
+    # Wykonanie zadań
     with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
-        futures: List[Future] = []
-        for url in urls:
-            # Wyciągamy domenę dla narzędzi, które jej wymagają
-            parsed_url = urlparse(url)
-            domain = parsed_url.netloc
-            if not domain:
-                domain = url  # Fallback
+        futures_map = {}
 
-            for cfg in tool_configs:
-                if cfg["enabled"]:
-                    cmd = list(cfg["cmd_template"])
-                    current_ua = utils.user_agent_rotator.get()
+        for target in targets:
+            # Wyciągnij domenę dla narzędzi, które jej wymagają (ParamSpider)
+            parsed = urlparse(target)
+            domain = parsed.netloc or target
 
-                    # Specyficzne flagi wejściowe dla każdego narzędzia
-                    if cfg["name"] == "Katana":
-                        cmd.extend(["-H", f"User-Agent: {current_ua}"])
-                        # Katana używa -u dla inputu (zgodnie z help.txt)
-                        cmd.extend(["-u", url])
+            for tool in tools_to_run:
+                # Sprawdź dostępność narzędzia
+                exe_name = config.TOOL_EXECUTABLE_MAP.get(tool["name"])
+                # Specjalny przypadek dla LinkFinder (skrypt python) i ParamSpider
+                if (
+                    tool["name"] == "LinkFinder"
+                    and "linkfinder" in config.MISSING_TOOLS
+                ):
+                    continue
+                if (
+                    tool["name"] == "ParamSpider"
+                    and "paramspider" in config.MISSING_TOOLS
+                ):
+                    continue
+                # Ogólne sprawdzenie
+                if exe_name and exe_name in config.MISSING_TOOLS:
+                    continue
 
-                    elif cfg["name"] == "Hakrawler":
-                        cmd.extend(["-header", f"User-Agent: {current_ua}"])
-                        # Hakrawler zazwyczaj używa -url dla inputu (nie -u)
-                        cmd.extend(["-url", url])
+                cmd = tool["cmd_template"].copy()
+                input_str = None
 
-                    elif cfg["name"] == "ParamSpider":
-                        # ParamSpider wymaga domeny (-d), a nie URL
-                        cmd.extend(["-d", domain])
+                # Konstrukcja argumentów
+                if tool["arg_format"]:
+                    for arg in tool["arg_format"]:
+                        if arg == "TARGET":
+                            cmd.append(target)
+                        elif arg == "DOMAIN":
+                            cmd.append(domain)
+                        else:
+                            cmd.append(arg)
 
-                    elif cfg["name"] == "LinkFinder":
-                        # LinkFinder używa -i dla inputu (URL lub plik)
-                        cmd.extend(["-i", url])
+                # Obsługa STDIN
+                if tool["use_stdin"]:
+                    input_str = target
 
-                    elif cfg["name"] == "Gauplus":
-                        # Gauplus przyjmuje domenę jako argument pozycyjny
-                        cmd.append(domain)
+                future = executor.submit(
+                    _run_and_parse_crawl_tool,
+                    tool["name"],
+                    cmd,
+                    target,
+                    config.TOOL_TIMEOUT_SECONDS,
+                    input_str,
+                )
+                futures_map[future] = tool["name"]
 
-                    futures.append(
-                        executor.submit(
-                            _run_and_parse_crawl_tool,
-                            cfg["name"],
-                            cmd,
-                            url,
-                            config.TOOL_TIMEOUT_SECONDS,
-                        )
-                    )
-
-        for future in as_completed(futures):
+        # Zbieranie wyników
+        for future in as_completed(futures_map):
+            t_name = futures_map[future]
             try:
-                all_found_urls.update(future.result())
+                urls = future.result()
+                all_crawled_urls.update(urls)
+
+                # Wstępna kategoryzacja
+                for u in urls:
+                    u_lower = u.lower()
+                    if "=" in u:
+                        parameters_found.add(u)
+                    if u_lower.endswith(".js"):
+                        js_files_found.add(u)
+                    if "api" in u_lower or "/v1/" in u_lower or "graphql" in u_lower:
+                        api_endpoints_found.add(u)
+
+                    # Ciekawostki
+                    interesting_keywords = [
+                        "admin",
+                        "login",
+                        "config",
+                        "env",
+                        "dashboard",
+                        "secret",
+                    ]
+                    if any(k in u_lower for k in interesting_keywords):
+                        interesting_paths_found.add(u)
+
             except Exception as e:
-                utils.log_and_echo(f"Błąd w wątku crawlera: {e}", "ERROR")
+                utils.log_and_echo(f"Błąd przetwarzania wyników {t_name}: {e}", "ERROR")
+
             if progress_obj and main_task_id is not None:
                 progress_obj.update(main_task_id, advance=1)
 
-    final_results = _categorize_urls(list(all_found_urls))
-    count = len(final_results["all_urls"])
-    msg = f"Ukończono fazę 4. Znaleziono {count} unikalnych URLi."
-    utils.log_and_echo(msg, "INFO")
-    return final_results
+    # Przygotowanie wyniku końcowego
+    results = {
+        "all_urls": sorted(list(all_crawled_urls)),
+        "parameters": sorted(list(parameters_found)),
+        "js_files": sorted(list(js_files_found)),
+        "api_endpoints": sorted(list(api_endpoints_found)),
+        "interesting_paths": sorted(list(interesting_paths_found)),
+    }
+
+    utils.log_and_echo(
+        f"Faza 4 zakończona. Znaleziono łącznie {len(all_crawled_urls)} unikalnych URLi.",
+        "INFO",
+    )
+    return results
 
 
 def display_phase4_tool_selection_menu(display_banner_func):
     while True:
         utils.console.clear()
         display_banner_func()
-        title = "[bold magenta]Faza 4: Web Crawling & Discovery[/bold magenta]"
-        utils.console.print(Align.center(Panel.fit(title)))
-        safe_mode_status = (
-            "[bold green]WŁĄCZONY[/bold green]"
-            if config.SAFE_MODE
-            else "[bold red]WYŁĄCZONY[/bold red]"
-        )
         utils.console.print(
             Align.center(
-                f"Cel: [bold green]{config.ORIGINAL_TARGET}[/bold green] | "
-                f"Tryb bezpieczny: {safe_mode_status}"
+                Panel.fit(
+                    "[bold magenta]Faza 4: Web Crawling & Discovery[/bold magenta]"
+                )
             )
         )
+        utils.console.print(
+            Align.center(f"Cel: [bold green]{config.ORIGINAL_TARGET}[/bold green]")
+        )
+
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
         tool_names = [
             "Katana (Aktywny crawler)",
@@ -362,71 +362,77 @@ def display_phase4_tool_selection_menu(display_banner_func):
             "LinkFinder (Analiza JS)",
             "Gauplus (Pasywne z archiwów)",
         ]
+
         for i, tool_name in enumerate(tool_names):
-            # Sprawdzenie dostępności narzędzia w systemie
-            # Pobieramy nazwę binarki z mapy w configu (bez opisu w nawiasie)
-            base_name = tool_names[i].split(" (")[0]
-            tool_exe = config.TOOL_EXECUTABLE_MAP.get(
-                tool_name
-            )  # Tu może być potrzebna korekta klucza
-            # Fallback jeśli klucz w mapie nie pasuje idealnie do wyświetlanej nazwy
-            if not tool_exe:
-                # Próba dopasowania po fragmencie
-                for key, val in config.TOOL_EXECUTABLE_MAP.items():
-                    if base_name in key:
-                        tool_exe = val
-                        break
+            idx = i  # Indeks w config.selected_phase4_tools
+            is_selected = config.selected_phase4_tools[idx]
 
-            is_missing = tool_exe and tool_exe in config.MISSING_TOOLS
+            # Sprawdź dostępność
+            # Mapowanie nazw wyświetlanych na klucze w TOOL_EXECUTABLE_MAP
+            map_key = tool_name  # Domyślnie
+            # Musimy dopasować klucze z config.py, które są nieco inne
+            # "Katana (Aktywny crawler)" -> "katana" (value)
+            # Uproszczona logika:
+            executable = ""
+            if "Katana" in tool_name:
+                executable = "katana"
+            elif "Hakrawler" in tool_name:
+                executable = "hakrawler"
+            elif "ParamSpider" in tool_name:
+                executable = "paramspider"
+            elif "LinkFinder" in tool_name:
+                executable = "linkfinder"
+            elif "Gauplus" in tool_name:
+                executable = "gauplus"
 
-            status = (
+            is_missing = executable in config.MISSING_TOOLS
+
+            status_icon = (
                 "[bold green]✓[/bold green]"
-                if config.selected_phase4_tools[i]
+                if is_selected
                 else "[bold red]✗[/bold red]"
             )
+            display_str = f"{status_icon} {tool_name}"
 
-            display_name = f"{status} {tool_name}"
-            row_style = ""
-
+            style = ""
             if is_missing:
-                display_name = f"[dim]✗ {tool_name} (niedostępne)[/dim]"
-                row_style = "dim"
+                display_str = f"[dim]✗ {tool_name} (niedostępne)[/dim]"
+                style = "dim"
 
-            table.add_row(
-                f"[bold cyan][{i+1}][/bold cyan]", display_name, style=row_style
-            )
+            table.add_row(f"[bold cyan][{i+1}][/bold cyan]", display_str, style=style)
 
         table.add_section()
         table.add_row(
             "[bold cyan][\fs][/bold cyan]",
-            "[bold magenta]Zmień ustawienia Fazy 4[/bold magenta]",
+            "[bold magenta]Ustawienia Fazy 4[/bold magenta]",
         )
-        table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu głównego")
+        table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu")
         table.add_row("[bold cyan][\fq][/bold cyan]", "Wyjdź")
+
         utils.console.print(Align.center(table))
-        utils.console.print(
-            Align.center("[bold cyan]Rekomendacja: Włącz Katana i Gauplus.[/bold cyan]")
+        prompt = Text.from_markup(
+            "[bold cyan]Wybierz opcję[/bold cyan]", justify="center"
         )
-        prompt_text = Text.from_markup(
-            "[bold cyan]Wybierz opcję i naciśnij Enter[/bold cyan]",
-            justify="center",
-        )
-        choice = utils.get_single_char_input_with_prompt(prompt_text)
+        choice = utils.get_single_char_input_with_prompt(prompt)
 
         if choice.isdigit() and 1 <= int(choice) <= 5:
             idx = int(choice) - 1
-            # Sprawdzenie czy narzędzie jest dostępne przed włączeniem
-            base_name = tool_names[idx].split(" (")[0]
-            tool_exe = None
-            for key, val in config.TOOL_EXECUTABLE_MAP.items():
-                if base_name in key:
-                    tool_exe = val
-                    break
+            # Sprawdź czy dostępne przed przełączeniem
+            tool_n = tool_names[idx]
+            executable = ""
+            if "Katana" in tool_n:
+                executable = "katana"
+            elif "Hakrawler" in tool_n:
+                executable = "hakrawler"
+            elif "ParamSpider" in tool_n:
+                executable = "paramspider"
+            elif "LinkFinder" in tool_n:
+                executable = "linkfinder"
+            elif "Gauplus" in tool_n:
+                executable = "gauplus"
 
-            if tool_exe and tool_exe in config.MISSING_TOOLS:
-                utils.console.print(
-                    Align.center("[red]To narzędzie nie jest zainstalowane.[/red]")
-                )
+            if executable in config.MISSING_TOOLS:
+                utils.console.print(Align.center("[red]Narzędzie niedostępne.[/red]"))
                 time.sleep(1)
             else:
                 config.selected_phase4_tools[idx] ^= 1
@@ -441,18 +447,15 @@ def display_phase4_tool_selection_menu(display_banner_func):
             if any(config.selected_phase4_tools):
                 return True
             else:
-                msg = "[bold yellow]Wybierz co najmniej jedno narzędzie.[/bold yellow]"
-                utils.console.print(Align.center(msg))
+                utils.console.print(
+                    Align.center(
+                        "[yellow]Wybierz co najmniej jedno narzędzie.[/yellow]"
+                    )
+                )
                 time.sleep(1)
-        else:
-            utils.console.print(
-                Align.center("[bold yellow]Nieprawidłowa opcja.[/bold yellow]")
-            )
-        time.sleep(0.1)
 
 
 def display_phase4_settings_menu(display_banner_func):
-    """Wyświetla i obsługuje menu ustawień specyficznych dla Fazy 4."""
     while True:
         utils.console.clear()
         display_banner_func()
@@ -461,105 +464,65 @@ def display_phase4_settings_menu(display_banner_func):
         )
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
 
-        # Przygotowanie wyświetlanych wartości
-        proxy_display = (
-            f"[bold green]{config.PROXY} (Użytkownika)[/bold green]"
-            if config.USER_CUSTOMIZED_PROXY and config.PROXY
-            else f"[dim]{config.PROXY or 'Brak'}[/dim]"
-        )
-        threads_display = (
-            f"[bold green]{config.THREADS} (Użytkownika)[/bold green]"
-            if config.USER_CUSTOMIZED_THREADS
-            else f"[dim]{config.THREADS}[/dim]"
-        )
-        timeout_display = (
-            f"[bold green]{config.TOOL_TIMEOUT_SECONDS}s (Użytkownika)[/bold green]"
-            if config.USER_CUSTOMIZED_TIMEOUT
-            else f"[dim]{config.TOOL_TIMEOUT_SECONDS}s[/dim]"
-        )
-        depth_display = (
-            f"[bold green]{config.CRAWL_DEPTH_P4} (Użytkownika)[/bold green]"
+        # Wyświetlanie wartości
+        depth_val = (
+            f"[bold green]{config.CRAWL_DEPTH_P4}[/bold green]"
             if config.USER_CUSTOMIZED_CRAWL_DEPTH_P4
             else f"[dim]{config.CRAWL_DEPTH_P4}[/dim]"
         )
-        safe_status = (
-            "[bold green]✓[/bold green]"
-            if config.SAFE_MODE
-            else "[bold red]✗[/bold red]"
-        )
-        aff_status = (
-            "[bold green]✓[/bold green]"
-            if config.AUTO_FORM_FILL
-            else "[bold red]✗[/bold red]"
-        )
-        headless_status = (
-            "[bold green]✓[/bold green]"
+        headless_val = (
+            "[bold green]TAK[/bold green]"
             if config.USE_HEADLESS_BROWSER
-            else "[bold red]✗[/bold red]"
+            else "[dim]NIE[/dim]"
+        )
+        threads_val = (
+            f"[bold green]{config.THREADS}[/bold green]"
+            if config.USER_CUSTOMIZED_THREADS
+            else f"[dim]{config.THREADS}[/dim]"
         )
 
-        # Dodawanie wierszy do tabeli
-        table.add_row("[bold cyan][1][/bold cyan]", f"[{safe_status}] Tryb bezpieczny")
+        ua_val = config.CUSTOM_HEADER or "Domyślny (losowy)"
+        if config.USER_CUSTOMIZED_USER_AGENT:
+            ua_disp = f"[bold green]{ua_val} (Użytkownika)[/bold green]"
+        else:
+            ua_disp = f"[dim]{ua_val}[/dim]"
+
         table.add_row(
-            "[bold cyan][2][/bold cyan]",
-            f"Głębokość crawlera: {depth_display}",
+            "[bold cyan][1][/bold cyan]", f"Głębokość crawlowania: {depth_val}"
         )
         table.add_row(
-            "[bold cyan][3][/bold cyan]",
-            f"[{aff_status}] Wypełnianie formularzy (Katana -aff)",
+            "[bold cyan][2][/bold cyan]", f"Headless Browser (Katana): {headless_val}"
         )
-        table.add_row(
-            "[bold cyan][4][/bold cyan]",
-            f"[{headless_status}] Przeglądarka headless (Katana -headless)",
-        )
-        table.add_row("[bold cyan][5][/bold cyan]", f"Proxy: {proxy_display}")
-        table.add_row("[bold cyan][6][/bold cyan]", f"Liczba wątków: {threads_display}")
-        table.add_row(
-            "[bold cyan][7][/bold cyan]",
-            f"Limit czasu narzędzia: {timeout_display}",
-        )
+        table.add_row("[bold cyan][3][/bold cyan]", f"Wątki: {threads_val}")
+        table.add_row("[bold cyan][4][/bold cyan]", f"User-Agent: {ua_disp}")
+
         table.add_section()
-        table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót do menu Fazy 4")
+        table.add_row("[bold cyan][\fb][/bold cyan]", "Powrót")
 
         utils.console.print(Align.center(table))
         choice = utils.get_single_char_input_with_prompt(
-            Text.from_markup("[bold cyan]Wybierz opcję[/bold cyan]", justify="center")
+            Text("Wybierz opcję", justify="center")
         )
 
-        # Obsługa wyboru użytkownika
         if choice == "1":
-            config.SAFE_MODE = not config.SAFE_MODE
-            utils.handle_safe_mode_tor_check()
-        elif choice == "2":
-            prompt_text = "[bold cyan]Podaj głębokość crawlera (np. 2)[/bold cyan]"
-            new_depth = Prompt.ask(prompt_text, default=str(config.CRAWL_DEPTH_P4))
-            if new_depth.isdigit():
-                config.CRAWL_DEPTH_P4 = int(new_depth)
+            val = Prompt.ask(
+                "Podaj głębokość (1-5)", default=str(config.CRAWL_DEPTH_P4)
+            )
+            if val.isdigit():
+                config.CRAWL_DEPTH_P4 = int(val)
                 config.USER_CUSTOMIZED_CRAWL_DEPTH_P4 = True
-        elif choice == "3":
-            config.AUTO_FORM_FILL = not config.AUTO_FORM_FILL
-            config.USER_CUSTOMIZED_AUTO_FORM_FILL = True
-        elif choice == "4":
+        elif choice == "2":
             config.USE_HEADLESS_BROWSER = not config.USE_HEADLESS_BROWSER
             config.USER_CUSTOMIZED_USE_HEADLESS = True
-        elif choice == "5":
-            prompt_text = "[bold cyan]Podaj adres proxy (puste, by usunąć)[/bold cyan]"
-            new_proxy = Prompt.ask(prompt_text, default=config.PROXY or "")
-            config.PROXY = new_proxy if new_proxy else None
-            config.USER_CUSTOMIZED_PROXY = bool(new_proxy)
-        elif choice == "6":
-            prompt_text = "[bold cyan]Podaj liczbę wątków[/bold cyan]"
-            new_threads = Prompt.ask(prompt_text, default=str(config.THREADS))
-            if new_threads.isdigit():
-                config.THREADS = int(new_threads)
+        elif choice == "3":
+            val = Prompt.ask("Liczba wątków", default=str(config.THREADS))
+            if val.isdigit():
+                config.THREADS = int(val)
                 config.USER_CUSTOMIZED_THREADS = True
-        elif choice == "7":
-            prompt_text = "[bold cyan]Podaj limit czasu (w sekundach)[/bold cyan]"
-            new_timeout = Prompt.ask(
-                prompt_text, default=str(config.TOOL_TIMEOUT_SECONDS)
-            )
-            if new_timeout.isdigit():
-                config.TOOL_TIMEOUT_SECONDS = int(new_timeout)
-                config.USER_CUSTOMIZED_TIMEOUT = True
+        elif choice == "4":
+            new_ua = Prompt.ask("Podaj User-Agent", default=config.CUSTOM_HEADER)
+            if new_ua:
+                config.CUSTOM_HEADER = new_ua
+                config.USER_CUSTOMIZED_USER_AGENT = True
         elif choice.lower() == "b":
             break

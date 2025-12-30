@@ -130,6 +130,18 @@ def display_main_menu() -> str:
         )
     )
 
+    # Informacja o aktywnych filtrach
+    if config.OUT_OF_SCOPE_ITEMS:
+        utils.console.print(
+            Align.center(
+                f"[dim]Aktywne wykluczenia (Scope): {len(config.OUT_OF_SCOPE_ITEMS)} reguł[/dim]"
+            )
+        )
+    if config.USER_CUSTOMIZED_USER_AGENT:
+        utils.console.print(
+            Align.center(f"[dim]User-Agent: {config.CUSTOM_HEADER}[/dim]")
+        )
+
     table = Table(show_header=False, show_edge=False, padding=(0, 2))
     table.add_row("[bold cyan][1][/bold cyan]", "Faza 1: Odkrywanie Subdomen")
     table.add_row("[bold cyan][2][/bold cyan]", "Faza 2: Skanowanie Portów")
@@ -144,6 +156,17 @@ def display_main_menu() -> str:
 
 
 def parse_target_input(target_input: str):
+    # OBSŁUGA WILDCARD: Jeśli cel zaczyna się od *., usuwamy to.
+    if target_input.startswith("*."):
+        raw_target = target_input
+        target_input = target_input[2:]
+        utils.console.print(
+            Align.center(
+                f"[bold blue]Info: Wykryto wildcard '{raw_target}'. "
+                f"Skanowanie domeny głównej: {target_input}[/bold blue]"
+            )
+        )
+
     config.ORIGINAL_TARGET = target_input
     clean_target = re.sub(r"^(https|http)://", "", target_input).strip("/")
     ip_match = re.match(r"^\d{1,3}(\.\d{1,3}){3}$", clean_target)
@@ -199,7 +222,10 @@ def detect_waf_and_propose_safe_mode():
                 )
             )
             question = "Włączyć Tryb Bezpieczny?"
-            if not config.AUTO_MODE and utils.ask_user_decision(question, ["y", "n"], "y") == "y":
+            if (
+                not config.AUTO_MODE
+                and utils.ask_user_decision(question, ["y", "n"], "y") == "y"
+            ):
                 config.SAFE_MODE = True
                 utils.handle_safe_mode_tor_check()
         else:
@@ -248,6 +274,7 @@ def generate_json_report(scan_results: Dict[str, Any]) -> Optional[str]:
                 "domain": config.CLEAN_DOMAIN_TARGET,
                 "scan_time": datetime.datetime.now().isoformat(),
                 "shadowmap_version": "1.2.0",
+                "scope_exclusions": config.OUT_OF_SCOPE_ITEMS,
             },
             "phase0_osint": scan_results.get("phase0_osint", {}),
             "phase1_subdomain": {
@@ -284,13 +311,11 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
     """Generuje raport HTML na podstawie zagregowanych wyników."""
     utils.console.print(Align.center("[blue]Generowanie raportu HTML...[/blue]"))
 
-    # ZMIANA: Dodano funkcje pomocnicze do bezpiecznego osadzania danych
+    # ZMIANA: Funkcje pomocnicze
     def escape_for_script_tag(json_string: str) -> str:
-        """Escapes a JSON string to be safely embedded inside a <script type='application/json'> tag."""
         return json_string.replace("</script>", "<\\/script>")
 
     def escape_for_js_template_literal(text: str) -> str:
-        """Escapes a string to be safely embedded inside a JavaScript template literal (backticks)."""
         if not text:
             return ""
         return (
@@ -352,15 +377,17 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
                 exploit_items = ""
                 for e in exploits:
                     score = e.get("score", 0)
-                    score_color = "red" if score >= 80 else "orange" if score >= 40 else "green"
+                    score_color = (
+                        "red" if score >= 80 else "orange" if score >= 40 else "green"
+                    )
                     exploit_items += (
-                        f'<li>'
+                        f"<li>"
                         f'<a href="https://www.exploit-db.com/exploits/{e.get("id", "")}" target="_blank">'
                         f'<span class="exploit-score" style="background-color:{score_color}">{score}</span>'
                         f'<span class="exploit-id">EDB-ID: {e.get("id", "N/A")}</span>'
                         f'<span class="exploit-type">{e.get("type", "Info")}</span>'
                         f'{e.get("title", "N/A")}'
-                        f'</a></li>'
+                        f"</a></li>"
                     )
 
                 html_parts.append(
@@ -371,16 +398,21 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
             searchsploit_html = "".join(html_parts)
 
     def convert_urls_to_objects(urls: List[str]) -> List[Dict[str, Any]]:
-        return [{"url": url, "status_code": None, "last_modified": None} for url in (urls or [])]
+        return [
+            {"url": url, "status_code": None, "last_modified": None}
+            for url in (urls or [])
+        ]
 
     p4_all_urls_obj = convert_urls_to_objects(p4_results.get("all_urls", []))
     p4_params_obj = convert_urls_to_objects(p4_results.get("parameters", []))
     p4_js_obj = convert_urls_to_objects(p4_results.get("js_files", []))
     p4_api_obj = convert_urls_to_objects(p4_results.get("api_endpoints", []))
-    p4_interesting_obj = convert_urls_to_objects(p4_results.get("interesting_paths", []))
+    p4_interesting_obj = convert_urls_to_objects(
+        p4_results.get("interesting_paths", [])
+    )
 
     nmap_files = p2_results.get("nmap_files", {})
-    
+
     replacements = {
         "{{DOMAIN}}": str(config.HOSTNAME_TARGET or "Brak"),
         "{{OSINT_IP}}": str(p0_data.get("ip", "Brak")),
@@ -403,31 +435,43 @@ def generate_html_report(scan_results: Dict[str, Any]) -> Optional[str]:
         "{{ASSETFINDER_OUTPUT}}": read_file(p1_files.get("Assetfinder")),
         "{{FINDOMAIN_OUTPUT}}": read_file(p1_files.get("Findomain")),
         "{{PUREDNS_OUTPUT}}": read_file(p1_files.get("Puredns")),
-        "{{FFUF_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Ffuf", [])),
-        "{{FEROXBUSTER_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Feroxbuster", [])),
-        "{{DIRSEARCH_P3_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Dirsearch", [])),
-        "{{GOBUSTER_OUTPUT}}": "\n".join(p3_results.get("results_by_tool", {}).get("Gobuster", [])),
-        
-        # ZMIANA: Bezpieczne osadzanie danych JSON
+        "{{FFUF_OUTPUT}}": "\n".join(
+            p3_results.get("results_by_tool", {}).get("Ffuf", [])
+        ),
+        "{{FEROXBUSTER_OUTPUT}}": "\n".join(
+            p3_results.get("results_by_tool", {}).get("Feroxbuster", [])
+        ),
+        "{{DIRSEARCH_P3_OUTPUT}}": "\n".join(
+            p3_results.get("results_by_tool", {}).get("Dirsearch", [])
+        ),
+        "{{GOBUSTER_OUTPUT}}": "\n".join(
+            p3_results.get("results_by_tool", {}).get("Gobuster", [])
+        ),
         "{{HTTPX_OUTPUT_JSON_P1}}": escape_for_script_tag(json.dumps(active_urls_data)),
         "{{HTTPX_OUTPUT_JSON_P3}}": escape_for_script_tag(json.dumps(p3_verified_data)),
-        "{{NMAP_RESULTS_RAW_JSON}}": escape_for_script_tag(json.dumps({t: read_file(f) for t, f in (nmap_files or {}).items()})),
+        "{{NMAP_RESULTS_RAW_JSON}}": escape_for_script_tag(
+            json.dumps({t: read_file(f) for t, f in (nmap_files or {}).items()})
+        ),
         "{{PHASE4_ALL_URLS_JSON}}": escape_for_script_tag(json.dumps(p4_all_urls_obj)),
         "{{PHASE4_PARAMETERS_JSON}}": escape_for_script_tag(json.dumps(p4_params_obj)),
         "{{PHASE4_JS_FILES_JSON}}": escape_for_script_tag(json.dumps(p4_js_obj)),
         "{{PHASE4_API_ENDPOINTS_JSON}}": escape_for_script_tag(json.dumps(p4_api_obj)),
-        "{{PHASE4_INTERESTING_PATHS_JSON}}": escape_for_script_tag(json.dumps(p4_interesting_obj)),
-
-        # ZMIANA: Bezpieczne osadzanie surowych danych
-        "{{NAABU_RAW_OUTPUT}}": escape_for_js_template_literal(read_file(p2_results.get("naabu_file"))),
-        "{{MASSCAN_RAW_OUTPUT}}": escape_for_js_template_literal(read_file(p2_results.get("masscan_file"))),
-        
-        # Pola liczbowe dla fazy 4
+        "{{PHASE4_INTERESTING_PATHS_JSON}}": escape_for_script_tag(
+            json.dumps(p4_interesting_obj)
+        ),
+        "{{NAABU_RAW_OUTPUT}}": escape_for_js_template_literal(
+            read_file(p2_results.get("naabu_file"))
+        ),
+        "{{MASSCAN_RAW_OUTPUT}}": escape_for_js_template_literal(
+            read_file(p2_results.get("masscan_file"))
+        ),
         "{{COUNT_ALL_URLS_P4}}": str(len(p4_results.get("all_urls", []))),
         "{{COUNT_PARAMETERS}}": str(len(p4_results.get("parameters", []))),
         "{{COUNT_JS_FILES}}": str(len(p4_results.get("js_files", []))),
         "{{COUNT_API_ENDPOINTS}}": str(len(p4_results.get("api_endpoints", []))),
-        "{{COUNT_INTERESTING_PATHS}}": str(len(p4_results.get("interesting_paths", []))),
+        "{{COUNT_INTERESTING_PATHS}}": str(
+            len(p4_results.get("interesting_paths", []))
+        ),
     }
 
     for placeholder, value in replacements.items():
@@ -450,36 +494,64 @@ def cleanup_temp_files():
             pass
 
 
-def run_full_auto_scan(scan_results: Dict[str, Any], p0_data: Dict[str, Any], best_target_url: str):
-    utils.console.print(Align.center(Panel("[bold cyan]Uruchamiam pełny skan automatyczny[/bold cyan]")))
-    
+def run_full_auto_scan(
+    scan_results: Dict[str, Any], p0_data: Dict[str, Any], best_target_url: str
+):
+    utils.console.print(
+        Align.center(Panel("[bold cyan]Uruchamiam pełny skan automatyczny[/bold cyan]"))
+    )
+
     p1_files, active_urls, all_subdomains = phase1_subdomain.start_phase1_scan()
+
+    # --- FILTROWANIE OUT-OF-SCOPE (AUTO) ---
+    all_subdomains = utils.filter_targets_scope(all_subdomains)
+    active_urls = [u for u in active_urls if utils.is_target_in_scope(u["url"])]
+    # --------------------------------
+
     scan_results["phase1_raw_files"] = p1_files
     scan_results["phase1_active_urls"] = active_urls
     scan_results["phase1_all_subdomains"] = all_subdomains
-    
-    targets_for_phase2_3 = [item["url"] for item in active_urls] if active_urls else [best_target_url]
+
+    targets_for_phase2_3 = (
+        [item["url"] for item in active_urls] if active_urls else [best_target_url]
+    )
     if not active_urls:
-        utils.console.print(Align.center("[yellow]Brak aktywnych subdomen. Kontynuuję z celem głównym.[/yellow]"))
+        utils.console.print(
+            Align.center(
+                "[yellow]Brak aktywnych subdomen (lub odfiltrowane przez Scope). Kontynuuję z celem głównym.[/yellow]"
+            )
+        )
 
     p2_res = phase2_port_scanning.start_port_scan(targets_for_phase2_3, None, None)
     scan_results["phase2_results"] = p2_res
     if not p2_res.get("open_ports_by_host"):
-        utils.console.print(Align.center("[yellow]Nie znaleziono otwartych portów.[/yellow]"))
-    
+        utils.console.print(
+            Align.center("[yellow]Nie znaleziono otwartych portów.[/yellow]")
+        )
+
     tech = p0_data.get("technologies", [])
-    p3_res, p3_verified = phase3_dirsearch.start_dir_search(targets_for_phase2_3, tech, None, None)
+    p3_res, p3_verified = phase3_dirsearch.start_dir_search(
+        targets_for_phase2_3, tech, None, None
+    )
     scan_results["phase3_results"] = p3_res
     scan_results["phase3_verified_urls"] = p3_verified
 
-    targets_for_phase4 = [item["url"] for item in p3_verified] if p3_verified else targets_for_phase2_3
+    targets_for_phase4 = (
+        [item["url"] for item in p3_verified] if p3_verified else targets_for_phase2_3
+    )
     if not p3_verified:
-        utils.console.print(Align.center("[yellow]Brak zweryfikowanych URLi z Fazy 3. Używam celów z Fazy 1.[/yellow]"))
+        utils.console.print(
+            Align.center(
+                "[yellow]Brak zweryfikowanych URLi z Fazy 3. Używam celów z Fazy 1.[/yellow]"
+            )
+        )
 
     p4_res = phase4_webcrawling.start_web_crawl(targets_for_phase4, None, None)
     scan_results["phase4_results"] = p4_res
-    
-    utils.console.print(Align.center(Panel("[bold green]Skan automatyczny zakończony[/bold green]")))
+
+    utils.console.print(
+        Align.center(Panel("[bold green]Skan automatyczny zakończony[/bold green]"))
+    )
 
 
 @app.command()
@@ -505,7 +577,14 @@ def main(
         None,
         "-e",
         "--exclude",
-        help="Wyklucz subdomeny (np. '-e test.example.com').",
+        help="Wyklucz domeny/pliki (obsługuje wildcard *.domena, pliki .txt).",
+        rich_help_panel="Tuning",
+    ),
+    user_agent: Optional[str] = typer.Option(
+        None,
+        "--user-agent",
+        "-ua",
+        help="Ustaw własny User-Agent (wymagane przez niektóre programy BB).",
         rich_help_panel="Tuning",
     ),
     safe_mode: bool = typer.Option(
@@ -556,6 +635,39 @@ def main(
         )
         time.sleep(3)
 
+    # 1. Obsługa Custom User-Agent
+    if user_agent:
+        config.CUSTOM_HEADER = user_agent
+        config.USER_CUSTOMIZED_USER_AGENT = True
+        utils.console.print(
+            f"[green]✓ Ustawiono niestandardowy User-Agent: {user_agent}[/green]"
+        )
+
+    # 2. Obsługa Exclusions (-e)
+    # Flaga -e może być podana wielokrotnie. Sprawdzamy, czy to plik czy string.
+    if exclude:
+        for item in exclude:
+            if os.path.isfile(item):
+                try:
+                    with open(item, "r", encoding="utf-8") as f:
+                        lines = [line.strip() for line in f if line.strip()]
+                        config.OUT_OF_SCOPE_ITEMS.extend(lines)
+                        utils.console.print(
+                            f"[dim]Wczytano {len(lines)} wykluczeń z pliku {item}[/dim]"
+                        )
+                except Exception as e:
+                    utils.console.print(
+                        f"[yellow]Ostrzeżenie: Nie udało się wczytać pliku wykluczeń {item}: {e}[/yellow]"
+                    )
+            else:
+                # Traktujemy jako pojedynczy wzorzec (domena lub wildcard)
+                config.OUT_OF_SCOPE_ITEMS.append(item)
+
+    if config.OUT_OF_SCOPE_ITEMS:
+        utils.console.print(
+            f"[blue]Załadowano {len(config.OUT_OF_SCOPE_ITEMS)} reguł wykluczeń (Out of Scope).[/blue]"
+        )
+
     targets_to_scan: List[str] = []
     if target_list and target_list.is_file():
         with open(target_list) as f:
@@ -576,17 +688,22 @@ def main(
         config.selected_phase2_tools = list(config.silent_selected_phase2_tools)
         config.selected_phase3_tools = list(config.silent_selected_phase3_tools)
         config.selected_phase4_tools = list(config.silent_selected_phase4_tools)
-        
+
     config.SAFE_MODE = safe_mode
     config.PROXY = proxy
-    config.EXCLUSION_PATTERNS = exclude or []
     config.OUTPUT_BASE_DIR = str(output_dir)
 
     scan_initiated = False
     try:
         for current_target in targets_to_scan:
-            scan_results: Dict[str, Any] = {}
+            # Wstępne filtrowanie celu głównego, jeśli jest na liście wykluczeń
+            if not utils.is_target_in_scope(current_target):
+                utils.console.print(
+                    f"[yellow]Cel {current_target} jest wykluczony (Out of Scope). Pomijam.[/yellow]"
+                )
+                continue
 
+            scan_results: Dict[str, Any] = {}
             targets_for_phase2_3, targets_for_phase4 = [], []
 
             parse_target_input(current_target)
@@ -604,7 +721,7 @@ def main(
                 os.makedirs(os.path.join(config.REPORT_DIR, phase_dir), exist_ok=True)
 
             scan_initiated = True
-            
+
             p0_data, best_target_url = phase0_osint.start_phase0_osint()
             scan_results["phase0_osint"] = p0_data
             config.ORIGINAL_TARGET = best_target_url
@@ -617,7 +734,7 @@ def main(
                 report_path = generate_html_report(scan_results)
                 if report_path:
                     open_html_report(report_path)
-                continue 
+                continue
 
             choice = ""
             while True:
@@ -631,6 +748,14 @@ def main(
                         p1_files, active_urls, all_subdomains = (
                             phase1_subdomain.start_phase1_scan()
                         )
+
+                        # --- FILTROWANIE OUT-OF-SCOPE (INTERAKTYWNE) ---
+                        all_subdomains = utils.filter_targets_scope(all_subdomains)
+                        active_urls = [
+                            u for u in active_urls if utils.is_target_in_scope(u["url"])
+                        ]
+                        # -----------------------------------------------
+
                         scan_results["phase1_raw_files"] = p1_files
                         scan_results["phase1_active_urls"] = active_urls
                         scan_results["phase1_all_subdomains"] = all_subdomains
@@ -649,7 +774,7 @@ def main(
                                 choice = "2"
                                 continue
                         else:
-                            msg = "[yellow]Brak aktywnych subdomen.[/yellow]"
+                            msg = "[yellow]Brak aktywnych subdomen (lub odfiltrowane przez Scope).[/yellow]"
                             utils.console.print(Align.center(msg))
                             time.sleep(2)
                     choice = ""

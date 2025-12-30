@@ -52,12 +52,12 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
         enabled_tools_indices = [
             i for i, enabled in enumerate(config.selected_phase1_tools) if enabled
         ]
-        
+
         available_tools_count = 0
         for i in enabled_tools_indices:
             tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_names[i])
             if tool_exe and tool_exe not in config.MISSING_TOOLS:
-                 # Pomiń pasywne dla IP
+                # Pomiń pasywne dla IP
                 if not (config.TARGET_IS_IP and i < 3):
                     available_tools_count += 1
 
@@ -89,7 +89,8 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
             config.RESOLVERS_FILE,
             "--rate-limit",
             str(puredns_rate),
-            "-t", str(config.THREADS), # ZMIANA: Dodano liczbę wątków
+            "-t",
+            str(config.THREADS),
             "-q",
         ]
 
@@ -120,16 +121,28 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                     "-q",
                 ],
             },
-            {"name": "Puredns", "cmd_template": puredns_cmd, "display_name": "Puredns (bruteforce)"},
+            {
+                "name": "Puredns",
+                "cmd_template": puredns_cmd,
+                "display_name": "Puredns (bruteforce)",
+            },
         ]
 
         tasks_to_run = []
         for i, tool_cfg in enumerate(tool_configurations):
             tool_display_name = tool_cfg.get("display_name", tool_cfg["name"])
             tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_display_name)
-            
-            if config.selected_phase1_tools[i] and tool_exe and tool_exe not in config.MISSING_TOOLS:
-                is_passive = tool_cfg["name"] in ["Subfinder", "Assetfinder", "Findomain"]
+
+            if (
+                config.selected_phase1_tools[i]
+                and tool_exe
+                and tool_exe not in config.MISSING_TOOLS
+            ):
+                is_passive = tool_cfg["name"] in [
+                    "Subfinder",
+                    "Assetfinder",
+                    "Findomain",
+                ]
                 if config.TARGET_IS_IP and is_passive:
                     continue
                 output_path = os.path.join(
@@ -183,7 +196,22 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
             domain_part in clean_line or clean_line == config.CLEAN_DOMAIN_TARGET
         ):
             unique_lines_set.add(clean_line)
+
     unique_lines = sorted(list(unique_lines_set))
+
+    # --- NOWE: Filtrowanie Zakresu (Scope) ---
+    original_count = len(unique_lines)
+    # Usuwamy domeny out-of-scope przed zapisaniem i weryfikacją
+    unique_lines = utils.filter_targets_scope(unique_lines)
+
+    if len(unique_lines) < original_count:
+        removed = original_count - len(unique_lines)
+        utils.console.print(
+            Align.center(
+                f"[yellow]Odfiltrowano {removed} subdomen (Out of Scope).[/yellow]"
+            )
+        )
+    # ------------------------------------------
 
     with open(unique_subdomains_file, "w", encoding="utf-8") as f:
         f.write("\n".join(unique_lines))
@@ -192,7 +220,9 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
     status_msg = "[bold green]Weryfikuję subdomeny (HTTPX)...[/bold green]"
     if "httpx" not in config.MISSING_TOOLS:
         with utils.console.status(status_msg):
-            httpx_output_file = os.path.join(config.REPORT_DIR, "httpx_results_phase1.txt")
+            httpx_output_file = os.path.join(
+                config.REPORT_DIR, "httpx_results_phase1.txt"
+            )
             httpx_rate_limit = config.HTTPX_P1_RATE_LIMIT
             if config.SAFE_MODE and not config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT:
                 httpx_rate_limit = 10
@@ -208,8 +238,11 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                 "-rate-limit",
                 str(httpx_rate_limit),
             ]
-            current_ua = config.CUSTOM_HEADER or utils.user_agent_rotator.get()
+
+            # Użyj scentralizowanego UA (uwzględnia flagę custom)
+            current_ua = utils.user_agent_rotator.get()
             httpx_command.extend(["-H", f"User-Agent: {current_ua}"])
+
             if config.SAFE_MODE:
                 httpx_command.extend(["-p", "80,443,8000,8080,8443"])
                 for header in utils.get_random_browser_headers():
@@ -233,7 +266,8 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                             try:
                                 data = json.loads(line)
                                 url = data.get("url")
-                                if url:
+                                # Dodatkowe sprawdzenie scope (dla bezpieczeństwa)
+                                if url and utils.is_target_in_scope(url):
                                     headers = {
                                         k.lower(): v
                                         for k, v in data.get("header", {}).items()
@@ -249,8 +283,11 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                             except (json.JSONDecodeError, TypeError):
                                 continue
     else:
-        utils.console.print(Align.center("[yellow]Ostrzeżenie: httpx nie jest dostępny. Pomijam weryfikację subdomen.[/yellow]"))
-
+        utils.console.print(
+            Align.center(
+                "[yellow]Ostrzeżenie: httpx nie jest dostępny. Pomijam weryfikację subdomen.[/yellow]"
+            )
+        )
 
     sorted_active_urls = sorted(active_urls_meta, key=lambda x: x["url"])
     return output_files, sorted_active_urls, unique_lines
@@ -287,16 +324,16 @@ def display_phase1_tool_selection_menu(display_banner_func):
         for i, tool_name in enumerate(tool_names):
             tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_name)
             is_missing = tool_exe and tool_exe in config.MISSING_TOOLS
-            
+
             status = (
                 "[bold green]✓[/bold green]"
                 if config.selected_phase1_tools[i]
                 else "[bold red]✗[/bold red]"
             )
-            
+
             row_style = ""
             display_name = f"{status} {tool_name}"
-            
+
             if is_missing:
                 display_name = f"[dim]✗ {tool_name} (niedostępne)[/dim]"
                 row_style = "dim"
@@ -304,8 +341,9 @@ def display_phase1_tool_selection_menu(display_banner_func):
                 display_name = f"[dim]{status} {tool_name} (pominięto dla IP)[/dim]"
                 row_style = "dim"
 
-            table.add_row(f"[bold cyan][{i+1}][/bold cyan]", display_name, style=row_style)
-
+            table.add_row(
+                f"[bold cyan][{i+1}][/bold cyan]", display_name, style=row_style
+            )
 
         table.add_section()
         table.add_row(
@@ -325,9 +363,11 @@ def display_phase1_tool_selection_menu(display_banner_func):
         if choice.isdigit() and 1 <= int(choice) <= 4:
             idx = int(choice) - 1
             tool_exe = config.TOOL_EXECUTABLE_MAP.get(tool_names[idx])
-            
+
             if tool_exe and tool_exe in config.MISSING_TOOLS:
-                utils.console.print(Align.center("[red]To narzędzie nie jest zainstalowane.[/red]"))
+                utils.console.print(
+                    Align.center("[red]To narzędzie nie jest zainstalowane.[/red]")
+                )
                 time.sleep(1)
             elif config.TARGET_IS_IP and idx < 3:
                 msg = "[yellow]Nie można włączyć narzędzi pasywnych dla IP.[/yellow]"
@@ -392,11 +432,14 @@ def display_phase1_settings_menu(display_banner_func):
             if config.USER_CUSTOMIZED_THREADS
             else f"[dim]{config.THREADS}[/dim]"
         )
-        ua_disp = (
-            f"[bold green]{config.CUSTOM_HEADER} (Użytkownika)[/bold green]"
-            if config.USER_CUSTOMIZED_USER_AGENT and config.CUSTOM_HEADER
-            else "[dim]Domyślny (losowy)[/dim]"
-        )
+
+        # User Agent Logic Display
+        ua_val = config.CUSTOM_HEADER or "Domyślny (losowy)"
+        if config.USER_CUSTOMIZED_USER_AGENT:
+            ua_disp = f"[bold green]{ua_val} (Użytkownika)[/bold green]"
+        else:
+            ua_disp = f"[dim]{ua_val}[/dim]"
+
         puredns_rate_disp = (
             f"[bold green]{config.PUREDNS_RATE_LIMIT} (Użytkownika)[/bold green]"
             if config.USER_CUSTOMIZED_PUREDNS_RATE_LIMIT
@@ -430,7 +473,7 @@ def display_phase1_settings_menu(display_banner_func):
             "[bold cyan][3][/bold cyan]", f"Plik resolverów: {resolvers_disp}"
         )
         table.add_row("[bold cyan][4][/bold cyan]", f"Wątki: {threads_disp}")
-        table.add_row("[bold cyan][5][/bold cyan]", f"User-Agent (Httpx): {ua_disp}")
+        table.add_row("[bold cyan][5][/bold cyan]", f"User-Agent: {ua_disp}")
         table.add_row(
             "[bold cyan][6][/bold cyan]",
             f"Rate Limit (Puredns): {puredns_rate_disp}",
@@ -481,8 +524,11 @@ def display_phase1_settings_menu(display_banner_func):
         elif choice == "5":
             prompt = "[bold cyan]Podaj własny User-Agent[/bold cyan]"
             new_ua = Prompt.ask(prompt, default=config.CUSTOM_HEADER)
-            config.CUSTOM_HEADER = new_ua
-            config.USER_CUSTOMIZED_USER_AGENT = bool(new_ua)
+            if new_ua:
+                config.CUSTOM_HEADER = new_ua
+                config.USER_CUSTOMIZED_USER_AGENT = True
+            else:
+                config.USER_CUSTOMIZED_USER_AGENT = False
         elif choice == "6":
             prompt = "[bold cyan]Podaj rate limit dla Puredns[/bold cyan]"
             new_rate = Prompt.ask(prompt, default=str(config.PUREDNS_RATE_LIMIT))
@@ -497,4 +543,3 @@ def display_phase1_settings_menu(display_banner_func):
                 config.USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT = True
         elif choice.lower() == "b":
             break
-

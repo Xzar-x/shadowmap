@@ -55,7 +55,7 @@ TOOL_EXECUTABLE_MAP: Dict[str, str] = {
     "Gobuster": "gobuster",
     # Faza 4
     "Katana (Aktywny crawler)": "katana",
-    "Hakrawler (Aktywny crawler)": "hakrawler",
+    "Hakrawler (Aktywny crawler)": "ParamSpider (Parametry)",
     "ParamSpider (Parametry)": "paramspider",
     "LinkFinder (Analiza JS)": "linkfinder",
     "Gauplus (Pasywne z archiwów)": "gauplus",
@@ -70,9 +70,10 @@ OUTPUT_BASE_DIR: str = os.getcwd()
 REPORT_DIR: str = ""
 TEMP_FILES_TO_CLEAN: List[str] = []
 SAFE_MODE: bool = False
-CUSTOM_HEADER: str = ""
+CUSTOM_HEADER: str = ""  # Tutaj trafi Twój custom User-Agent (np. Xzar-integrity)
 PROXY: Optional[str] = None
-EXCLUSION_PATTERNS: List[str] = []
+EXCLUSION_PATTERNS: List[str] = []  # Stara zmienna (kompatybilność)
+OUT_OF_SCOPE_ITEMS: List[str] = []  # NOWA: Globalna lista wykluczeń (domeny/pliki)
 MISSING_TOOLS: List[str] = []  # Nowa zmienna przechowująca brakujące narzędzia
 
 # --- Filtrowanie OSINT ---
@@ -164,6 +165,7 @@ silent_selected_phase4_tools: List[int] = [1, 1, 1, 1, 1]
 
 
 # --- Flagi ręcznych zmian przez użytkownika ---
+# Jeśli te flagi są True, ignorujemy ustawienia automatyczne/Safe Mode
 USER_CUSTOMIZED_WORDLIST_PHASE1: bool = False
 USER_CUSTOMIZED_WORDLIST_PHASE3: bool = False
 USER_CUSTOMIZED_USER_AGENT: bool = False
