@@ -377,6 +377,7 @@ def handle_safe_mode_tor_check():
             Text(panel_text, justify="center"),
             title="[bold green]Tor Aktywny[/bold green]",
             border_style="green",
+            expand=False,
         )
         console.print(Align.center(panel))
         config.PROXY = "socks5://127.0.0.1:9050"
@@ -389,6 +390,7 @@ def handle_safe_mode_tor_check():
             Text(panel_text, justify="center"),
             title="[bold red]Ostrzeżenie: Tor Nieaktywny[/bold red]",
             border_style="red",
+            expand=False,
         )
         console.print(Align.center(panel))
         console.print(
@@ -506,20 +508,47 @@ def get_random_user_agent_header() -> str:
 
 
 def shuffle_wordlist(input_path: str, report_dir: str) -> Optional[str]:
+    """
+    Wczytuje listę słów, tasuje ją i zapisuje do pliku tymczasowego.
+    Zapewnia poprawne formatowanie linii.
+    """
+    if not os.path.exists(input_path):
+        log_and_echo(f"Wordlist not found: {input_path}", "WARN")
+        return None
+
     try:
-        with open(input_path, "r", encoding="utf-8") as f:
-            lines = [line for line in f if line.strip()]
+        # Upewnij się, że katalog raportu istnieje
+        if report_dir and not os.path.exists(report_dir):
+            os.makedirs(report_dir, exist_ok=True)
+
+        # Jeśli report_dir jest pusty, użyj domyślnego tmp systemu
+        target_dir = report_dir if report_dir else None
+
+        with open(input_path, "r", encoding="utf-8", errors="ignore") as f:
+            # Czytamy, stripujemy i dodajemy nową linię, aby uniknąć sklejania słów
+            lines = [line.strip() + "\n" for line in f if line.strip()]
+
+        if not lines:
+            log_and_echo(f"Wordlist is empty: {input_path}", "WARN")
+            return None
+
         random.shuffle(lines)
+
         temp_file = tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
             delete=False,
-            dir=report_dir,
+            dir=target_dir,
             prefix="shuffled_wordlist_",
             suffix=".txt",
         )
         temp_file.writelines(lines)
         temp_file.close()
+
+        if not config.QUIET_MODE:
+            # console.print(f"[dim]Potasowano listę słów: {os.path.basename(input_path)} -> {os.path.basename(temp_file.name)}[/dim]")
+            pass
+
         return temp_file.name
     except Exception as e:
         log_and_echo(f"Nie udało się potasować '{input_path}': {e}", "ERROR")

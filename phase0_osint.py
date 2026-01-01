@@ -278,49 +278,90 @@ def _extract_version(tech_string: str) -> Tuple[str, List[str]]:
 
 
 def _score_exploit(exploit: Dict[str, str], version: str) -> Tuple[int, str]:
-    """Ocenia exploit na podstawie jego typu i tytułu."""
+    """
+    Ocenia exploit na podstawie jego typu i tytułu.
+    Zwraca krotkę (wynik punktowy, sugerowany typ).
+    """
     title = exploit.get("Title", "").lower()
-    type_ = exploit.get("Type", "").lower()
     path = exploit.get("Path", "").lower()
     score = 0
     inferred_type = "Info"
 
-    # Ocenianie na podstawie typu
-    if "rce" in title or "remote code execution" in title or type_ == "webapps":
+    # --- 1. Klasyfikacja Typu Zagrożenia ---
+
+    # RCE - Najwyższy priorytet
+    if any(x in title for x in ["rce", "remote code execution", "command injection"]):
         score += 100
         inferred_type = "RCE"
-    elif "sqli" in title or "sql injection" in title:
+
+    # File Upload - Często prowadzi do RCE
+    elif "upload" in title and "arbitrary" in title:
+        score += 90
+        inferred_type = "File Upload"
+
+    # SQL Injection
+    elif any(x in title for x in ["sqli", "sql injection"]):
         score += 80
         inferred_type = "SQLi"
-    elif "lfi" in title or "local file inclusion" in title:
+
+    # Authentication Bypass
+    elif "bypass" in title and ("auth" in title or "login" in title):
+        score += 75
+        inferred_type = "Auth Bypass"
+
+    # LFI / RFI / Path Traversal
+    elif any(x in title for x in ["lfi", "rfi", "local file inclusion", "traversal"]):
         score += 60
         inferred_type = "LFI/Path Traversal"
-    elif "xss" in title:
+
+    # XSS
+    elif "xss" in title or "cross site scripting" in title:
         score += 40
         inferred_type = "XSS"
+
+    # Information Disclosure
+    elif "disclosure" in title or "info" in title:
+        score += 30
+        inferred_type = "Info Disclosure"
+
+    # DoS - Niski priorytet w rekonesansie
     elif "dos" in title or "denial of service" in title:
-        score -= 50
+        score -= 10  # Nie -50, bo to wciąż podatność, ale nisko
         inferred_type = "DoS"
 
-    # Modyfikatory
+    # --- 2. Modyfikatory Kontekstowe ---
+
+    # Zdalne vs Lokalne
     if "remote" in title:
         score += 20
-    if "unauthenticated" in title or "unauth" in title:
-        score += 30
-    if "authenticated" in title or "auth" in title:
-        score -= 10
+
+    # Lokalne exploity są mniej użyteczne w fazie reconu zewnętrznego
     if "local" in title or "privilege escalation" in title:
-        score -= 70
+        score -= 50
         if inferred_type == "Info":
             inferred_type = "LPE"
-            
-    # Sprawdzenie, czy wersja jest w tytule
+
+    # Uwierzytelnienie
+    if "unauthenticated" in title or "unauth" in title or "no auth" in title:
+        score += 30
+    elif "authenticated" in title:
+        score -= 10  # Wymaga konta, więc trudniej wykorzystać z zewnątrz
+
+    # --- 3. Wiarygodność ---
+
+    # Dopasowanie wersji (Bardzo ważne!)
+    # version to string wykryty przez whatweb, np. "1.2.3"
+    # Sprawdzamy czy ten numer jest w tytule exploita
     if version and version in title:
         score += 50
-        
-    # Bonus za skrypty Metasploit, bo są często wiarygodne
-    if "metasploit" in path:
+
+    # Metasploit zazwyczaj oznacza zweryfikowany, działający exploit
+    if "metasploit" in path or ".rb" in path:
         score += 15
+
+    # Zabezpieczenie przed ujemnymi punktami (chyba że to śmieci)
+    if score < 0:
+        score = 0
 
     return score, inferred_type
 
@@ -337,15 +378,19 @@ def get_searchsploit_info(
         for tech in technologies:
             try:
                 tech_name, versions = _extract_version(tech)
+                # Czyścimy nazwę technologii z dziwnych znaków
                 search_terms = re.findall(r"[\w.-]+", tech_name)
-                
+
                 # Dodaj pierwszą znalezioną wersję do wyszukiwania
-                if versions:
-                    search_terms.append(versions[0])
+                # To zawęża wyniki searchsploit, co jest dobre
+                current_version = versions[0] if versions else ""
+                if current_version:
+                    search_terms.append(current_version)
 
                 if not search_terms:
                     continue
 
+                # Uruchomienie searchsploit z wyjściem JSON
                 command = ["searchsploit", "--json"] + search_terms
                 process = subprocess.run(
                     command, capture_output=True, text=True, timeout=60
@@ -365,17 +410,26 @@ def get_searchsploit_info(
 
                         scored_exploits = []
                         for exploit in exploits:
-                            score, inferred_type = _score_exploit(exploit, versions[0] if versions else "")
-                            scored_exploits.append({
-                                "title": exploit.get("Title", "N/A"),
-                                "path": exploit.get("Path", "N/A"),
-                                "id": exploit.get("EDB-ID", "N/A"),
-                                "score": score,
-                                "type": inferred_type,
-                            })
-                        
-                        # Sortuj exploity od najwyższego do najniższego wyniku
-                        results[tech] = sorted(scored_exploits, key=lambda x: x['score'], reverse=True)
+                            score, inferred_type = _score_exploit(
+                                exploit, current_version
+                            )
+
+                            # Filtrujemy totalne śmieci (opcjonalnie można zmienić próg)
+                            # Ale na razie zbieramy wszystko > 0
+                            scored_exploits.append(
+                                {
+                                    "title": exploit.get("Title", "N/A"),
+                                    "path": exploit.get("Path", "N/A"),
+                                    "id": exploit.get("EDB-ID", "N/A"),
+                                    "score": score,
+                                    "type": inferred_type,
+                                }
+                            )
+
+                        # Sortuj exploity od najwyższego wyniku
+                        results[tech] = sorted(
+                            scored_exploits, key=lambda x: x["score"], reverse=True
+                        )
 
             except FileNotFoundError:
                 msg = "Polecenie 'searchsploit' nie jest zainstalowane."
@@ -474,11 +528,16 @@ def start_phase0_osint() -> Tuple[Dict[str, Any], str]:
                 # Pokaż tylko top 3 exploity w podsumowaniu CLI
                 top_exploits_summary = []
                 for exploit in exploit_list[:3]:
-                    score = exploit.get('score', 0)
+                    score = exploit.get("score", 0)
                     color = "green" if score < 40 else "yellow" if score < 80 else "red"
-                    top_exploits_summary.append(f"  - [[{color}]{score}[/{color}]] {exploit['title'][:60]}...")
-                
-                summary = f"[yellow]{tech}[/yellow]: [bold red]{count}[/bold red] znalezionych\n" + "\n".join(top_exploits_summary)
+                    top_exploits_summary.append(
+                        f"  - [[{color}]{score}[/{color}]] {exploit['title'][:60]}..."
+                    )
+
+                summary = (
+                    f"[yellow]{tech}[/yellow]: [bold red]{count}[/bold red] znalezionych\n"
+                    + "\n".join(top_exploits_summary)
+                )
                 exploits_summary.append(summary)
 
         if total_exploits > 0:

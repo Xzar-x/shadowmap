@@ -114,12 +114,15 @@ HTTPX_P1_RATE_LIMIT: int = 150
 # --- Ustawienia Fazy 2 ---
 NMAP_USE_SCRIPTS: bool = False
 NMAP_AGGRESSIVE_SCAN: bool = False
-NMAP_CUSTOM_SCRIPTS: str = ""  # Nowa opcja dla własnych skryptów Nmap
+NMAP_CUSTOM_SCRIPTS: str = ""
 NAABU_SOURCE_PORT: Optional[str] = None
 MASSCAN_RATE: int = 300
 NAABU_RATE: int = 1000
-NMAP_SOLO_SCAN_MODE: str = "default"
-EXCLUDED_PORTS: List[int] = []  # Naprawiono brakującą zmienną
+# Strategia skanowania Nmapa gdy działa sam (bez Naabu/Masscan)
+# Opcje: "top1000", "all", "custom"
+NMAP_SCAN_STRATEGY: str = "top1000"
+NMAP_CUSTOM_PORT_RANGE: str = ""
+EXCLUDED_PORTS: List[int] = []
 
 # --- Ustawienia Fazy 3 ---
 DIRSEARCH_SMART_FILTER: bool = True
@@ -180,7 +183,7 @@ USER_CUSTOMIZED_AUTO_FORM_FILL: bool = False
 USER_CUSTOMIZED_NAABU_SOURCE_PORT: bool = False
 USER_CUSTOMIZED_MASSCAN_RATE: bool = False
 USER_CUSTOMIZED_NAABU_RATE: bool = False
-USER_CUSTOMIZED_NMAP_SOLO_SCAN_MODE: bool = False
+USER_CUSTOMIZED_NMAP_STRATEGY: bool = False
 USER_CUSTOMIZED_NMAP_SCRIPTS: bool = False
 USER_CUSTOMIZED_USE_HEADLESS: bool = False
 USER_CUSTOMIZED_PUREDNS_RATE_LIMIT: bool = False

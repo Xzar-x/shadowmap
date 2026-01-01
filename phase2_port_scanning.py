@@ -2,6 +2,7 @@
 
 import os
 import re
+import socket
 import subprocess
 import tempfile
 from typing import Any, Dict, List, Optional, Set
@@ -29,6 +30,17 @@ def _sanitize_target(target: str) -> str:
     return target
 
 
+def _resolve_to_ip(target: str) -> Optional[str]:
+    """Rozwiązuje nazwę hosta na IP. Zwraca None w przypadku błędu."""
+    try:
+        # Jeśli target to już IP, zwróć go
+        if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", target):
+            return target
+        return socket.gethostbyname(target)
+    except socket.gaierror:
+        return None
+
+
 def _run_scan_tool(
     tool_name: str,
     command: List[str],
@@ -43,7 +55,30 @@ def _run_scan_tool(
     # Sanityzacja celów
     clean_targets = list(set([_sanitize_target(t) for t in targets if t]))
 
-    if not clean_targets:
+    # --- POPRAWKA DLA MASSCANA: WYMAGA IP ---
+    if tool_name == "Masscan":
+        ip_targets = []
+        for t in clean_targets:
+            ip = _resolve_to_ip(t)
+            if ip:
+                ip_targets.append(ip)
+            else:
+                utils.log_and_echo(
+                    f"Masscan: Nie udało się rozwiązać IP dla {t}", "WARN"
+                )
+
+        if not ip_targets:
+            utils.console.print(
+                f"[bold red]Brak poprawnych adresów IP dla Masscana![/bold red]"
+            )
+            return None
+        # Dla Masscana używamy listy IP
+        targets_to_write = ip_targets
+    else:
+        # Dla Naabu/Nmap mogą być domeny
+        targets_to_write = clean_targets
+
+    if not targets_to_write:
         utils.console.print(
             f"[bold red]Brak poprawnych celów dla {tool_name}![/bold red]"
         )
@@ -53,7 +88,7 @@ def _run_scan_tool(
     with tempfile.NamedTemporaryFile(
         mode="w+", delete=False, suffix="_targets.txt"
     ) as tmp_targets:
-        tmp_targets.write("\n".join(clean_targets))
+        tmp_targets.write("\n".join(targets_to_write))
         targets_file_path = tmp_targets.name
 
     # Modyfikacja komendy w zależności od narzędzia, aby używało pliku wejściowego
@@ -280,30 +315,51 @@ def start_port_scan(
         if progress_obj and main_task_id is not None:
             progress_obj.update(main_task_id, advance=1)
 
-    else:
-        # Jeśli nie ma discovery tool, a jest Nmap, przekazujemy wszystkie cele do Nmapa
-        for t in targets:
-            clean_t = _sanitize_target(t)
-            discovered_ports_map[clean_t] = set()  # Pusty set oznacza "skanuj domyślne"
-
     # 2. Skanowanie "głębokie" (Service Detection) - Nmap
     if "Nmap" in active_tools:
+        # Jeśli discovery tool był uruchomiony, ale nic nie znalazł -> pomijamy Nmapa
         if discovery_tool and not discovered_ports_map:
             utils.console.print(
-                "[yellow]Brak otwartych portów do sprawdzenia przez Nmap.[/yellow]"
+                "[yellow]Brak otwartych portów wykrytych w fazie szybkiej. Pomijam Nmap.[/yellow]"
             )
         else:
+            # Jeśli discovery NIE był uruchomiony (sam Nmap) LUB coś znalazł
             nmap_outfile = os.path.join(phase2_dir, "nmap_results.xml")
 
-            # W tej wersji upraszczamy - skanujemy wszystkie unikalne porty na wszystkich hostach
+            # Ustalanie zakresu portów dla Nmapa
             all_detected_ports = set()
-            for p_set in discovered_ports_map.values():
-                all_detected_ports.update(p_set)
+            if discovered_ports_map:
+                # Jeśli mamy wyniki z Naabu/Masscan, używamy ich
+                for p_set in discovered_ports_map.values():
+                    all_detected_ports.update(p_set)
+                utils.console.print(
+                    f"[blue]Nmap sprawdzi {len(all_detected_ports)} portów odkrytych wcześniej.[/blue]"
+                )
+            else:
+                # SOLO MODE - brak wyników discovery, używamy strategii z configu
+                msg_strat = ""
+                if config.NMAP_SCAN_STRATEGY == "all":
+                    msg_strat = "WSZYSTKIE porty (-p-)"
+                elif config.NMAP_SCAN_STRATEGY == "custom":
+                    msg_strat = f"porty użytkownika: {config.NMAP_CUSTOM_PORT_RANGE}"
+                else:
+                    msg_strat = "TOP 1000 portów (domyślnie)"
 
+                utils.console.print(
+                    f"[blue]Nmap działa samodzielnie. Strategia: {msg_strat}[/blue]"
+                )
+
+            # Konstrukcja argumentu -p
             port_arg = ""
             if all_detected_ports:
                 sorted_ports = sorted(list(all_detected_ports))
                 port_arg = ",".join(map(str, sorted_ports))
+            elif config.NMAP_SCAN_STRATEGY == "all":
+                port_arg = "-"
+            elif (
+                config.NMAP_SCAN_STRATEGY == "custom" and config.NMAP_CUSTOM_PORT_RANGE
+            ):
+                port_arg = config.NMAP_CUSTOM_PORT_RANGE
 
             # Komenda Nmap
             cmd = ["nmap"]
@@ -312,9 +368,7 @@ def start_port_scan(
             else:
                 cmd.extend(["-sV", "-sC"])
 
-            if config.NMAP_USE_SCRIPTS and not config.NMAP_CUSTOM_SCRIPTS:
-                pass  # default scripts already in -sC
-            elif config.NMAP_CUSTOM_SCRIPTS:
+            if config.NMAP_CUSTOM_SCRIPTS:
                 cmd.extend(["--script", config.NMAP_CUSTOM_SCRIPTS])
 
             if port_arg:
@@ -322,10 +376,11 @@ def start_port_scan(
 
             cmd.extend(["-oX", nmap_outfile])
 
-            # Jeśli mamy mapę hostów, weźmy te hosty
-            hosts_to_scan = (
-                list(discovered_ports_map.keys()) if discovered_ports_map else targets
-            )
+            # Lista hostów
+            if discovered_ports_map:
+                hosts_to_scan = list(discovered_ports_map.keys())
+            else:
+                hosts_to_scan = targets
 
             utils.console.print(
                 f"[bold yellow]Uruchamiam Nmap na {len(hosts_to_scan)} hostach...[/bold yellow]"
@@ -380,10 +435,7 @@ def display_phase2_tool_selection_menu(display_banner_func):
         ]
 
         for i, tool_name in enumerate(tool_names):
-            # Mapowanie nazwy wyświetlanej na klucz w config.TOOL_EXECUTABLE_MAP
             exe_cmd = config.TOOL_EXECUTABLE_MAP.get(tool_name)
-
-            # Fallback dla kluczy, jeśli nie pasują idealnie
             if "Naabu" in tool_name:
                 exe_cmd = "naabu"
             if "Masscan" in tool_name:
@@ -392,19 +444,15 @@ def display_phase2_tool_selection_menu(display_banner_func):
                 exe_cmd = "nmap"
 
             is_missing = exe_cmd in config.MISSING_TOOLS
-
             status = (
                 "[bold green]✓[/bold green]"
                 if config.selected_phase2_tools[i]
                 else "[bold red]✗[/bold red]"
             )
-
             display_str = f"{status} {tool_name}"
-            row_style = ""
-
+            row_style = "dim" if is_missing else ""
             if is_missing:
-                display_str = f"[dim]✗ {tool_name} (niedostępne)[/dim]"
-                row_style = "dim"
+                display_str += " (niedostępne)"
 
             table.add_row(
                 f"[bold cyan][{i+1}][/bold cyan]", display_str, style=row_style
@@ -426,7 +474,6 @@ def display_phase2_tool_selection_menu(display_banner_func):
 
         if choice.isdigit() and 1 <= int(choice) <= 3:
             idx = int(choice) - 1
-            # Sprawdź dostępność
             tool_check = tool_names[idx]
             exe_cmd = ""
             if "Naabu" in tool_check:
@@ -440,7 +487,6 @@ def display_phase2_tool_selection_menu(display_banner_func):
                 utils.console.print(Align.center("[red]Narzędzie niedostępne.[/red]"))
                 time.sleep(1)
             else:
-                # Logika wykluczająca: Naabu XOR Masscan (zazwyczaj)
                 if idx == 0:  # Naabu
                     config.selected_phase2_tools[idx] ^= 1
                     if config.selected_phase2_tools[0]:
@@ -480,16 +526,14 @@ def display_phase2_settings_menu(display_banner_func):
         )
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
 
-        naabu_rate_disp = (
-            f"[bold green]{config.NAABU_RATE} (Użytkownika)[/bold green]"
-            if config.USER_CUSTOMIZED_NAABU_RATE
-            else f"[dim]{config.NAABU_RATE}[/dim]"
-        )
-        masscan_rate_disp = (
-            f"[bold green]{config.MASSCAN_RATE} (Użytkownika)[/bold green]"
-            if config.USER_CUSTOMIZED_MASSCAN_RATE
-            else f"[dim]{config.MASSCAN_RATE}[/dim]"
-        )
+        naabu_rate_disp = f"[dim]{config.NAABU_RATE}[/dim]"
+        if config.USER_CUSTOMIZED_NAABU_RATE:
+            naabu_rate_disp = f"[bold green]{config.NAABU_RATE}[/bold green]"
+
+        masscan_rate_disp = f"[dim]{config.MASSCAN_RATE}[/dim]"
+        if config.USER_CUSTOMIZED_MASSCAN_RATE:
+            masscan_rate_disp = f"[bold green]{config.MASSCAN_RATE}[/bold green]"
+
         nmap_scripts = (
             "[bold green]TAK[/bold green]"
             if config.NMAP_USE_SCRIPTS
@@ -500,6 +544,19 @@ def display_phase2_settings_menu(display_banner_func):
             if config.NMAP_AGGRESSIVE_SCAN
             else "[dim]NIE[/dim]"
         )
+
+        # Display logic for Nmap Strategy
+        strat = config.NMAP_SCAN_STRATEGY
+        strat_display = "Top 1000 (Domyślne)"
+        if strat == "all":
+            strat_display = "Wszystkie (-p-)"
+        elif strat == "custom":
+            strat_display = f"Custom: {config.NMAP_CUSTOM_PORT_RANGE or 'Brak'}"
+
+        if config.USER_CUSTOMIZED_NMAP_STRATEGY:
+            strat_display = f"[bold green]{strat_display}[/bold green]"
+        else:
+            strat_display = f"[dim]{strat_display}[/dim]"
 
         excluded_ports_str = (
             ",".join(map(str, config.EXCLUDED_PORTS))
@@ -523,10 +580,14 @@ def display_phase2_settings_menu(display_banner_func):
         )
         table.add_row(
             "[bold cyan][5][/bold cyan]",
+            f"Nmap Solo Mode (Zakres portów): {strat_display}",
+        )
+        table.add_row(
+            "[bold cyan][6][/bold cyan]",
             f"Własne skrypty Nmap (--script): {config.NMAP_CUSTOM_SCRIPTS or 'Brak'}",
         )
         table.add_row(
-            "[bold cyan][6][/bold cyan]", f"Wykluczone porty: {excluded_ports_str}"
+            "[bold cyan][7][/bold cyan]", f"Wykluczone porty: {excluded_ports_str}"
         )
 
         table.add_section()
@@ -556,13 +617,31 @@ def display_phase2_settings_menu(display_banner_func):
         elif choice == "4":
             config.NMAP_AGGRESSIVE_SCAN = not config.NMAP_AGGRESSIVE_SCAN
         elif choice == "5":
+            opts = ["top1000", "all", "custom"]
+            choice_strat = utils.ask_user_decision(
+                "Wybierz strategię Nmap (gdy działa sam):", ["t", "a", "c"], "t"
+            )
+            if choice_strat == "t":
+                config.NMAP_SCAN_STRATEGY = "top1000"
+            elif choice_strat == "a":
+                config.NMAP_SCAN_STRATEGY = "all"
+            elif choice_strat == "c":
+                config.NMAP_SCAN_STRATEGY = "custom"
+                val = Prompt.ask(
+                    "Podaj zakres portów (np. 80,443,8000-9000)",
+                    default=config.NMAP_CUSTOM_PORT_RANGE,
+                )
+                config.NMAP_CUSTOM_PORT_RANGE = val
+            config.USER_CUSTOMIZED_NMAP_STRATEGY = True
+
+        elif choice == "6":
             val = Prompt.ask(
                 "Podaj nazwy skryptów (po przecinku)",
                 default=config.NMAP_CUSTOM_SCRIPTS,
             )
             config.NMAP_CUSTOM_SCRIPTS = val
             config.USER_CUSTOMIZED_NMAP_SCRIPTS = True
-        elif choice == "6":
+        elif choice == "7":
             val = Prompt.ask("Podaj porty do wykluczenia (po przecinku)", default="")
             try:
                 config.EXCLUDED_PORTS = [
