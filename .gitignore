@@ -15,3 +15,5 @@ dir_wordlist.txt
 venv/
 env/
 project_context.txt
+allegro/scope.txt
+allegro/
