@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 
 try:
     import questionary
@@ -24,12 +24,11 @@ except ImportError:
     sys.exit(1)
 
 # Próba importu config.py z bieżącego katalogu
+config: Any = None
 try:
     import config
 except ImportError:
-    config = None
-
-# os.system("sudo rm -rf $(which httpx)")
+    pass
 
 console = Console(highlight=False)
 
@@ -43,7 +42,6 @@ NONINTERACTIVE = "-n" in sys.argv or "--non-interactive" in sys.argv
 IS_ROOT = os.geteuid() == 0
 
 # --- Definicje Wordlist ---
-# ZAKTUALIZOWANE MAPOWANIE NA PODSTAWIE TWOICH PLIKÓW
 WORDLIST_MAPPING = {
     "DEFAULT_WORDLIST_PHASE1": (
         "subdomains-top1million-20000.txt",
@@ -66,15 +64,15 @@ WORDLIST_MAPPING = {
         "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/CMS/wordpress.fuzz.txt",
     ),
     "JOOMLA_WORDLIST": (
-        "Joomla.txt",  # Zmiana z joomla.fuzz.txt
+        "Joomla.txt",
         "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/CMS/Joomla.txt",
     ),
     "DRUPAL_WORDLIST": (
-        "Drupal.txt",  # Zmiana z drupal.fuzz.txt
+        "Drupal.txt",
         "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/CMS/Drupal.txt",
     ),
     "TOMCAT_WORDLIST": (
-        "common.txt",  # Fallback na common.txt, bo tomcat.txt zniknął
+        "common.txt",
         "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/common.txt",
     ),
 }
@@ -184,10 +182,11 @@ def run_command(
             universal_newlines=True,
             env=env,
         )
-        for line in process.stdout:
-            stripped_line = line.strip()
-            if stripped_line and live_output:
-                console.print(Align.center(f"[dim]  {stripped_line}[/dim]"))
+        if process.stdout:
+            for line in process.stdout:
+                stripped_line = line.strip()
+                if stripped_line and live_output:
+                    console.print(Align.center(f"[dim]  {stripped_line}[/dim]"))
         process.wait()
 
         if process.returncode != 0:
@@ -416,7 +415,7 @@ def check_and_fix_wordlists():
 
             installed_config = os.path.join(SHARE_DIR, "config.py")
             if download_updates:
-                console.print(f"[blue]Podpinam pobrane pliki do konfiguracji...[/blue]")
+                console.print("[blue]Podpinam pobrane pliki do konfiguracji...[/blue]")
                 patch_config_file(installed_config, download_updates)
                 if os.path.exists("config.py"):
                     patch_config_file("config.py", download_updates)
@@ -467,7 +466,7 @@ def main():
             ]
 
             if apt_packages:
-                console.print(f"\n[blue]Instaluję pakiety systemowe...[/blue]")
+                console.print("\n[blue]Instaluję pakiety systemowe...[/blue]")
                 run_command(["apt-get", "update"], "Update APT", sudo=True)
                 run_command(
                     ["apt-get", "install", "-y"] + apt_packages,
@@ -477,7 +476,7 @@ def main():
                 )
 
             if missing_go:
-                console.print(f"\n[blue]Instaluję narzędzia Go...[/blue]")
+                console.print("\n[blue]Instaluję narzędzia Go...[/blue]")
                 for tool in missing_go:
                     run_command(
                         ["go", "install", "-v", GO_TOOLS[tool]],
@@ -486,7 +485,7 @@ def main():
                     )
 
             if missing_pipx_manual:
-                console.print(f"\n[blue]Instaluję narzędzia Python...[/blue]")
+                console.print("\n[blue]Instaluję narzędzia Python...[/blue]")
                 for tool in missing_pipx_manual:
                     if tool in PIPX_TOOLS:
                         run_command(

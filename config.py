@@ -55,7 +55,7 @@ TOOL_EXECUTABLE_MAP: Dict[str, str] = {
     "Gobuster": "gobuster",
     # Faza 4
     "Katana (Aktywny crawler)": "katana",
-    "Hakrawler (Aktywny crawler)": "ParamSpider (Parametry)",
+    "Hakrawler (Aktywny crawler)": "hakrawler",
     "ParamSpider (Parametry)": "paramspider",
     "LinkFinder (Analiza JS)": "linkfinder",
     "Gauplus (Pasywne z archiwów)": "gauplus",
@@ -119,6 +119,7 @@ NAABU_SOURCE_PORT: Optional[str] = None
 MASSCAN_RATE: int = 300
 NAABU_RATE: int = 1000
 NMAP_SOLO_SCAN_MODE: str = "default"
+EXCLUDED_PORTS: List[int] = []  # Naprawiono brakującą zmienną
 
 # --- Ustawienia Fazy 3 ---
 DIRSEARCH_SMART_FILTER: bool = True
@@ -180,7 +181,7 @@ USER_CUSTOMIZED_NAABU_SOURCE_PORT: bool = False
 USER_CUSTOMIZED_MASSCAN_RATE: bool = False
 USER_CUSTOMIZED_NAABU_RATE: bool = False
 USER_CUSTOMIZED_NMAP_SOLO_SCAN_MODE: bool = False
-USER_CUSTOMIZED_NMAP_SCRIPTS: bool = False  # Nowa flaga
+USER_CUSTOMIZED_NMAP_SCRIPTS: bool = False
 USER_CUSTOMIZED_USE_HEADLESS: bool = False
 USER_CUSTOMIZED_PUREDNS_RATE_LIMIT: bool = False
 USER_CUSTOMIZED_HTTPX_P1_RATE_LIMIT: bool = False

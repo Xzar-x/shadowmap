@@ -230,7 +230,9 @@ def filter_targets_scope(targets: List[str]) -> List[str]:
     return filtered
 
 
-def apply_exclusions(domains: List[str], exclusions: List[str] = None) -> List[str]:
+def apply_exclusions(
+    domains: List[str], exclusions: Optional[List[str]] = None
+) -> List[str]:
     """
     Wrapper dla kompatybilności wstecznej, używa nowej logiki scope.
     """

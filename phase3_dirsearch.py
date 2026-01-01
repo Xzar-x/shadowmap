@@ -351,11 +351,11 @@ def start_dir_search(
         utils.log_and_echo(msg, "INFO")
         unique_hosts = {"/".join(url.split("/")[:3]) for url in urls}
         for host in unique_hosts:
-            monitor = utils.WafHealthMonitor(
+            new_monitor = utils.WafHealthMonitor(
                 host, interval_min=min_i, interval_max=max_i
             )
-            monitor.start()
-            waf_monitors[host] = monitor
+            new_monitor.start()
+            waf_monitors[host] = new_monitor
 
     try:
         with ThreadPoolExecutor(max_workers=config.THREADS) as executor:
@@ -458,9 +458,10 @@ def start_dir_search(
             for future in as_completed(futures_map):
                 url_target = futures_map[future]
                 host_target = "/".join(url_target.split("/")[:3])
-                monitor: Optional[utils.WafHealthMonitor]
-                monitor = waf_monitors.get(host_target)
-                if monitor and monitor.is_blocked_event.is_set():
+
+                # Użyj nazwy `check_monitor` aby uniknąć konfliktu z `monitor` z definicji klasy
+                check_monitor = waf_monitors.get(host_target)
+                if check_monitor and check_monitor.is_blocked_event.is_set():
                     action = _handle_waf_block_detection(executor, futures_map)
                     if action == "stop":
                         break
@@ -472,9 +473,9 @@ def start_dir_search(
                 if progress_obj and main_task_id is not None:
                     progress_obj.update(main_task_id, advance=1)
     finally:
-        for monitor in waf_monitors.values():
-            if monitor:
-                monitor.stop()
+        for m_val in waf_monitors.values():
+            if m_val:
+                m_val.stop()
 
     all_found_urls = {url for url_list in results_by_tool.values() for url in url_list}
     final_results = {

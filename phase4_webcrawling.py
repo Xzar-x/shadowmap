@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-import os
 import re
 import subprocess
 import sys
 import time
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional, Set
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Optional, Set, cast
 from urllib.parse import urlparse
 
 from rich.align import Align
@@ -105,7 +104,6 @@ def _run_and_parse_crawl_tool(
                     results.add(found_url)
                 else:
                     # Opcjonalnie loguj odrzucone (debug)
-                    # utils.log_and_echo(f"Odrzucono out-of-scope: {found_url}", "DEBUG")
                     pass
 
     except subprocess.TimeoutExpired:
@@ -135,18 +133,10 @@ def start_web_crawl(
     api_endpoints_found: Set[str] = set()
     interesting_paths_found: Set[str] = set()
 
-    # Przygotowanie konfiguracji narzędzi
-    # Kolejność w config.selected_phase4_tools:
-    # 0: Katana
-    # 1: Hakrawler
-    # 2: ParamSpider
-    # 3: LinkFinder
-    # 4: Gauplus
-
     # Pobierz globalny User-Agent (uwzględnia flagę custom)
     current_ua = utils.user_agent_rotator.get()
 
-    tools_to_run = []
+    tools_to_run: List[Dict[str, Any]] = []
 
     # 1. Katana
     if config.selected_phase4_tools[0]:
@@ -182,23 +172,20 @@ def start_web_crawl(
             {
                 "name": "Hakrawler",
                 "cmd_template": base_cmd,
-                "use_stdin": True,  # Hakrawler lubi stdin: echo url | hakrawler
+                "use_stdin": True,
                 "arg_format": [],
             }
         )
 
     # 3. ParamSpider
     if config.selected_phase4_tools[2]:
-        # ParamSpider zazwyczaj bierze domenę, nie pełny URL, ale spróbujemy dostosować
-        # Dla bezpieczeństwa używamy domeny z targetu
         base_cmd = ["paramspider"]
-        # ParamSpider nie ma standardowej flagi UA w prostym CLI, polega na requests
         tools_to_run.append(
             {
                 "name": "ParamSpider",
                 "cmd_template": base_cmd,
                 "use_stdin": False,
-                "arg_format": ["-d", "DOMAIN"],  # Wymaga domeny
+                "arg_format": ["-d", "DOMAIN"],
             }
         )
 
@@ -217,12 +204,7 @@ def start_web_crawl(
     # 5. Gauplus
     if config.selected_phase4_tools[4]:
         base_cmd = ["gauplus", "-t", str(config.THREADS), "--random-agent"]
-        # Gauplus ma flagę --random-agent, ale skoro chcemy custom UA?
-        # Gauplus nie ma flagi -H dla nagłówków w prosty sposób w starszych wersjach,
-        # ale spróbujemy bez --random-agent jeśli user wymusił.
-        # W standardzie gauplus bierze stdin lub domeny.
         if config.USER_CUSTOMIZED_USER_AGENT:
-            # Usuwamy --random-agent jeśli był w defaultach, tu go nie dodałem wyżej
             pass
 
         tools_to_run.append(
@@ -239,34 +221,30 @@ def start_web_crawl(
         futures_map = {}
 
         for target in targets:
-            # Wyciągnij domenę dla narzędzi, które jej wymagają (ParamSpider)
             parsed = urlparse(target)
             domain = parsed.netloc or target
 
             for tool in tools_to_run:
-                # Sprawdź dostępność narzędzia
-                exe_name = config.TOOL_EXECUTABLE_MAP.get(tool["name"])
-                # Specjalny przypadek dla LinkFinder (skrypt python) i ParamSpider
-                if (
-                    tool["name"] == "LinkFinder"
-                    and "linkfinder" in config.MISSING_TOOLS
-                ):
+                tool_name = cast(str, tool.get("name"))
+                cmd_template = cast(List[str], tool.get("cmd_template"))
+                use_stdin = cast(bool, tool.get("use_stdin"))
+                arg_format = cast(List[str], tool.get("arg_format"))
+
+                exe_name = config.TOOL_EXECUTABLE_MAP.get(tool_name)
+
+                if tool_name == "LinkFinder" and "linkfinder" in config.MISSING_TOOLS:
                     continue
-                if (
-                    tool["name"] == "ParamSpider"
-                    and "paramspider" in config.MISSING_TOOLS
-                ):
+                if tool_name == "ParamSpider" and "paramspider" in config.MISSING_TOOLS:
                     continue
-                # Ogólne sprawdzenie
+
                 if exe_name and exe_name in config.MISSING_TOOLS:
                     continue
 
-                cmd = tool["cmd_template"].copy()
+                cmd = cmd_template.copy()
                 input_str = None
 
-                # Konstrukcja argumentów
-                if tool["arg_format"]:
-                    for arg in tool["arg_format"]:
+                if arg_format:
+                    for arg in arg_format:
                         if arg == "TARGET":
                             cmd.append(target)
                         elif arg == "DOMAIN":
@@ -274,28 +252,25 @@ def start_web_crawl(
                         else:
                             cmd.append(arg)
 
-                # Obsługa STDIN
-                if tool["use_stdin"]:
+                if use_stdin:
                     input_str = target
 
                 future = executor.submit(
                     _run_and_parse_crawl_tool,
-                    tool["name"],
+                    tool_name,
                     cmd,
                     target,
                     config.TOOL_TIMEOUT_SECONDS,
                     input_str,
                 )
-                futures_map[future] = tool["name"]
+                futures_map[future] = tool_name
 
-        # Zbieranie wyników
         for future in as_completed(futures_map):
             t_name = futures_map[future]
             try:
                 urls = future.result()
                 all_crawled_urls.update(urls)
 
-                # Wstępna kategoryzacja
                 for u in urls:
                     u_lower = u.lower()
                     if "=" in u:
@@ -305,7 +280,6 @@ def start_web_crawl(
                     if "api" in u_lower or "/v1/" in u_lower or "graphql" in u_lower:
                         api_endpoints_found.add(u)
 
-                    # Ciekawostki
                     interesting_keywords = [
                         "admin",
                         "login",
@@ -323,7 +297,6 @@ def start_web_crawl(
             if progress_obj and main_task_id is not None:
                 progress_obj.update(main_task_id, advance=1)
 
-    # Przygotowanie wyniku końcowego
     results = {
         "all_urls": sorted(list(all_crawled_urls)),
         "parameters": sorted(list(parameters_found)),
@@ -364,15 +337,9 @@ def display_phase4_tool_selection_menu(display_banner_func):
         ]
 
         for i, tool_name in enumerate(tool_names):
-            idx = i  # Indeks w config.selected_phase4_tools
+            idx = i
             is_selected = config.selected_phase4_tools[idx]
 
-            # Sprawdź dostępność
-            # Mapowanie nazw wyświetlanych na klucze w TOOL_EXECUTABLE_MAP
-            map_key = tool_name  # Domyślnie
-            # Musimy dopasować klucze z config.py, które są nieco inne
-            # "Katana (Aktywny crawler)" -> "katana" (value)
-            # Uproszczona logika:
             executable = ""
             if "Katana" in tool_name:
                 executable = "katana"
@@ -417,7 +384,6 @@ def display_phase4_tool_selection_menu(display_banner_func):
 
         if choice.isdigit() and 1 <= int(choice) <= 5:
             idx = int(choice) - 1
-            # Sprawdź czy dostępne przed przełączeniem
             tool_n = tool_names[idx]
             executable = ""
             if "Katana" in tool_n:
@@ -464,7 +430,6 @@ def display_phase4_settings_menu(display_banner_func):
         )
         table = Table(show_header=False, show_edge=False, padding=(0, 2))
 
-        # Wyświetlanie wartości
         depth_val = (
             f"[bold green]{config.CRAWL_DEPTH_P4}[/bold green]"
             if config.USER_CUSTOMIZED_CRAWL_DEPTH_P4
