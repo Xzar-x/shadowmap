@@ -510,13 +510,6 @@ def main():
                                     ["ln", "-s", src, dst], "Symlink LinkFinder"
                                 )
 
-    console.print("\n[blue]Aktualizuję pakiety Python pip...[/blue]")
-    run_command(
-        ["pip3", "install", "--upgrade"] + PYTHON_PKGS,
-        "Pip requirements",
-        live_output=True,
-    )
-
     console.print(f"\n[blue]Instaluję pliki aplikacji do {SHARE_DIR}...[/blue]")
     base_dir = os.path.dirname(os.path.abspath(__file__))
     run_command(["mkdir", "-p", SHARE_DIR], f"Tworzenie {SHARE_DIR}", sudo=True)
