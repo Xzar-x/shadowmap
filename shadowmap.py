@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import time
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -504,6 +505,102 @@ def cleanup_temp_files():
             pass
 
 
+def integrate_and_probe_ports(
+    base_targets: List[str], phase2_results: Dict[str, Any]
+) -> List[str]:
+    """
+    Integruje wyniki skanowania portów z celami, tworząc pełne adresy URL (http/https).
+    Weryfikuje dostępność usług webowych przy użyciu httpx.
+    """
+    open_ports_map = phase2_results.get("open_ports_by_host", {})
+    if not open_ports_map:
+        return base_targets
+
+    candidates = set(base_targets)
+
+    # 1. Generowanie kandydatów
+    for host, ports in open_ports_map.items():
+        for port in ports:
+            # Pomijamy porty, które na pewno nie są webowe (opcjonalne)
+            if port in [21, 22, 25, 53, 110, 111, 135, 139, 143, 445, 3306, 3389, 5432]:
+                continue
+
+            if port == 80:
+                candidates.add(f"http://{host}")
+            elif port == 443:
+                candidates.add(f"https://{host}")
+            else:
+                # Dla niestandardowych portów sprawdzamy oba protokoły
+                candidates.add(f"http://{host}:{port}")
+                candidates.add(f"https://{host}:{port}")
+
+    # Jeśli httpx nie jest dostępny, zwracamy surową listę (ryzyko błędów w Ffuf)
+    if "httpx" in config.MISSING_TOOLS:
+        utils.console.print(
+            "[yellow]Brak httpx. Przekazuję wszystkie kombinacje portów do Fazy 3.[/yellow]"
+        )
+        return sorted(list(candidates))
+
+    # 2. Weryfikacja przez httpx
+    utils.console.print(
+        Align.center(
+            f"[cyan]Weryfikacja {len(candidates)} potencjalnych usług webowych (httpx)...[/cyan]"
+        )
+    )
+
+    with tempfile.NamedTemporaryFile(
+        mode="w+", delete=False, suffix="_probes.txt"
+    ) as tmp:
+        tmp.write("\n".join(candidates))
+        tmp_path = tmp.name
+
+    output_file = os.path.join(config.REPORT_DIR, "web_services_probe.json")
+    config.TEMP_FILES_TO_CLEAN.append(output_file)
+    config.TEMP_FILES_TO_CLEAN.append(tmp_path)
+
+    # Uruchamiamy httpx tylko w celu sprawdzenia "żywotności" HTTP
+    cmd = [
+        "httpx",
+        "-l",
+        tmp_path,
+        "-silent",
+        "-json",
+        "-t",
+        str(config.THREADS),
+        "-retries",
+        "1",
+        "-timeout",
+        "5",  # Szybki timeout
+    ]
+
+    # Dodajemy User-Agent
+    ua = utils.user_agent_rotator.get()
+    cmd.extend(["-H", f"User-Agent: {ua}"])
+
+    utils.execute_tool_command("Service Probe", cmd, output_file, 120)
+
+    verified_urls = set(base_targets)  # Zawsze zachowujemy oryginalne cele
+    if os.path.exists(output_file):
+        with open(output_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                    if "url" in data:
+                        verified_urls.add(data["url"])
+                except:
+                    pass
+
+    result_list = sorted(list(verified_urls))
+    utils.console.print(
+        Align.center(
+            f"[green]Zidentyfikowano {len(result_list)} aktywnych usług webowych.[/green]"
+        )
+    )
+    return result_list
+
+
 def run_full_auto_scan(
     scan_results: Dict[str, Any], p0_data: Dict[str, Any], best_target_url: str
 ):
@@ -538,6 +635,10 @@ def run_full_auto_scan(
         utils.console.print(
             Align.center("[yellow]Nie znaleziono otwartych portów.[/yellow]")
         )
+
+    # --- NOWE: Aktualizacja celów o porty z Fazy 2 ---
+    targets_for_phase2_3 = integrate_and_probe_ports(targets_for_phase2_3, p2_res)
+    # ------------------------------------------------
 
     tech = p0_data.get("technologies", [])
     p3_res, p3_verified = phase3_dirsearch.start_dir_search(
@@ -958,6 +1059,12 @@ def main(
                         )
                         scan_results["phase2_results"] = p2_res
                         if p2_res.get("open_ports_by_host"):
+                            # --- NOWE: Aktualizacja celów o porty z Fazy 2 (Interaktywny) ---
+                            targets_for_phase2_3 = integrate_and_probe_ports(
+                                targets_for_phase2_3, p2_res
+                            )
+                            # ----------------------------------------------------------------
+
                             question = "Kontynuować do Fazy 3?"
                             if (
                                 utils.ask_user_decision(question, ["y", "n"], "y")
