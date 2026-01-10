@@ -15,7 +15,8 @@ SMALL_WORDLIST_PHASE1 = (
     "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
 )
 
-DEFAULT_WORDLIST_PHASE3 = "/usr/share/dirb/wordlists/common.txt"
+DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt
+"
 SMALL_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-small.txt"
 
 WORDPRESS_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt"
@@ -206,7 +207,8 @@ SMALL_WORDLIST_PHASE1 = (
     "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
 )
 
-DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt"
+DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt
+"
 SMALL_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-small.txt"
 
 WORDPRESS_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt"
@@ -307,7 +309,7 @@ NMAP_USE_SCRIPTS: bool = False
 NMAP_AGGRESSIVE_SCAN: bool = False
 NMAP_CUSTOM_SCRIPTS: str = ""
 NAABU_SOURCE_PORT: Optional[str] = None
-MASSCAN_RATE: int = 300
+MASSCAN_RATE: int = 1000
 NAABU_RATE: int = 1000
 # Strategia skanowania Nmapa gdy działa sam (bez Naabu/Masscan)
 # Opcje: "top1000", "all", "custom"
