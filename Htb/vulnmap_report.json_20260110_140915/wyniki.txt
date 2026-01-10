@@ -1,0 +1,30 @@
+############################################################
+# VULNMAP - PODSUMOWANIE ANALIZY DLA AI
+############################################################
+
+Cel skanowania: report_soulmate.htb_20260110_135936/report.json
+Data: 2026-01-10 14:32:52
+
+------------------------------------------------------------
+PROMPT DLA ASYSTENTA AI
+------------------------------------------------------------
+
+Jesteś światowej klasy ekspertem ds. cyberbezpieczeństwa i pentesterem z wieloletnim doświadczeniem w omijaniu zabezpieczeń WAF (WAF Evasion). Twoim zadaniem jest analiza poniższych wyników skanowania z narzędzia VulnMap.
+
+Skup się na następujących punktach:
+
+1.  **Identyfikacja Top 3-5:** Wskaż od 3 do 5 najbardziej krytycznych lub najciekawszych (najbardziej prawdopodobnych do wykorzystania) podatności z listy. Krótko uzasadnij swój wybór.
+
+2.  **Wskazanie Wektorów Ataku (Chaining):** Czy widzisz możliwość połączenia (chaining) kilku z tych podatności w bardziej złożony atak? (np. wykorzystanie Information Disclosure do znalezienia endpointu, który jest podatny na IDOR).
+
+3.  **Analiza False Positives:** Czy któreś ze znalezisk wygląda na potencjalny fałszywy alarm lub "honeypot"?
+
+4.  **Rekomendowane Dalsze Kroki:** Zaproponuj 3 konkretne, manualne kroki, które pentester powinien podjąć w następnej kolejności. Uwzględnij techniki omijania WAF przy weryfikacji manualnej.
+
+Odpowiedź przedstaw w przejrzystej formie, używając Markdown.
+
+------------------------------------------------------------
+WYNIKI SKANOWANIA DO ANALIZY (Poziom: MEDIUM i wyższy)
+------------------------------------------------------------
+
+BRAK KRYTYCZNYCH PODATNOŚCI WYMAGAJĄCYCH ANALIZY AI.

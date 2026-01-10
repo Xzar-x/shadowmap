@@ -15,8 +15,7 @@ SMALL_WORDLIST_PHASE1 = (
     "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
 )
 
-DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt
-"
+DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt"
 SMALL_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-small.txt"
 
 WORDPRESS_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt"
@@ -207,8 +206,7 @@ SMALL_WORDLIST_PHASE1 = (
     "/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt"
 )
 
-DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt
-"
+DEFAULT_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-medium.txt"
 SMALL_WORDLIST_PHASE3 = "/usr/share/seclists/Discovery/Web-Content/DirBuster-2007_directory-list-2.3-small.txt"
 
 WORDPRESS_WORDLIST = "/usr/share/seclists/Discovery/Web-Content/CMS/wordpress.fuzz.txt"
