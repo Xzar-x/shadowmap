@@ -625,14 +625,14 @@
       display: flex;
       align-items: center;
     }
-    
+
     .exploit-list a {
-        color: #e0e0e0;
-        text-decoration: none;
-        transition: color 0.2s;
-        display: flex;
-        align-items: center;
-        width: 100%;
+      color: #e0e0e0;
+      text-decoration: none;
+      transition: color 0.2s;
+      display: flex;
+      align-items: center;
+      width: 100%;
     }
 
 
@@ -649,23 +649,23 @@
       min-width: 30px;
       text-align: center;
     }
-    
+
     .exploit-id {
       font-weight: bold;
       color: #ffc107;
       margin-right: 10px;
       white-space: nowrap;
     }
-    
+
     .exploit-type {
-        background-color: #444;
-        color: #00d4ff;
-        border-radius: 5px;
-        padding: 2px 8px;
-        margin-right: 10px;
-        font-size: 0.8em;
-        font-weight: bold;
-        white-space: nowrap;
+      background-color: #444;
+      color: #00d4ff;
+      border-radius: 5px;
+      padding: 2px 8px;
+      margin-right: 10px;
+      font-size: 0.8em;
+      font-weight: bold;
+      white-space: nowrap;
     }
 
     @media (max-width: 768px) {
@@ -717,7 +717,8 @@
 
 <body>
   <div class="header">
-    <img src="https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/shadowmap.png" alt="ShadowMap Banner" class="banner-image">
+    <img src="https://raw.githubusercontent.com/Xzar-x/images/refs/heads/main/shadowmap.png" alt="ShadowMap Banner"
+      class="banner-image">
   </div>
 
   <div class="container">
@@ -735,11 +736,27 @@
     <div id="summary" class="tab-content active">
       <h2>Podsumowanie skanowania</h2>
       <div class="summary-item"><strong>Domena:</strong> {{DOMAIN}}</div>
-      <div class="summary-item"><strong>Całkowita liczba znalezionych subdomen (Faza 1):</strong> {{COUNT_ALL_SUBDOMAINS}}</div>
+      <div class="summary-item"><strong>Całkowita liczba znalezionych subdomen (Faza 1):</strong>
+        {{COUNT_ALL_SUBDOMAINS}}</div>
       <div class="summary-item"><strong>Liczba aktywnych subdomen HTTP/S (Faza 1):</strong> {{COUNT_HTTPX}}</div>
       <div class="summary-item"><strong>Liczba otwartych portów (Faza 2):</strong> {{COUNT_OPEN_PORTS}}</div>
-      <div class="summary-item"><strong>Liczba znalezionych katalogów/plików (Faza 3):</strong> {{COUNT_DIR_SEARCH}}</div>
-      <div class="summary-item"><strong>Liczba unikalnych URL-i z crawlera (Faza 4):</strong> {{COUNT_ALL_URLS_P4}}</div>
+      <div class="summary-item"><strong>Liczba znalezionych katalogów/plików (Faza 3):</strong> {{COUNT_DIR_SEARCH}}
+      </div>
+      <div class="summary-item"><strong>Liczba unikalnych URL-i z crawlera (Faza 4):</strong> {{COUNT_ALL_URLS_P4}}
+      </div>
+
+      <!-- ENTERPRISE: Wykres rozkładu kodów HTTP -->
+      <div class="chart-container">
+        <div class="chart-box">
+          <h4>📊 Rozkład kodów HTTP (Faza 1 + Faza 3)</h4>
+          <div class="chart-canvas-wrapper">
+            <canvas id="httpStatusChart"></canvas>
+          </div>
+          <div id="chartFallback" class="chart-fallback">
+            <!-- Fallback tekstowy gdy brak internetu -->
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="phase0" class="tab-content">
@@ -774,7 +791,8 @@
       <div id="phase1-httpx" class="sub-tab-content active">
         <h3>HTTPX Output ({{COUNT_HTTPX}} aktywnych)</h3>
         <div class="filter-section">
-          <input type="checkbox" id="showOnlyCriticalP1" onchange="renderResults(httpxDataP1, 'httpx-results', this.checked)">
+          <input type="checkbox" id="showOnlyCriticalP1"
+            onchange="renderResults(httpxDataP1, 'httpx-results', this.checked)">
           <label for="showOnlyCriticalP1">Pokaż tylko krytyczne 🔥</label>
         </div>
         <div id="httpx-results" class="results-grid"></div>
@@ -835,7 +853,8 @@
       <div id="phase3-verified_httpx" class="sub-tab-content active">
         <h3>Wyniki z Fazy 3 zweryfikowane przez HTTPX ({{COUNT_DIR_SEARCH}} znalezionych)</h3>
         <div class="filter-section">
-          <input type="checkbox" id="showOnlyCriticalP3" onchange="renderResults(httpxDataP3, 'verified-httpx-results', this.checked)">
+          <input type="checkbox" id="showOnlyCriticalP3"
+            onchange="renderResults(httpxDataP3, 'verified-httpx-results', this.checked)">
           <label for="showOnlyCriticalP3">Pokaż tylko krytyczne 🔥</label>
         </div>
         <div id="verified-httpx-results" class="results-grid"></div>
@@ -871,7 +890,8 @@
       <div id="phase4-all_crawled" class="sub-tab-content active">
         <h3>Wszystkie znalezione URL-e ({{COUNT_ALL_URLS_P4}})</h3>
         <div class="filter-section">
-          <input type="checkbox" id="showOnlyCriticalP4All" onchange="renderResults(p4AllUrlsData, 'phase4-all-results', this.checked)">
+          <input type="checkbox" id="showOnlyCriticalP4All"
+            onchange="renderResults(p4AllUrlsData, 'phase4-all-results', this.checked)">
           <label for="showOnlyCriticalP4All">Pokaż tylko krytyczne 🔥</label>
         </div>
         <div id="phase4-all-results" class="results-grid"></div>
@@ -879,7 +899,8 @@
       <div id="phase4-parameters" class="sub-tab-content">
         <h3>Znalezione parametry ({{COUNT_PARAMETERS}})</h3>
         <div class="filter-section">
-          <input type="checkbox" id="showOnlyCriticalP4Params" onchange="renderResults(p4ParamsData, 'phase4-params-results', this.checked)">
+          <input type="checkbox" id="showOnlyCriticalP4Params"
+            onchange="renderResults(p4ParamsData, 'phase4-params-results', this.checked)">
           <label for="showOnlyCriticalP4Params">Pokaż tylko krytyczne 🔥</label>
         </div>
         <div id="phase4-params-results" class="results-grid"></div>
@@ -887,7 +908,8 @@
       <div id="phase4-js_files" class="sub-tab-content">
         <h3>Pliki JavaScript ({{COUNT_JS_FILES}})</h3>
         <div class="filter-section">
-          <input type="checkbox" id="showOnlyCriticalP4Js" onchange="renderResults(p4JsData, 'phase4-js-results', this.checked)">
+          <input type="checkbox" id="showOnlyCriticalP4Js"
+            onchange="renderResults(p4JsData, 'phase4-js-results', this.checked)">
           <label for="showOnlyCriticalP4Js">Pokaż tylko krytyczne 🔥</label>
         </div>
         <div id="phase4-js-results" class="results-grid"></div>
@@ -895,7 +917,8 @@
       <div id="phase4-api_endpoints" class="sub-tab-content">
         <h3>Endpointy API ({{COUNT_API_ENDPOINTS}})</h3>
         <div class="filter-section">
-          <input type="checkbox" id="showOnlyCriticalP4Api" onchange="renderResults(p4ApiData, 'phase4-api-results', this.checked)">
+          <input type="checkbox" id="showOnlyCriticalP4Api"
+            onchange="renderResults(p4ApiData, 'phase4-api-results', this.checked)">
           <label for="showOnlyCriticalP4Api">Pokaż tylko krytyczne 🔥</label>
         </div>
         <div id="phase4-api-results" class="results-grid"></div>
@@ -903,7 +926,8 @@
       <div id="phase4-interesting_paths" class="sub-tab-content">
         <h3>Interesujące ścieżki ({{COUNT_INTERESTING_PATHS}})</h3>
         <div class="filter-section">
-          <input type="checkbox" id="showOnlyCriticalP4Interesting" onchange="renderResults(p4InterestingData, 'phase4-interesting-results', this.checked)">
+          <input type="checkbox" id="showOnlyCriticalP4Interesting"
+            onchange="renderResults(p4InterestingData, 'phase4-interesting-results', this.checked)">
           <label for="showOnlyCriticalP4Interesting">Pokaż tylko krytyczne 🔥</label>
         </div>
         <div id="phase4-interesting-results" class="results-grid"></div>
@@ -950,7 +974,7 @@
         return defaultType === 'array' ? [] : {};
       }
     }
-    
+
     // --- Globalne dane ---
     const httpxDataP1 = safeParseJsonFromScript('data-httpx-p1', 'array');
     const httpxDataP3 = safeParseJsonFromScript('data-httpx-p3', 'array');
@@ -960,7 +984,7 @@
     const p4JsData = safeParseJsonFromScript('data-p4-js', 'array');
     const p4ApiData = safeParseJsonFromScript('data-p4-api', 'array');
     const p4InterestingData = safeParseJsonFromScript('data-p4-interesting', 'array');
-    
+
     const naabuRawOutput = `{{NAABU_RAW_OUTPUT}}`;
     const masscanRawOutput = `{{MASSCAN_RAW_OUTPUT}}`;
 
@@ -1048,7 +1072,8 @@
         icon = '🔥';
         isCritical = true;
       }
-      return { ...data,
+      return {
+        ...data,
         priority,
         icon,
         isCritical
@@ -1061,7 +1086,7 @@
       container.innerHTML = '';
 
       let parsedData = Array.isArray(dataArray) ? dataArray : [];
-      
+
       if (parsedData.length === 0) {
         container.innerHTML = '<p style="text-align: center;">Brak wyników do wyświetlenia.</p>';
         return;
@@ -1089,7 +1114,7 @@
       container.innerHTML = '';
 
       const parsedNmap = (typeof nmapData === 'object' && nmapData !== null) ? nmapData : {};
-      
+
       if (Object.keys(parsedNmap).length === 0) {
         container.innerHTML = '<p style="text-align: center;">Brak wyników skanowania portów.</p>';
         return;
@@ -1180,9 +1205,9 @@
       const container = document.getElementById('nmap-raw-output');
       if (!container) return;
       container.innerHTML = '';
-      
+
       const parsedNmap = (typeof nmapData === 'object' && nmapData !== null) ? nmapData : {};
-      
+
       if (Object.keys(parsedNmap).length === 0) {
         container.innerHTML = '<pre class="output">Brak surowych wyników Nmap.</pre>';
         return;
@@ -1200,10 +1225,10 @@
     function openMainTab(buttonElement, tabId) {
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.querySelectorAll('.main-tab-button').forEach(b => b.classList.remove('active'));
-      
+
       const content = document.getElementById(tabId);
-      if(content) content.classList.add('active');
-      if(buttonElement) buttonElement.classList.add('active');
+      if (content) content.classList.add('active');
+      if (buttonElement) buttonElement.classList.add('active');
     }
 
     function openSubTab(buttonElement, mainTabId, subTabId) {
@@ -1217,7 +1242,163 @@
       if (subTabContent) subTabContent.classList.add('active');
       if (buttonElement) buttonElement.classList.add('active');
     }
-    
+
+    // --- ENTERPRISE: Funkcja agregacji kodów HTTP ---
+    function aggregateStatusCodes(dataArrays) {
+      const counts = {};
+      dataArrays.forEach(arr => {
+        if (!Array.isArray(arr)) return;
+        arr.forEach(item => {
+          const code = item.status_code;
+          if (code) {
+            counts[code] = (counts[code] || 0) + 1;
+          }
+        });
+      });
+      return counts;
+    }
+
+    // --- ENTERPRISE: Kolory dla kodów HTTP ---
+    function getStatusCodeColor(code) {
+      const codeNum = parseInt(code);
+      if (codeNum >= 200 && codeNum < 300) return '#28a745'; // Zielony - sukces
+      if (codeNum >= 300 && codeNum < 400) return '#ffc107'; // Żółty - redirect
+      if (codeNum >= 400 && codeNum < 500) return '#fd7e14'; // Pomarańczowy - błąd klienta
+      if (codeNum >= 500) return '#dc3545'; // Czerwony - błąd serwera
+      return '#6c757d'; // Szary - nieznany
+    }
+
+    // --- ENTERPRISE: Renderowanie fallbacku tekstowego ---
+    function renderChartFallback(statusCounts) {
+      const fallbackEl = document.getElementById('chartFallback');
+      if (!fallbackEl) return;
+
+      const sortedCodes = Object.entries(statusCounts)
+        .sort((a, b) => b[1] - a[1]);
+
+      if (sortedCodes.length === 0) {
+        fallbackEl.innerHTML = '<p style="text-align: center; color: #888;">Brak danych o kodach HTTP</p>';
+        fallbackEl.style.display = 'block';
+        return;
+      }
+
+      let html = '';
+      sortedCodes.forEach(([code, count]) => {
+        const color = getStatusCodeColor(code);
+        html += `
+          <div class="chart-fallback-item">
+            <span>
+              <span class="status-indicator" style="background-color: ${color}"></span>
+              HTTP ${code}
+            </span>
+            <span><strong>${count}</strong> wystąpień</span>
+          </div>`;
+      });
+
+      fallbackEl.innerHTML = html;
+      fallbackEl.style.display = 'block';
+    }
+
+    // --- ENTERPRISE: Renderowanie wykresu Chart.js ---
+    function renderHttpStatusChart(statusCounts) {
+      const canvas = document.getElementById('httpStatusChart');
+      const fallbackEl = document.getElementById('chartFallback');
+
+      if (!canvas) return;
+
+      const sortedCodes = Object.entries(statusCounts)
+        .sort((a, b) => b[1] - a[1]);
+
+      if (sortedCodes.length === 0) {
+        renderChartFallback(statusCounts);
+        return;
+      }
+
+      const labels = sortedCodes.map(([code]) => `HTTP ${code}`);
+      const data = sortedCodes.map(([, count]) => count);
+      const colors = sortedCodes.map(([code]) => getStatusCodeColor(code));
+
+      // Sprawdź czy Chart.js jest dostępny
+      if (typeof Chart === 'undefined') {
+        console.warn('Chart.js niedostępny - używam fallbacku tekstowego');
+        renderChartFallback(statusCounts);
+        return;
+      }
+
+      try {
+        new Chart(canvas.getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              backgroundColor: colors,
+              borderColor: 'rgba(26, 26, 46, 0.8)',
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right',
+                labels: {
+                  color: '#e0e0e0',
+                  font: { size: 11 },
+                  padding: 10
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  label: function (context) {
+                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                    const percentage = ((context.raw / total) * 100).toFixed(1);
+                    return `${context.label}: ${context.raw} (${percentage}%)`;
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        // Ukryj fallback jeśli wykres się załadował
+        if (fallbackEl) fallbackEl.style.display = 'none';
+
+      } catch (e) {
+        console.error('Błąd renderowania wykresu:', e);
+        renderChartFallback(statusCounts);
+      }
+    }
+
+    // --- ENTERPRISE: Ładowanie Chart.js z CDN z fallbackiem ---
+    function loadChartJs(callback) {
+      // Sprawdź czy już załadowany
+      if (typeof Chart !== 'undefined') {
+        callback();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+      script.async = true;
+      script.defer = true;
+
+      script.onload = function () {
+        console.log('Chart.js załadowany z CDN');
+        callback();
+      };
+
+      script.onerror = function () {
+        console.warn('Nie można załadować Chart.js z CDN - używam fallbacku');
+        // Agreguj dane i pokaż fallback
+        const statusCounts = aggregateStatusCodes([httpxDataP1, httpxDataP3]);
+        renderChartFallback(statusCounts);
+      };
+
+      document.head.appendChild(script);
+    }
+
     // --- Event Listeners and Initial Rendering ---
     document.addEventListener('DOMContentLoaded', () => {
       // Render all data first
@@ -1232,6 +1413,12 @@
       renderResults(p4JsData, 'phase4-js-results', false);
       renderResults(p4ApiData, 'phase4-api-results', false);
       renderResults(p4InterestingData, 'phase4-interesting-results', false);
+
+      // ENTERPRISE: Ładowanie Chart.js i renderowanie wykresu kodów HTTP
+      const statusCounts = aggregateStatusCodes([httpxDataP1, httpxDataP3]);
+      loadChartJs(() => {
+        renderHttpStatusChart(statusCounts);
+      });
 
       // Attach event listeners for main tabs
       document.querySelectorAll('.main-tab-button').forEach(button => {
@@ -1252,6 +1439,5 @@
     });
   </script>
 </body>
+
 </html>
-
-

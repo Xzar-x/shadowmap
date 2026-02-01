@@ -66,12 +66,15 @@ else:
         return msvcrt.getch().decode("utf-8")
 
 
-# --- Centralna funkcja do uruchamiania narzędzi ---
+# --- Centralna funkcja do uruchamiania narzędzi (ENTERPRISE GRADE) ---
 def execute_tool_command(
     tool_name: str, command_parts: List[str], output_file: str, timeout: int
 ) -> Optional[str]:
     """
     Uruchamia zewnętrzne narzędzie, przechwytuje jego output i obsługuje błędy.
+
+    ENTERPRISE: Rozróżnia Timeout od Crash narzędzia i loguje to wyraźnie.
+    Dodaje ostrzeżenie gdy narzędzie zwróci pusty wynik przy kodzie 0.
 
     Args:
         tool_name: Nazwa narzędzia (do logowania).
@@ -88,6 +91,7 @@ def execute_tool_command(
             f"[bold cyan]Uruchamiam {tool_name}:[/bold cyan] "
             f"[dim white]{cmd_str}[/dim white]"
         )
+
     try:
         process = subprocess.run(
             command_parts,
@@ -105,30 +109,152 @@ def execute_tool_command(
 
         if process.stderr:
             log_and_echo(
-                f"Komunikaty z STDERR dla '{tool_name}':\n" f"{process.stderr.strip()}",
+                f"Komunikaty z STDERR dla '{tool_name}':\n{process.stderr.strip()}",
                 "DEBUG",
             )
 
+        # ENTERPRISE: Inteligentna analiza wyniku
+        output_is_empty = not process.stdout or not process.stdout.strip()
+
         if process.returncode == 0:
-            if not config.QUIET_MODE:
-                console.print(
-                    f"[bold green]✅ {tool_name} zakończył skanowanie.[/bold green]"
+            if output_is_empty:
+                # ENTERPRISE: Ostrzeżenie o pustym wyniku przy sukcesie
+                log_and_echo(
+                    f"⚠️ {tool_name}: Kod wyjścia 0, ale PUSTY WYNIK. "
+                    f"Możliwe przyczyny: brak wyników, błędna konfiguracja, "
+                    f"filtrowanie przez WAF, lub problem z uprawnieniami.",
+                    "WARN",
                 )
+                if not config.QUIET_MODE:
+                    console.print(
+                        f"[bold yellow]⚠️ {tool_name}: Sukces, ale brak wyników (pusty output)[/bold yellow]"
+                    )
+            else:
+                if not config.QUIET_MODE:
+                    console.print(
+                        f"[bold green]✅ {tool_name} zakończył skanowanie.[/bold green]"
+                    )
         else:
+            # ENTERPRISE: Rozróżnienie typu błędu
+            error_type = _classify_tool_error(process.returncode, process.stderr)
             log_and_echo(
-                f"Narzędzie {tool_name} zakończyło z błędem "
-                f"({process.returncode}).",
+                f"❌ {tool_name} CRASH: Kod wyjścia {process.returncode}. "
+                f"Typ błędu: {error_type}. "
+                f"STDERR: {process.stderr[:300] if process.stderr else 'brak'}...",
                 "WARN",
             )
+            if not config.QUIET_MODE:
+                console.print(
+                    f"[bold red]❌ {tool_name}: {error_type} (kod: {process.returncode})[/bold red]"
+                )
+
         return output_file
 
-    except Exception as e:
-        log_and_echo(f"BŁĄD: Ogólny błąd wykonania '{cmd_str}': {e}", "ERROR")
+    except subprocess.TimeoutExpired:
+        # ENTERPRISE: Wyraźne logowanie TIMEOUT
+        log_and_echo(
+            f"⏱️ {tool_name} TIMEOUT: Przekroczono limit {timeout}s. "
+            f"Narzędzie zostało zatrzymane. Rozważ zwiększenie limitu czasu "
+            f"lub zmniejszenie zakresu skanowania.",
+            "WARN",
+        )
         if not config.QUIET_MODE:
             console.print(
-                Align.center(f"[bold red]❌ BŁĄD: {tool_name}: {e}[/bold red]")
+                Align.center(
+                    f"[bold yellow]⏱️ TIMEOUT: {tool_name} przekroczył {timeout}s[/bold yellow]"
+                )
+            )
+        # Zapisz pusty plik, aby inne funkcje mogły kontynuować
+        try:
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(f"# TIMEOUT: {tool_name} przekroczył limit {timeout}s\n")
+        except Exception:
+            pass
+        return output_file  # Zwracamy ścieżkę, nie None, aby workflow kontynuował
+
+    except FileNotFoundError:
+        # ENTERPRISE: Narzędzie nie znalezione
+        log_and_echo(
+            f"❌ {tool_name} NIE ZNALEZIONO: Polecenie '{command_parts[0]}' "
+            f"nie istnieje w PATH. Zainstaluj narzędzie lub sprawdź konfigurację.",
+            "ERROR",
+        )
+        if not config.QUIET_MODE:
+            console.print(
+                Align.center(
+                    f"[bold red]❌ {tool_name}: Narzędzie nie znalezione w systemie[/bold red]"
+                )
             )
         return None
+
+    except PermissionError:
+        # ENTERPRISE: Brak uprawnień
+        log_and_echo(
+            f"❌ {tool_name} PERMISSION DENIED: Brak uprawnień do uruchomienia "
+            f"'{command_parts[0]}'. Sprawdź uprawnienia pliku wykonywalnego.",
+            "ERROR",
+        )
+        if not config.QUIET_MODE:
+            console.print(
+                Align.center(
+                    f"[bold red]❌ {tool_name}: Brak uprawnień do uruchomienia[/bold red]"
+                )
+            )
+        return None
+
+    except Exception as e:
+        # ENTERPRISE: Nieznany błąd z pełną diagnostyką
+        error_class = type(e).__name__
+        log_and_echo(
+            f"❌ {tool_name} NIEZNANY BŁĄD ({error_class}): {e}. "
+            f"Komenda: {cmd_str[:200]}...",
+            "ERROR",
+        )
+        if not config.QUIET_MODE:
+            console.print(
+                Align.center(
+                    f"[bold red]❌ BŁĄD: {tool_name}: {error_class} - {e}[/bold red]"
+                )
+            )
+        return None
+
+
+def _classify_tool_error(returncode: int, stderr: str) -> str:
+    """
+    ENTERPRISE: Klasyfikuje typ błędu na podstawie kodu wyjścia i STDERR.
+    """
+    stderr_lower = (stderr or "").lower()
+
+    # Mapowanie znanych kodów wyjścia
+    if returncode == 1:
+        if "permission" in stderr_lower or "access denied" in stderr_lower:
+            return "PERMISSION_DENIED"
+        if "not found" in stderr_lower or "no such" in stderr_lower:
+            return "FILE_NOT_FOUND"
+        if "connection" in stderr_lower or "timeout" in stderr_lower:
+            return "CONNECTION_ERROR"
+        return "GENERAL_ERROR"
+    elif returncode == 2:
+        return "INVALID_ARGUMENTS"
+    elif returncode == 126:
+        return "PERMISSION_DENIED (nie można wykonać)"
+    elif returncode == 127:
+        return "COMMAND_NOT_FOUND"
+    elif returncode == 128:
+        return "INVALID_EXIT_ARGUMENT"
+    elif returncode == 130:
+        return "INTERRUPTED (Ctrl+C)"
+    elif returncode == 137:
+        return "KILLED (OOM lub SIGKILL)"
+    elif returncode == 139:
+        return "SEGMENTATION_FAULT"
+    elif returncode == 143:
+        return "TERMINATED (SIGTERM)"
+    elif returncode > 128:
+        signal_num = returncode - 128
+        return f"KILLED_BY_SIGNAL_{signal_num}"
+    else:
+        return f"EXIT_CODE_{returncode}"
 
 
 # --- Klasa do rotacji User-Agentów ---

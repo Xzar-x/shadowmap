@@ -26,7 +26,7 @@ import utils
 
 urllib3.disable_warnings(InsecureRequestWarning)
 
-# --- Wzorce regularne ---
+# --- Wzorce regularne (fallback dla narzędzi bez JSON) ---
 ansi_escape_pattern = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 DIRSEARCH_RESULT_PATTERN = re.compile(
     r"^\[\d{2}:\d{2}:\d{2}\]\s+"
@@ -37,6 +37,89 @@ DIRSEARCH_RESULT_PATTERN = re.compile(
     r"(?:.*$|$)"
 )
 GENERIC_URL_PATTERN = re.compile(r"(https?://[^\s/$.?#].[^\s]*)")
+
+
+def _parse_json_output_file(
+    json_file_path: str, tool_name: str, base_url: str
+) -> List[str]:
+    """
+    Parsuje plik JSON wygenerowany przez narzędzie (ffuf, gobuster, feroxbuster).
+    Zwraca listę znalezionych URLi.
+    """
+    results: Set[str] = set()
+
+    if not os.path.exists(json_file_path):
+        return []
+
+    try:
+        with open(json_file_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read().strip()
+
+        if not content:
+            return []
+
+        if tool_name == "Ffuf":
+            # ffuf JSON format: {"results": [{"url": "...", "status": 200, ...}, ...]}
+            data = json.loads(content)
+            for result in data.get("results", []):
+                url = result.get("url", "")
+                if url:
+                    results.add(url.strip().rstrip("/"))
+
+        elif tool_name == "Gobuster":
+            # gobuster JSON format: JSONL (jedna linia = jeden obiekt)
+            # {"status": 200, "url": "http://...", "path": "/admin", ...}
+            for line in content.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    # Gobuster może zwracać 'url' lub trzeba złożyć z 'path'
+                    url = obj.get("url", "")
+                    if not url and obj.get("path"):
+                        path = obj["path"]
+                        url = f"{base_url.rstrip('/')}{path if path.startswith('/') else '/' + path}"
+                    if url:
+                        results.add(url.strip().rstrip("/"))
+                except json.JSONDecodeError:
+                    continue
+
+        elif tool_name == "Feroxbuster":
+            # feroxbuster JSON format: JSONL
+            # {"type": "response", "url": "http://...", "status": 200, ...}
+            for line in content.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    if obj.get("type") == "response":
+                        url = obj.get("url", "")
+                        if url:
+                            results.add(url.strip().rstrip("/"))
+                except json.JSONDecodeError:
+                    continue
+
+    except json.JSONDecodeError as e:
+        utils.log_and_echo(f"Błąd parsowania JSON dla {tool_name}: {e}", "WARN")
+    except Exception as e:
+        utils.log_and_echo(f"Błąd odczytu pliku JSON {tool_name}: {e}", "ERROR")
+
+    # Filtrowanie ignorowanych rozszerzeń
+    filtered_results = []
+    for url in results:
+        try:
+            path_part = url.split("?")[0].split("#")[0]
+            if "." in path_part:
+                extension = path_part.split(".")[-1].lower()
+                if extension in config.IGNORED_EXTENSIONS:
+                    continue
+        except Exception:
+            pass
+        filtered_results.append(url)
+
+    return filtered_results
 
 
 def _select_wordlist_based_on_tech(
@@ -197,8 +280,16 @@ def _parse_tool_output_line(
 
 
 def _run_and_parse_dir_tool(
-    tool_name: str, command: List[str], target_url: str, timeout: int
+    tool_name: str,
+    command: List[str],
+    target_url: str,
+    timeout: int,
+    json_output_file: Optional[str] = None,
 ) -> Tuple[str, List[str]]:
+    """
+    Uruchamia narzędzie do skanowania katalogów i parsuje wyniki.
+    Preferuje JSON output (jeśli dostępny) dla większej precyzji.
+    """
     results: Set[str] = set()
     cmd_str = " ".join(f'"{p}"' if " " in p else p for p in command)
     utils.console.print(
@@ -230,16 +321,29 @@ def _run_and_parse_dir_tool(
                 f.write("\n\n--- STDERR ---\n\n")
                 f.write(process.stderr)
 
-        for line in process.stdout.splitlines():
-            parsed_url = _parse_tool_output_line(line, tool_name, base_url=target_url)
-            if parsed_url:
-                results.add(parsed_url)
+        # Preferuj parsowanie JSON jeśli plik istnieje
+        if json_output_file and os.path.exists(json_output_file):
+            json_results = _parse_json_output_file(
+                json_output_file, tool_name, target_url
+            )
+            results.update(json_results)
+            utils.log_and_echo(
+                f"{tool_name}: Sparsowano {len(json_results)} wyników z JSON", "DEBUG"
+            )
+        else:
+            # Fallback do parsowania regex (dla Dirsearch lub gdy brak JSON)
+            for line in process.stdout.splitlines():
+                parsed_url = _parse_tool_output_line(
+                    line, tool_name, base_url=target_url
+                )
+                if parsed_url:
+                    results.add(parsed_url)
 
         if process.returncode == 0:
             msg = f"✅ {tool_name} zakończył. Znaleziono {len(results)} URLi."
             utils.console.print(f"[bold green]{msg}[/bold green]")
         else:
-            msg = f"{tool_name} zakończył z błędem " f"(kod: {process.returncode})."
+            msg = f"{tool_name} zakończył z błędem (kod: {process.returncode})."
             utils.log_and_echo(msg, "WARN")
 
     except subprocess.TimeoutExpired:
@@ -371,12 +475,29 @@ def start_dir_search(
                         continue
                     cmd = list(cfg["base_cmd"])
                     threads = "1" if config.SAFE_MODE else str(config.THREADS)
+                    json_output_file = None  # Plik JSON dla narzędzi wspierających
 
                     # ZMIANA: Pobranie globalnego UA (może być custom)
                     current_ua = utils.user_agent_rotator.get()
 
+                    # Przygotowanie ścieżki do pliku JSON
+                    phase3_dir = os.path.join(config.REPORT_DIR, "faza3_dirsearch")
+                    sanitized_target = (
+                        re.sub(r"https?://", "", v_url)
+                        .replace("/", "_")
+                        .replace(":", "_")
+                    )
+
                     if cfg["name"] == "Ffuf":
+                        # ENTERPRISE: JSON output dla precyzyjnego parsowania
+                        json_output_file = os.path.join(
+                            phase3_dir,
+                            f"ffuf_{sanitized_target}_{uuid.uuid4().hex[:8]}.json",
+                        )
                         cmd.extend(["-w", f"{wordlist}:FUZZ", "-t", threads])
+                        cmd.extend(
+                            ["-o", json_output_file, "-of", "json"]
+                        )  # JSON output
                         if config.RECURSION_DEPTH_P3 > 0:
                             cmd.extend(
                                 [
@@ -397,7 +518,15 @@ def start_dir_search(
                         cmd.extend(["-u", f"{v_url}/FUZZ"])
 
                     elif cfg["name"] == "Feroxbuster":
+                        # ENTERPRISE: JSON output dla precyzyjnego parsowania
+                        json_output_file = os.path.join(
+                            phase3_dir,
+                            f"feroxbuster_{sanitized_target}_{uuid.uuid4().hex[:8]}.json",
+                        )
                         cmd.extend(["-w", wordlist, "-t", threads, "-u", v_url])
+                        cmd.extend(
+                            ["--output", json_output_file, "--json"]
+                        )  # JSON output
                         if config.RECURSION_DEPTH_P3 > 0:
                             cmd.extend(["--depth", str(config.RECURSION_DEPTH_P3)])
                         else:
@@ -411,6 +540,7 @@ def start_dir_search(
                             cmd.extend(["-S", str(wc_size)])
 
                     elif cfg["name"] == "Dirsearch":
+                        # Dirsearch - używamy regex fallback (brak natywnego JSON CLI)
                         cmd.extend(["-w", wordlist, "-t", threads, "-u", v_url])
                         if config.RECURSION_DEPTH_P3 > 0:
                             cmd.extend(
@@ -423,7 +553,6 @@ def start_dir_search(
                         if config.SAFE_MODE:
                             cmd.extend(["--delay", "1-2.5"])
 
-                        # ZMIANA: Dodanie UA dla Dirsearch
                         cmd.extend(["-H", f"User-Agent: {current_ua}"])
 
                         if not config.DIRSEARCH_SMART_FILTER:
@@ -435,11 +564,19 @@ def start_dir_search(
                                 cmd.extend(["--exclude-lengths", str(wc_size)])
 
                     elif cfg["name"] == "Gobuster":
+                        # ENTERPRISE: JSON output dla precyzyjnego parsowania
+                        json_output_file = os.path.join(
+                            phase3_dir,
+                            f"gobuster_{sanitized_target}_{uuid.uuid4().hex[:8]}.json",
+                        )
                         cmd.extend(["-w", wordlist, "-t", threads, "-k", "-u", v_url])
+                        cmd.extend(
+                            ["-o", json_output_file, "--no-error"]
+                        )  # Output file
+                        # Gobuster dir mode: dodaj -q dla quiet i parsuj z pliku
                         if config.SAFE_MODE:
                             cmd.extend(["--delay", "1500ms"])
 
-                        # ZMIANA: Dodanie UA dla Gobuster
                         cmd.extend(["-a", current_ua])
 
                         wc_status = wildcard.get("status")
@@ -452,6 +589,7 @@ def start_dir_search(
                         cmd,
                         v_url,
                         config.TOOL_TIMEOUT_SECONDS,
+                        json_output_file,  # Przekazanie ścieżki JSON
                     )
                     futures_map[future] = url
 

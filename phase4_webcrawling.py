@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 
+import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, Set, cast
 from urllib.parse import urlparse
@@ -20,16 +24,56 @@ import config
 import utils
 
 
+def _parse_katana_json_output(json_file_path: str) -> List[str]:
+    """
+    Parsuje plik JSON wygenerowany przez Katana.
+    Katana z -jsonl generuje JSONL (jedna linia = jeden obiekt).
+    Format: {"timestamp": "...", "request": {...}, "response": {...}, "endpoint": "http://..."}
+    """
+    results: Set[str] = set()
+
+    if not os.path.exists(json_file_path):
+        return []
+
+    try:
+        with open(json_file_path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    # Katana może używać różnych kluczy w zależności od wersji
+                    url = (
+                        obj.get("endpoint")
+                        or obj.get("url")
+                        or obj.get("request", {}).get("endpoint", "")
+                    )
+                    if url and url.startswith("http"):
+                        results.add(url.strip())
+                except json.JSONDecodeError:
+                    # Fallback: jeśli linia wygląda jak URL
+                    if line.startswith("http"):
+                        results.add(line)
+                    continue
+    except Exception as e:
+        utils.log_and_echo(f"Błąd parsowania JSON Katana: {e}", "WARN")
+
+    return list(results)
+
+
 def _run_and_parse_crawl_tool(
     tool_name: str,
     command: List[str],
     target_url: str,
     timeout: int,
     input_text: Optional[str] = None,
+    json_output_file: Optional[str] = None,
 ) -> List[str]:
     """
     Uruchamia narzędzie do web crawlingu i parsuje jego output.
     Obsługuje również narzędzia wymagające danych na STDIN (input_text).
+    Preferuje JSON output dla większej precyzji (Enterprise Grade).
     """
     results: Set[str] = set()
     cmd_str = " ".join(f'"{p}"' if " " in p else p for p in command)
@@ -62,49 +106,59 @@ def _run_and_parse_crawl_tool(
                 f"STDERR ({tool_name}): {process.stderr[:200]}...", "DEBUG"
             )
 
-        # Parsowanie wyników
-        output_lines = process.stdout.splitlines()
+        # ENTERPRISE: Preferuj parsowanie JSON jeśli dostępne (Katana)
+        if (
+            json_output_file
+            and os.path.exists(json_output_file)
+            and tool_name == "Katana"
+        ):
+            json_results = _parse_katana_json_output(json_output_file)
+            for url in json_results:
+                if utils.is_target_in_scope(url):
+                    results.add(url)
+            utils.log_and_echo(
+                f"{tool_name}: Sparsowano {len(json_results)} wyników z JSON", "DEBUG"
+            )
+        else:
+            # Fallback do parsowania regex
+            output_lines = process.stdout.splitlines()
 
-        # Specyficzne parsowanie dla różnych narzędzi
-        for line in output_lines:
-            line = line.strip()
-            if not line:
-                continue
+            for line in output_lines:
+                line = line.strip()
+                if not line:
+                    continue
 
-            # Usuń kody kolorów ANSI
-            ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-            clean_line = ansi_escape.sub("", line)
+                # Usuń kody kolorów ANSI
+                ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+                clean_line = ansi_escape.sub("", line)
 
-            found_url = ""
+                found_url = ""
 
-            if tool_name == "ParamSpider":
-                # ParamSpider zwraca: [green]URL[/green] lub po prostu URL
-                if clean_line.startswith("http"):
-                    found_url = clean_line
+                if tool_name == "ParamSpider":
+                    # ParamSpider zwraca: [green]URL[/green] lub po prostu URL
+                    if clean_line.startswith("http"):
+                        found_url = clean_line
 
-            elif tool_name == "LinkFinder":
-                # LinkFinder: zazwyczaj " Link: http..." lub po prostu w outputcie
-                if "http" in clean_line:
-                    match = re.search(r"(https?://[\w\.-]+\S+)", clean_line)
-                    if match:
-                        found_url = match.group(1)
+                elif tool_name == "LinkFinder":
+                    # LinkFinder: zazwyczaj " Link: http..." lub po prostu w outputcie
+                    if "http" in clean_line:
+                        match = re.search(r"(https?://[\w\.-]+\S+)", clean_line)
+                        if match:
+                            found_url = match.group(1)
 
-            elif tool_name in ["Katana", "Hakrawler", "Gauplus"]:
-                # Te narzędzia zazwyczaj wypluwają czyste URL-e
-                if clean_line.startswith("http"):
-                    found_url = clean_line
+                elif tool_name in ["Katana", "Hakrawler", "Gauplus"]:
+                    # Te narzędzia zazwyczaj wypluwają czyste URL-e
+                    if clean_line.startswith("http"):
+                        found_url = clean_line
 
-            # --- KLUCZOWE: FILTROWANIE ZAKRESU (SCOPE) ---
-            if found_url:
-                # Normalizacja
-                found_url = found_url.strip()
+                # --- KLUCZOWE: FILTROWANIE ZAKRESU (SCOPE) ---
+                if found_url:
+                    # Normalizacja
+                    found_url = found_url.strip()
 
-                # Sprawdź, czy URL jest w zakresie
-                if utils.is_target_in_scope(found_url):
-                    results.add(found_url)
-                else:
-                    # Opcjonalnie loguj odrzucone (debug)
-                    pass
+                    # Sprawdź, czy URL jest w zakresie
+                    if utils.is_target_in_scope(found_url):
+                        results.add(found_url)
 
     except subprocess.TimeoutExpired:
         utils.console.print(f"[yellow]Timeout dla {tool_name} na {target_url}[/yellow]")
@@ -138,9 +192,9 @@ def start_web_crawl(
 
     tools_to_run: List[Dict[str, Any]] = []
 
-    # 1. Katana
+    # 1. Katana - ENTERPRISE: JSON output dla precyzyjnego parsowania
     if config.selected_phase4_tools[0]:
-        base_cmd = ["katana", "-silent", "-jc"]
+        base_cmd = ["katana", "-silent", "-jc", "-jsonl"]  # JSONL output
         # Dodaj UA
         base_cmd.extend(["-H", f"User-Agent: {current_ua}"])
 
@@ -156,6 +210,7 @@ def start_web_crawl(
                 "cmd_template": base_cmd,
                 "use_stdin": False,
                 "arg_format": ["-u", "TARGET"],
+                "use_json_output": True,  # Flag dla JSON output
             }
         )
 
@@ -229,6 +284,7 @@ def start_web_crawl(
                 cmd_template = cast(List[str], tool.get("cmd_template"))
                 use_stdin = cast(bool, tool.get("use_stdin"))
                 arg_format = cast(List[str], tool.get("arg_format"))
+                use_json_output = tool.get("use_json_output", False)
 
                 exe_name = config.TOOL_EXECUTABLE_MAP.get(tool_name)
 
@@ -242,6 +298,24 @@ def start_web_crawl(
 
                 cmd = cmd_template.copy()
                 input_str = None
+                json_output_file = None
+
+                # ENTERPRISE: Generowanie ścieżki JSON dla narzędzi wspierających
+                if use_json_output:
+                    phase4_dir = os.path.join(config.REPORT_DIR, "faza4_webcrawling")
+                    os.makedirs(phase4_dir, exist_ok=True)
+                    sanitized_target = (
+                        re.sub(r"https?://", "", target)
+                        .replace("/", "_")
+                        .replace(":", "_")
+                    )
+                    json_output_file = os.path.join(
+                        phase4_dir,
+                        f"{tool_name.lower()}_{sanitized_target}_{uuid.uuid4().hex[:8]}.jsonl",
+                    )
+                    # Dodaj flagę output do komendy Katana
+                    if tool_name == "Katana":
+                        cmd.extend(["-o", json_output_file])
 
                 if arg_format:
                     for arg in arg_format:
@@ -262,6 +336,7 @@ def start_web_crawl(
                     target,
                     config.TOOL_TIMEOUT_SECONDS,
                     input_str,
+                    json_output_file,  # ENTERPRISE: Przekazanie ścieżki JSON
                 )
                 futures_map[future] = tool_name
 
