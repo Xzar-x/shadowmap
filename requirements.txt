@@ -1,0 +1,7 @@
+rich
+questionary
+pyfiglet
+typer
+requests
+webtech
+urllib3
