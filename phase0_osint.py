@@ -90,9 +90,9 @@ def get_whois_info(domain: str) -> Dict[str, Any]:
                 f.write("\n--- STDERR ---\n")
                 f.write(process.stderr)
 
-        if process.returncode != 0 and "No whois server" not in process.stderr:
-            utils.log_and_echo(f"Błąd 'whois': {process.stderr}", "WARN")
-            return {"Error": "Nie można pobrać danych WHOIS."}
+        if process.returncode != 0:
+            utils.log_and_echo(f"Brak danych WHOIS dla {domain}: {process.stderr.strip() or 'brak wpisu'}", "DEBUG")
+            return {"Error": "Brak danych WHOIS (domena lokalna lub niezarejestrowana)."}
 
         patterns = {
             "registrar": r"Registrar:\s*(.*)",
@@ -244,7 +244,7 @@ def get_webtech_info(target_url: str) -> List[str]:
             try:
                 results = json.loads(results_obj)
             except json.JSONDecodeError:
-                utils.log_and_echo("Błąd parsowania JSON z webtech.", "WARN")
+                utils.log_and_echo("Błąd parsowania JSON z webtech.", "DEBUG")
                 return []
         elif isinstance(results_obj, dict):
             results = results_obj

@@ -147,6 +147,8 @@ def execute_tool_command(
                 console.print(
                     f"[bold red]❌ {tool_name}: {error_type} (kod: {process.returncode})[/bold red]"
                 )
+                if process.stderr and process.stderr.strip():
+                    console.print(f"[red]{process.stderr.strip()}[/red]")
 
         return output_file
 
@@ -530,10 +532,19 @@ def handle_safe_mode_tor_check():
 
 
 def log_and_echo(message: str, level: str = "INFO"):
+    """Loguje wiadomość do pliku logu i/lub wyświetla na konsoli.
+
+    ERROR i WARN są zawsze wyświetlane na konsoli.
+    INFO i DEBUG trafiają tylko do pliku logu.
+    """
     log_level = getattr(logging, level.upper(), logging.INFO)
     color = LOG_COLOR_MAP.get(level.upper(), "white")
-    if level == "ERROR":
+    level_upper = level.upper()
+    if level_upper == "ERROR":
         console.print(escape(message), style=f"bold {color}")
+    elif level_upper == "WARN":
+        # WARN jest ważny - wyświetl na konsoli ale nie bold
+        console.print(f"[{color}]⚠️ {escape(message)}[/{color}]")
     if config.LOG_FILE:
         logging.log(log_level, message)
 
@@ -718,7 +729,9 @@ def check_required_tools() -> List[str]:
         "wafw00f",
         "subfinder",
         "assetfinder",
+        "findomain",
         "puredns",
+        "massdns",
         "httpx",
         "naabu",
         "ffuf",
@@ -732,5 +745,17 @@ def check_required_tools() -> List[str]:
         "gauplus",
     ]
 
-    missing_tools = [tool for tool in required_tools if not shutil.which(tool)]
+    missing_tools = []
+    for tool in required_tools:
+        p = shutil.which(tool)
+        if not p:
+            missing_tools.append(tool)
+        elif tool == "httpx":
+            try:
+                res = subprocess.run([p, "-version"], capture_output=True, text=True, timeout=3)
+                out = (res.stdout + res.stderr).lower()
+                if "projectdiscovery" not in out and not ("httpx" in out and "version" in out and "butterfly" not in out and "next generation" not in out):
+                    missing_tools.append(tool)
+            except Exception:
+                missing_tools.append(tool)
     return missing_tools

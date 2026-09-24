@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import sys
 import time
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
@@ -30,6 +31,18 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
     """
     Uruchamia skanowanie Fazy 1 w celu odkrycia subdomen i ich weryfikacji.
     """
+    if config.TARGET_IS_IP:
+        utils.console.print(
+            Align.center(
+                f"[yellow]Cel '{config.ORIGINAL_TARGET}' jest adresem IP. "
+                f"Pomijam Fazę 1 (Odkrywanie Subdomen).[/yellow]"
+            )
+        )
+        active_urls = [
+            {"url": config.ORIGINAL_TARGET, "status_code": 200, "last_modified": None}
+        ]
+        return {}, active_urls, [config.CLEAN_DOMAIN_TARGET]
+
     utils.console.print(
         Align.center(
             f"[bold green]Rozpoczynam Fazę 1 - Odkrywanie Subdomen dla "
@@ -138,12 +151,12 @@ def start_phase1_scan() -> Tuple[Dict[str, str], List[Dict[str, Any]], List[str]
                 and tool_exe
                 and tool_exe not in config.MISSING_TOOLS
             ):
-                is_passive = tool_cfg["name"] in [
-                    "Subfinder",
-                    "Assetfinder",
-                    "Findomain",
-                ]
-                if config.TARGET_IS_IP and is_passive:
+                if tool_cfg["name"] == "Puredns" and not shutil.which("massdns"):
+                    utils.console.print(
+                        Align.center(
+                            "[yellow]Puredns wymaga 'massdns' w PATH. Pomijam Puredns.[/yellow]"
+                        )
+                    )
                     continue
                 output_path = os.path.join(
                     phase1_dir, f"{tool_cfg['name'].lower()}_results.txt"
