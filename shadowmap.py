@@ -208,18 +208,24 @@ def parse_target_input(target_input: str):
 def detect_waf_and_propose_safe_mode():
     if "wafw00f" in config.MISSING_TOOLS:
         return
-    panel_title = "[cyan]Detekcja WAF[/cyan]"
-    panel_text = Text("Sprawdzam ochronę WAF...", justify="center")
-    utils.console.print(Align.center(Panel(panel_text, title=panel_title)))
+
+    target_to_check = config.ORIGINAL_TARGET or f"http://{config.HOSTNAME_TARGET}"
+    command = [
+        "wafw00f",
+        "-T",
+        "8",
+        "--no-colors",
+        target_to_check,
+    ]
+    if config.PROXY:
+        command.extend(["-p", config.PROXY])
+
     try:
-        command = [
-            "wafw00f",
-            "-T",
-            "150",
-            "--no-colors",
-            config.ORIGINAL_TARGET,
-        ]
-        process = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        with utils.console.status(
+            "[bold cyan]Sprawdzam ochronę WAF (wafw00f)...[/bold cyan]",
+            spinner="dots",
+        ):
+            process = subprocess.run(command, capture_output=True, text=True, timeout=35)
 
         waf_match = re.search(r"is behind\s+([^\n(]+)", process.stdout)
         if waf_match:
@@ -250,7 +256,11 @@ def detect_waf_and_propose_safe_mode():
                     )
                 )
             )
-
+    except subprocess.TimeoutExpired:
+        utils.log_and_echo(
+            "Detekcja WAF: przekroczono limit czasu (host nie odpowiada na zapytania WAF). Pomijam sprawdzanie WAF.",
+            "WARN",
+        )
     except Exception as e:
         utils.log_and_echo(f"Błąd podczas uruchamiania wafw00f: {e}", "ERROR")
 
