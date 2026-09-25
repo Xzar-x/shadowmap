@@ -378,13 +378,22 @@ def get_searchsploit_info(
         for tech in technologies:
             try:
                 tech_name, versions = _extract_version(tech)
+                # Pomijamy generyczne nazwy systemów operacyjnych bez wersji (np. samo 'Ubuntu' lub 'Linux')
+                # aby nie zaśmiecać raportu dziesiątkami starych, lokalnych exploitów jądra z 2005 roku
+                generic_os = {
+                    "ubuntu", "debian", "linux", "windows", "unix",
+                    "centos", "redhat", "fedora", "freebsd", "openbsd", "macos"
+                }
+                if not versions and tech_name.strip().lower() in generic_os:
+                    continue
+
                 # Czyścimy nazwę technologii z dziwnych znaków
                 search_terms = re.findall(r"[\w.-]+", tech_name)
 
                 # Dodaj pierwszą znalezioną wersję do wyszukiwania
                 # To zawęża wyniki searchsploit, co jest dobre
                 current_version = versions[0] if versions else ""
-                if current_version:
+                if current_version and current_version not in search_terms:
                     search_terms.append(current_version)
 
                 if not search_terms:
@@ -405,31 +414,29 @@ def get_searchsploit_info(
                     data = json.loads(process.stdout)
                     exploits = data.get("RESULTS_EXPLOIT")
                     if exploits:
-                        if tech not in results:
-                            results[tech] = []
-
                         scored_exploits = []
                         for exploit in exploits:
                             score, inferred_type = _score_exploit(
                                 exploit, current_version
                             )
 
-                            # Filtrujemy totalne śmieci (opcjonalnie można zmienić próg)
-                            # Ale na razie zbieramy wszystko > 0
-                            scored_exploits.append(
-                                {
-                                    "title": exploit.get("Title", "N/A"),
-                                    "path": exploit.get("Path", "N/A"),
-                                    "id": exploit.get("EDB-ID", "N/A"),
-                                    "score": score,
-                                    "type": inferred_type,
-                                }
-                            )
+                            # Filtrujemy exploity z zerowym lub ujemnym wynikiem
+                            if score > 0:
+                                scored_exploits.append(
+                                    {
+                                        "title": exploit.get("Title", "N/A"),
+                                        "path": exploit.get("Path", "N/A"),
+                                        "id": exploit.get("EDB-ID", "N/A"),
+                                        "score": score,
+                                        "type": inferred_type,
+                                    }
+                                )
 
-                        # Sortuj exploity od najwyższego wyniku
-                        results[tech] = sorted(
-                            scored_exploits, key=lambda x: x["score"], reverse=True
-                        )
+                        # Zapisujemy tylko jeśli znaleziono pasujące exploity
+                        if scored_exploits:
+                            results[tech] = sorted(
+                                scored_exploits, key=lambda x: x["score"], reverse=True
+                            )
 
             except FileNotFoundError:
                 msg = "Polecenie 'searchsploit' nie jest zainstalowane."

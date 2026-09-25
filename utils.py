@@ -662,8 +662,12 @@ def shuffle_wordlist(input_path: str, report_dir: str) -> Optional[str]:
         target_dir = report_dir if report_dir else None
 
         with open(input_path, "r", encoding="utf-8", errors="ignore") as f:
-            # Czytamy, stripujemy i dodajemy nową linię, aby uniknąć sklejania słów
-            lines = [line.strip() + "\n" for line in f if line.strip()]
+            # Czytamy, stripujemy, odrzucamy komentarze '#' i dodajemy nową linię
+            lines = [
+                line.strip() + "\n"
+                for line in f
+                if line.strip() and not line.strip().startswith("#")
+            ]
 
         if not lines:
             log_and_echo(f"Wordlist is empty: {input_path}", "WARN")

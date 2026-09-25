@@ -64,7 +64,9 @@ def _parse_json_output_file(
             for result in data.get("results", []):
                 url = result.get("url", "")
                 if url:
-                    results.add(url.strip().rstrip("/"))
+                    clean_u = url.strip().rstrip("/")
+                    if "#" not in clean_u and clean_u != base_url.rstrip("/"):
+                        results.add(clean_u)
 
         elif tool_name == "Gobuster":
             # gobuster JSON format: JSONL (jedna linia = jeden obiekt)
@@ -81,7 +83,9 @@ def _parse_json_output_file(
                         path = obj["path"]
                         url = f"{base_url.rstrip('/')}{path if path.startswith('/') else '/' + path}"
                     if url:
-                        results.add(url.strip().rstrip("/"))
+                        clean_u = url.strip().rstrip("/")
+                        if "#" not in clean_u and clean_u != base_url.rstrip("/"):
+                            results.add(clean_u)
                 except json.JSONDecodeError:
                     continue
 
@@ -97,7 +101,9 @@ def _parse_json_output_file(
                     if obj.get("type") == "response":
                         url = obj.get("url", "")
                         if url:
-                            results.add(url.strip().rstrip("/"))
+                            clean_u = url.strip().rstrip("/")
+                            if "#" not in clean_u and clean_u != base_url.rstrip("/"):
+                                results.add(clean_u)
                 except json.JSONDecodeError:
                     continue
 
@@ -267,16 +273,20 @@ def _parse_tool_output_line(
             full_url = generic_match.group(1)
 
     if full_url:
+        clean_full = full_url.strip().rstrip("/")
+        if "#" in clean_full or (base_url and clean_full == base_url.rstrip("/")):
+            return None
         try:
-            path_part = full_url.split("?")[0].split("#")[0]
+            path_part = clean_full.split("?")[0].split("#")[0]
             if "." in path_part:
                 extension = path_part.split(".")[-1].lower()
                 if extension in config.IGNORED_EXTENSIONS:
                     return None
         except Exception:
             pass
+        return clean_full
 
-    return full_url.strip().rstrip("/") if full_url else None
+    return None
 
 
 def _run_and_parse_dir_tool(
@@ -429,7 +439,7 @@ def start_dir_search(
         {
             "name": "Dirsearch",
             "enabled": config.selected_phase3_tools[2],
-            "base_cmd": ["dirsearch", "--full-url"],
+            "base_cmd": ["dirsearch", "--full-url", "-q"],
         },
         {
             "name": "Gobuster",
@@ -494,7 +504,7 @@ def start_dir_search(
                             phase3_dir,
                             f"ffuf_{sanitized_target}_{uuid.uuid4().hex[:8]}.json",
                         )
-                        cmd.extend(["-w", f"{wordlist}:FUZZ", "-t", threads])
+                        cmd.extend(["-w", f"{wordlist}:FUZZ", "-t", threads, "-ic"])
                         cmd.extend(
                             ["-o", json_output_file, "-of", "json"]
                         )  # JSON output

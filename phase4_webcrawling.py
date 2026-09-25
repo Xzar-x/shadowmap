@@ -179,6 +179,28 @@ def start_web_crawl(
         Align.center("[bold green]Rozpoczynam Fazę 4 - Web Crawling[/bold green]")
     )
 
+    # Oczyszczenie celów z fragmentów URL (#...), białych znaków i duplikatów
+    cleaned_targets: List[str] = []
+    seen_targets: Set[str] = set()
+    for raw_target in targets:
+        if not raw_target:
+            continue
+        cleaned = raw_target.split("#")[0].strip().rstrip("/")
+        if cleaned and cleaned not in seen_targets:
+            seen_targets.add(cleaned)
+            cleaned_targets.append(cleaned)
+    targets = cleaned_targets
+
+    if not targets:
+        utils.log_and_echo("Brak prawidłowych celów do crawlowania w Fazie 4.", "INFO")
+        return {
+            "all_urls": [],
+            "parameters": [],
+            "js_files": [],
+            "api_endpoints": [],
+            "interesting_paths": [],
+        }
+
     # Globalny kontener na wyniki
     all_crawled_urls: Set[str] = set()
     parameters_found: Set[str] = set()
